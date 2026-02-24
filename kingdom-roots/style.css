@@ -1,0 +1,723 @@
+/* Logo beside Kingdom Roots title */
+.header-logo-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.app-logo-img {
+  width: 48px;
+  height: 48px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  object-fit: contain;
+}
+/* Tree Stage Image Animations */
+/* Center the tree stage display */
+#treeStageImages {
+  position: relative;
+  width: 250px;
+  height: 350px;
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
+}
+/* Tree Stage Image Animations */
+.tree-stage-img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  z-index: 0;
+  pointer-events: none;
+  transform: scale(0.96) translateY(10px);
+  transition: opacity 0.7s cubic-bezier(0.4,0,0.2,1),
+              transform 0.7s cubic-bezier(0.4,0,0.2,1);
+}
+
+.tree-stage-img.active {
+  opacity: 1;
+  z-index: 1;
+  pointer-events: auto;
+  transform: scale(1.04) translateY(0);
+  animation: treeGrowIn 0.7s cubic-bezier(0.4,0,0.2,1);
+}
+
+@keyframes treeGrowIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(30px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08) translateY(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.04) translateY(0);
+  }
+}
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(to bottom, #f0f8ff, #d0e6d6);
+  text-align: center;
+  padding: 2rem;
+  margin: 0;
+}
+
+/* Tree Animation Keyframes */
+@keyframes growIn {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fadeInSmooth {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bloom {
+  0% {
+    opacity: 0;
+    r: 0;
+  }
+  50% {
+    opacity: 0.7;
+    r: 8px;
+  }
+  100% {
+    opacity: 1;
+    r: 7px;
+  }
+}
+
+@keyframes fruitPop {
+  0% {
+    opacity: 0;
+    r: 2px;
+  }
+  50% {
+    opacity: 1.2;
+    r: 7px;
+  }
+  100% {
+    opacity: 1;
+    r: 6px;
+  }
+}
+
+@keyframes fruitBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Authentication Container */
+.auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2rem;
+}
+
+.auth-screen {
+  display: none;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.auth-screen.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-card {
+  background: white;
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+  max-width: 420px;
+  width: 100%;
+}
+
+.auth-card h1 {
+  color: #333;
+  margin: 0 0 0.5rem 0;
+  font-size: 2.5rem;
+}
+
+.auth-subtitle {
+  color: #666;
+  margin: 0 0 2rem 0;
+  font-size: 1.1rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.3s;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin-top: 0.5rem;
+}
+
+/* Tree Stage Animations */
+.tree-stage-animating {
+  animation: growIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#flowers.blooming circle {
+  animation: bloom 0.6s ease-out forwards;
+}
+
+#fruits circle {
+  animation: fruitPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+#fullFlowers circle {
+  animation: bloom 0.6s ease-out forwards;
+}
+
+.auth-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(102, 126, 234, 0.3);
+}
+
+.auth-btn.secondary {
+  background: #ddd;
+  color: #333;
+  margin-left: 0.5rem;
+}
+
+.auth-btn.secondary:hover {
+  background: #bbb;
+}
+
+.error-message {
+  color: #e74c3c;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.auth-link {
+  color: #666;
+  font-size: 0.95rem;
+  margin-top: 1rem;
+}
+
+.auth-link a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-link a:hover {
+  text-decoration: underline;
+}
+
+/* App Container */
+.app-container {
+  background: linear-gradient(to bottom, #f0f8ff, #d0e6d6);
+  min-height: 100vh;
+  padding: 0;
+  margin: 0;
+}
+
+.app-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 1.5rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.user-greeting {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.profile-btn,
+.logout-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+  min-width: auto;
+}
+
+.profile-btn:hover,
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: white;
+  transform: translateY(-2px);
+}
+
+.container {
+  padding: 2rem;
+  max-width: 600px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background-color: #ffffff;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideIn 0.3s ease;
+  position: relative;
+}
+
+/* Profile Modal Styles */
+.profile-section {
+  margin: 1.5rem 0;
+  padding: 1.5rem 0;
+  border-bottom: 2px solid #eee;
+}
+
+.profile-section:last-child {
+  border-bottom: none;
+}
+
+.profile-info p {
+  margin: 0.8rem 0;
+  text-align: left;
+  color: #555;
+}
+
+.profile-info strong {
+  color: #333;
+}
+
+.settings-btn {
+  display: block;
+  width: 100%;
+  padding: 0.8rem;
+  margin: 0.5rem 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.settings-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(102, 126, 234, 0.3);
+}
+
+.settings-btn.danger-btn {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+}
+
+.settings-btn.danger-btn:hover {
+  box-shadow: 0 6px 12px rgba(231, 76, 60, 0.3);
+}
+
+.close {
+  color: #aaa;
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+.close:hover {
+  color: #000;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+#photoInput {
+  display: block;
+  margin: 1rem auto;
+  padding: 0.5rem;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#qr-reader {
+  border: 2px solid #6abf69;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+#qr-reader > div:first-child {
+  padding: 0 !important;
+}
+
+.modal-buttons {
+  margin-top: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.modal-buttons button {
+  padding: 0.6rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.modal-buttons button:not(.cancel-btn) {
+  background-color: #6abf69;
+  color: white;
+  flex: 1;
+}
+
+.modal-buttons button:not(.cancel-btn):hover {
+  background-color: #4cae4c;
+}
+
+.cancel-btn {
+  background-color: #ddd;
+  color: #333;
+  flex: 1;
+}
+
+.cancel-btn:hover {
+  background-color: #bbb;
+}
+
+.upgrade-btn {
+  display: block;
+  margin: 1rem auto;
+  padding: 0.7rem 1.5rem;
+  font-size: 0.95rem;
+  border: none;
+  border-radius: 8px;
+  background-color: #4CAF50;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.upgrade-btn:hover {
+  background-color: #45a049;
+}
+
+#tree {
+  margin: 2rem auto;
+  display: block;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+  transition: transform 0.3s ease;
+}
+
+#tree:hover {
+  transform: scale(1.05);
+}
+
+#flowers {
+  transition: opacity 0.6s ease-in;
+}
+
+#flowers.blooming {
+  opacity: 1;
+  animation: bloom 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0) translate(0, 20px);
+    filter: blur(5px);
+  }
+  50% {
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translate(0, 0);
+    filter: blur(0);
+  }
+}
+
+@keyframes fruitBounce {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.progress-container {
+  margin: 2rem 0 1.5rem 0;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f5f9ff 0%, #e8f5e9 100%);
+  border-radius: 12px;
+  border: 2px solid #4CAF50;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.1);
+}
+
+.progress-bar-bg {
+  width: 100%;
+  height: 30px;
+  background-color: #e0e0e0;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50 0%, #81C784 50%, #A5D6A7 100%);
+  border-radius: 20px;
+  width: 0%;
+  transition: width 0.5s ease;
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+}
+
+.progress-text {
+  text-align: center;
+  color: #2e7d32;
+  font-weight: bold;
+  font-size: 1rem;
+  margin: 0;
+}
+
+button {
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  border: none;
+  border-radius: 8px;
+  background-color: #6abf69;
+  color: white;
+  cursor: pointer;
+  flex: 1;
+  min-width: 150px;
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  background-color: #4cae4c;
+  transform: scale(1.05);
+}
+
+#shareGospelBtn {
+  background-color: #FF6B35;
+  font-weight: bold;
+  animation: pulse 1.5s infinite;
+}
+
+#shareGospelBtn:hover {
+  background-color: #E55100;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(255, 107, 53, 0);
+  }
+}
+
+#scriptureBox {
+  margin-top: 2rem;
+  font-style: italic;
+  color: #555;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  body {
+    padding: 1rem;
+  }
+
+  .auth-card {
+    padding: 2rem 1.5rem;
+  }
+
+  .auth-card h1 {
+    font-size: 2rem;
+  }
+
+  .app-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .app-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .header-right {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .container {
+    padding: 1.5rem;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+
+  .button-group button {
+    min-width: auto;
+  }
+
+  .modal-buttons {
+    flex-direction: column;
+  }
+
+  .modal-buttons button {
+    flex: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 1.5rem 1rem;
+  }
+
+  .auth-card h1 {
+    font-size: 1.5rem;
+  }
+
+  .form-group input {
+    font-size: 16px;
+  }
+
+  button {
+    min-width: auto;
+  }
+
+  .profile-btn,
+  .logout-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+}

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kingdom Roots</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/html5-qrcode@2.3.4/dist/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <!-- Authentication Screens -->
+  <div id="authContainer" class="auth-container">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="auth-screen active">
+      <div class="auth-card">
+        <h1>🌱 Kingdom Roots</h1>
+        <p class="auth-subtitle">Grow your faith journey</p>
+        <form id="loginForm" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label for="loginEmail">Email</label>
+            <input type="email" id="loginEmail" placeholder="Enter your email" required>
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" placeholder="Enter your password" required>
+          </div>
+          <button type="submit" class="auth-btn">Login</button>
+          <p id="loginError" class="error-message"></p>
+        </form>
+        <p class="auth-link">Don't have an account? <a href="#" onclick="switchToRegister()">Register here</a></p>
+        <p class="auth-link"><a href="#" onclick="switchToForgotPassword()">Forgot password?</a></p>
+      </div>
+    </div>
+
+    <!-- Registration Screen -->
+    <div id="registerScreen" class="auth-screen">
+      <div class="auth-card">
+        <h1>🌱 Kingdom Roots</h1>
+        <p class="auth-subtitle">Create your account</p>
+        <form id="registerForm" onsubmit="handleRegister(event)">
+          <div class="form-group">
+            <label for="regName">Full Name</label>
+            <input type="text" id="regName" placeholder="Enter your name" required>
+          </div>
+          <div class="form-group">
+            <label for="regEmail">Email</label>
+            <input type="email" id="regEmail" placeholder="Enter your email" required>
+          </div>
+          <div class="form-group">
+            <label for="regPassword">Password</label>
+            <input type="password" id="regPassword" placeholder="Create a password (min 6 chars)" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label for="regConfirmPassword">Confirm Password</label>
+            <input type="password" id="regConfirmPassword" placeholder="Confirm your password" required>
+          </div>
+          <button type="submit" class="auth-btn">Register</button>
+          <p id="registerError" class="error-message"></p>
+        </form>
+        <p class="auth-link">Already have an account? <a href="#" onclick="switchToLogin()">Login here</a></p>
+      </div>
+    </div>
+
+    <!-- Forgot Password Screen -->
+    <div id="forgotPasswordScreen" class="auth-screen">
+      <div class="auth-card">
+        <h1>🌱 Kingdom Roots</h1>
+        <p class="auth-subtitle">Reset your password</p>
+        <div id="forgotStep1">
+          <p>Enter your email to receive a reset code</p>
+          <div class="form-group">
+            <label for="forgotEmail">Email</label>
+            <input type="email" id="forgotEmail" placeholder="Enter your email" required>
+          </div>
+          <button onclick="sendResetCode()" class="auth-btn">Send Reset Code</button>
+          <p id="forgotError" class="error-message"></p>
+        </div>
+        <div id="forgotStep2" style="display: none;">
+          <p>Enter the reset code sent to your email and create a new password</p>
+          <div class="form-group">
+            <label for="resetCode">Reset Code</label>
+            <input type="text" id="resetCode" placeholder="Enter the code (check email)">
+          </div>
+          <div class="form-group">
+            <label for="newPassword">New Password</label>
+            <input type="password" id="newPassword" placeholder="Enter new password" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label for="confirmNewPassword">Confirm Password</label>
+            <input type="password" id="confirmNewPassword" placeholder="Confirm new password" required>
+          </div>
+          <button onclick="resetPasswordWithCode()" class="auth-btn">Reset Password</button>
+          <button onclick="goBackToForgot()" class="auth-btn secondary">Back</button>
+          <p id="resetError" class="error-message"></p>
+        </div>
+        <p class="auth-link"><a href="#" onclick="switchToLogin()">Back to Login</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App Container -->
+  <div id="appContainer" class="app-container" style="display: none;">
+    <!-- Header with User Info and Logout -->
+    <div class="app-header">
+      <div class="header-logo-title">
+        <img src="logo-a.jpg" alt="Logo" class="app-logo-img">
+        <h1>Kingdom Roots</h1>
+      </div>
+      <div class="header-right">
+        <span class="user-greeting" id="userGreeting"></span>
+        <button onclick="openProfileModal()" class="profile-btn">👤 Profile</button>
+        <button onclick="handleLogout()" class="logout-btn">Logout</button>
+      </div>
+    </div>
+
+    <div class="container">
+    <h1>🌱 Kingdom Roots</h1>
+    <p>Faith Points: <span id="faithPoints">0</span></p>
+    <button onclick="openUpgradeModal()" class="upgrade-btn">Upgrade Roots (Cost: <span id="upgradeCost">10</span> FP)</button>
+    <svg id="tree" viewBox="0 0 250 350" width="250" height="350">
+      <!-- Tree Stage Images -->
+      <div id="treeStageImages" style="position: relative; width: 250px; height: 350px;">
+        <div id="seedStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <ellipse cx="60" cy="90" rx="18" ry="10" fill="#8B7355"/>
+            <ellipse cx="60" cy="85" rx="12" ry="8" fill="#A67C52"/>
+          </svg>
+        </div>
+        <div id="germinationStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <ellipse cx="60" cy="90" rx="18" ry="10" fill="#8B7355"/>
+            <ellipse cx="60" cy="85" rx="12" ry="8" fill="#A67C52"/>
+            <path d="M60 85 Q62 75 65 70 Q68 65 70 60" stroke="#388E3C" stroke-width="4" fill="none"/>
+            <ellipse cx="70" cy="60" rx="6" ry="10" fill="#66BB6A"/>
+          </svg>
+        </div>
+        <div id="saplingStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <ellipse cx="60" cy="100" rx="18" ry="10" fill="#8B7355"/>
+            <rect x="57" y="70" width="6" height="30" fill="#A67C52"/>
+            <path d="M60 90 Q65 80 70 75" stroke="#388E3C" stroke-width="3" fill="none"/>
+            <ellipse cx="70" cy="75" rx="7" ry="12" fill="#66BB6A"/>
+            <ellipse cx="60" cy="70" rx="7" ry="12" fill="#66BB6A"/>
+          </svg>
+        </div>
+        <div id="youngTreeStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <ellipse cx="60" cy="110" rx="18" ry="10" fill="#8B7355"/>
+            <rect x="57" y="60" width="6" height="50" fill="#A67C52"/>
+            <ellipse cx="60" cy="60" rx="25" ry="18" fill="#66BB6A"/>
+            <ellipse cx="80" cy="70" rx="12" ry="8" fill="#388E3C"/>
+            <ellipse cx="40" cy="70" rx="12" ry="8" fill="#388E3C"/>
+          </svg>
+        </div>
+        <div id="matureTreeStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <ellipse cx="60" cy="115" rx="22" ry="12" fill="#8B7355"/>
+            <rect x="54" y="50" width="12" height="65" fill="#A67C52"/>
+            <ellipse cx="60" cy="60" rx="35" ry="25" fill="#388E3C"/>
+            <ellipse cx="80" cy="70" rx="18" ry="12" fill="#66BB6A"/>
+            <ellipse cx="40" cy="70" rx="18" ry="12" fill="#66BB6A"/>
+          </svg>
+        </div>
+        <div id="oldTreeStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <ellipse cx="60" cy="115" rx="26" ry="14" fill="#8B7355"/>
+            <rect x="52" y="40" width="16" height="75" fill="#A67C52"/>
+            <ellipse cx="60" cy="55" rx="45" ry="32" fill="#388E3C"/>
+            <ellipse cx="85" cy="70" rx="22" ry="15" fill="#66BB6A"/>
+            <ellipse cx="35" cy="70" rx="22" ry="15" fill="#66BB6A"/>
+          </svg>
+        </div>
+      </div>
+    <div id="progressDisplay" class="progress-container">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+      </div>
+      <p id="progressText" class="progress-text">📈 0/50 points to Germination</p>
+    </div>
+    <div class="button-group">
+      <button onclick="openUploadModal('pray')">Pray (+1 FP)</button>
+      <button onclick="openUploadModal('bible')">Read Bible (+1 FP)</button>
+      <button onclick="openUploadModal('devotion')">Devotion Time (+3 FP)</button>
+      <button onclick="openQrScanner()">Attend Service (+5 FP)</button>
+      <button id="shareGospelBtn" onclick="shareGospel()" style="display: none;">Share Gospel (+10 FP)</button>
+    </div>
+    <div id="scriptureBox"></div>
+    </div>
+  </div>
+
+  <!-- User Profile Modal -->
+  <div id="profileModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeProfileModal()">&times;</span>
+      <h2>👤 User Profile</h2>
+      <div class="profile-section">
+        <div class="profile-info">
+          <p><strong>Name:</strong> <span id="profileName"></span></p>
+          <p><strong>Email:</strong> <span id="profileEmail"></span></p>
+          <p><strong>Joined:</strong> <span id="profileJoined"></span></p>
+        </div>
+      </div>
+      <div class="profile-section">
+        <h3>⚙️ Settings</h3>
+        <button onclick="openChangePasswordModal()" class="settings-btn">Change Password</button>
+        <button onclick="downloadUserData()" class="settings-btn">Download My Data</button>
+        <button onclick="deleteAccountConfirm()" class="settings-btn danger-btn">Delete Account</button>
+      </div>
+      <div class="modal-buttons">
+        <button onclick="closeProfileModal()" class="auth-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div id="changePasswordModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeChangePasswordModal()">&times;</span>
+      <h2>Change Password</h2>
+      <form id="changePasswordForm" onsubmit="handleChangePassword(event)">
+        <div class="form-group">
+          <label for="currentPassword">Current Password</label>
+          <input type="password" id="currentPassword" placeholder="Enter current password" required>
+        </div>
+        <div class="form-group">
+          <label for="newPassChange">New Password</label>
+          <input type="password" id="newPassChange" placeholder="Enter new password (min 6 chars)" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="confirmPassChange">Confirm New Password</label>
+          <input type="password" id="confirmPassChange" placeholder="Confirm new password" required>
+        </div>
+        <p id="changePassError" class="error-message"></p>
+        <div class="modal-buttons">
+          <button type="submit" class="auth-btn">Update Password</button>
+          <button type="button" onclick="closeChangePasswordModal()" class="cancel-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Photo Upload Modal -->
+  <div id="uploadModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeUploadModal()">&times;</span>
+      <h2>Share Your <span id="actionName">Prayer</span></h2>
+      <p>Upload a photo to receive bonus points!</p>
+      <input type="file" id="photoInput" accept="image/*" />
+      <img id="photoPreview" style="max-width: 100%; margin-top: 1rem; display: none;" />
+      <div class="modal-buttons">
+        <button onclick="submitPhoto()">Submit Photo</button>
+        <button onclick="closeUploadModal()" class="cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Scanner Modal -->
+  <div id="qrModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeQrScanner()">&times;</span>
+      <h2>Scan Church QR Code</h2>
+      <p>Point your camera at the QR code at your church</p>
+      <div id="qr-reader" style="width: 100%; margin: 1rem 0;"></div>
+      <p id="qr-status" style="margin-top: 1rem; text-align: center; min-height: 20px;"></p>
+      <button onclick="closeQrScanner()" class="cancel-btn" style="margin-top: 1rem; width: 100%;">Close Scanner</button>
+    </div>
+  </div>
+
+  <!-- Upgrade Modal -->
+  <div id="upgradeModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeUpgradeModal()">&times;</span>
+      <h2>Upgrade Your Roots</h2>
+      <p id="upgradeCostText">Cost: <span id="upgradeCostAmount">10</span> FP</p>
+      <div class="modal-buttons">
+        <button onclick="confirmUpgrade()">Upgrade Roots</button>
+        <button id="useAllPointsModalBtn" onclick="useAllPoints()" style="display: none; background-color: #9C27B0;">Use All Points</button>
+        <button onclick="closeUpgradeModal()" class="cancel-btn">Cancel</button>
+      </div>
+      <p id="insufficientFpMessage" style="color: red; margin-top: 1rem; display: none;">Insufficient FP for upgrade</p>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
