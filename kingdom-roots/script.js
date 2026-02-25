@@ -550,11 +550,13 @@ function switchToForgotPassword() {
   document.getElementById('forgotStep2').style.display = 'none';
 }
 
-function handleLogin(event) {
+async function handleLogin(event) {
   event.preventDefault();
   const email = document.getElementById('loginEmail').value;
   const password = document.getElementById('loginPassword').value;
   const normalizedEmail = normalizeEmail(email);
+
+  await syncUsersFromCloudToLocal();
   
   const users = JSON.parse(localStorage.getItem('users') || '[]');
   const user = users.find(
@@ -562,17 +564,31 @@ function handleLogin(event) {
   );
   
   if (user) {
+    const userIndex = users.findIndex(u => Number(u.id) === Number(user.id));
+    const normalizedUser = normalizeStoredUser(user, user.id);
+    normalizedUser.viewMode = isAdminEmail(normalizedUser.email) ? 'admin' : (normalizedUser.viewMode ?? 'user');
+
+    if (userIndex !== -1) {
+      users[userIndex] = normalizedUser;
+      setStoredUsers(users);
+    } else {
+      users.push(normalizedUser);
+      setStoredUsers(users);
+    }
+
+    upsertUserInCloud(normalizedUser);
+
     currentUser = {
-      ...user,
-      role: getRoleByEmail(user.email),
-      viewMode: isAdminEmail(user.email) ? 'admin' : (user.viewMode ?? 'user'),
-      faithPoints: user.faithPoints ?? 0,
-      treeProgress: user.treeProgress ?? 0,
-      passiveRate: user.passiveRate ?? 1,
-      fruitCount: user.fruitCount ?? 0,
-      pointsForFruit: user.pointsForFruit ?? 0,
-      maxBloomReached: user.maxBloomReached ?? false,
-      taskCompletions: user.taskCompletions ?? {}
+      ...normalizedUser,
+      role: getRoleByEmail(normalizedUser.email),
+      viewMode: isAdminEmail(normalizedUser.email) ? 'admin' : (normalizedUser.viewMode ?? 'user'),
+      faithPoints: normalizedUser.faithPoints ?? 0,
+      treeProgress: normalizedUser.treeProgress ?? 0,
+      passiveRate: normalizedUser.passiveRate ?? 1,
+      fruitCount: normalizedUser.fruitCount ?? 0,
+      pointsForFruit: normalizedUser.pointsForFruit ?? 0,
+      maxBloomReached: normalizedUser.maxBloomReached ?? false,
+      taskCompletions: normalizedUser.taskCompletions ?? {}
     };
     delete currentUser.password;
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -1253,6 +1269,10 @@ function openUploadModal(action) {
   document.getElementById("actionName").textContent = reward.name;
   document.getElementById("photoInput").value = '';
   document.getElementById("photoPreview").style.display = 'none';
+  const submitPhotoBtn = document.getElementById('submitPhotoBtn');
+  if (submitPhotoBtn) {
+    submitPhotoBtn.disabled = true;
+  }
   const modal = document.getElementById("uploadModal");
   modal.style.display = 'flex';
   console.log('Modal opened for:', action);
@@ -1262,10 +1282,21 @@ function closeUploadModal() {
   console.log('Closing modal');
   const modal = document.getElementById("uploadModal");
   modal.style.display = 'none';
+  const submitPhotoBtn = document.getElementById('submitPhotoBtn');
+  if (submitPhotoBtn) {
+    submitPhotoBtn.disabled = true;
+  }
   currentAction = '';
 }
 
 function submitPhoto() {
+  const photoInputElement = document.getElementById('photoInput');
+  const selectedFile = photoInputElement?.files?.[0];
+  if (!selectedFile) {
+    alert('Please attach an image before submitting.');
+    return;
+  }
+
   const recurrenceCheck = canCompleteTask(currentAction);
   if (!recurrenceCheck.allowed) {
     alert(recurrenceCheck.message);
@@ -1585,6 +1616,11 @@ const photoInput = document.getElementById('photoInput');
 if (photoInput) {
   photoInput.addEventListener('change', function(e) {
     const file = e.target.files[0];
+    const submitPhotoBtn = document.getElementById('submitPhotoBtn');
+    if (submitPhotoBtn) {
+      submitPhotoBtn.disabled = !file;
+    }
+
     if (file) {
       const reader = new FileReader();
       reader.onload = function(event) {
@@ -1595,6 +1631,12 @@ if (photoInput) {
         }
       };
       reader.readAsDataURL(file);
+    } else {
+      const preview = document.getElementById('photoPreview');
+      if (preview) {
+        preview.style.display = 'none';
+        preview.removeAttribute('src');
+      }
     }
   });
 }
