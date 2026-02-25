@@ -625,7 +625,27 @@ function handleLogout() {
 }
 
 function openProfileModal() {
+  if (isAdminEmail(currentUser?.email)) {
+    if (currentUser.role !== 'admin') {
+      currentUser.role = 'admin';
+    }
+    if (currentUser.viewMode !== 'admin') {
+      currentUser.viewMode = 'admin';
+    }
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  }
+
   applyViewModeUI();
+
+  const toggleBtn = document.getElementById('switchAdminViewBtn');
+  if (toggleBtn) {
+    const isAdmin = isAdminEmail(currentUser?.email);
+    toggleBtn.style.display = isAdmin ? 'block' : 'none';
+    if (isAdmin) {
+      toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Admin View';
+    }
+  }
+
   document.getElementById('profileName').textContent = currentUser.name;
   document.getElementById('profileEmail').textContent = currentUser.email;
   document.getElementById('profileJoined').textContent = currentUser.joinedDate;
