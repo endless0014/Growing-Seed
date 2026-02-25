@@ -211,11 +211,13 @@ body {
 
 .auth-screen {
   display: none;
+  width: 100%;
+  justify-content: center;
   animation: fadeIn 0.5s ease-in-out;
 }
 
 .auth-screen.active {
-  display: block;
+  display: flex;
 }
 
 @keyframes fadeIn {
