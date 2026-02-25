@@ -1,15 +1,99 @@
 // Authentication System
 let currentUser = null;
+const RETAINED_TEST_EMAIL = 'endlesssh0014@gmail.com';
+const ADMIN_EMAIL = 'endlesssh0014@gmail.com';
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function getRoleByEmail(email) {
+  return normalizeEmail(email) === normalizeEmail(ADMIN_EMAIL) ? 'admin' : 'user';
+}
+
+function enforceAdminRoleInStorage() {
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  const safeUsers = Array.isArray(users) ? users : [];
+  let usersChanged = false;
+
+  const normalizedUsers = safeUsers.map(user => {
+    const expectedRole = getRoleByEmail(user.email);
+    if (user.role !== expectedRole) {
+      usersChanged = true;
+      return { ...user, role: expectedRole };
+    }
+    return user;
+  });
+
+  if (usersChanged) {
+    localStorage.setItem('users', JSON.stringify(normalizedUsers));
+  }
+
+  const currentUserRaw = localStorage.getItem('currentUser');
+  if (currentUserRaw) {
+    try {
+      const parsedCurrentUser = JSON.parse(currentUserRaw);
+      const expectedRole = getRoleByEmail(parsedCurrentUser.email);
+      if (parsedCurrentUser.role !== expectedRole) {
+        parsedCurrentUser.role = expectedRole;
+        localStorage.setItem('currentUser', JSON.stringify(parsedCurrentUser));
+      }
+    } catch {
+      localStorage.removeItem('currentUser');
+    }
+  }
+}
+
+function retainOnlyTestUserDataOnce() {
+  const cleanupKey = 'kingdomRootsRetainTestUserCleanupV1';
+  if (localStorage.getItem(cleanupKey) === 'done') {
+    return;
+  }
+
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  const safeUsers = Array.isArray(users) ? users : [];
+  const retainedUsers = safeUsers.filter(user => normalizeEmail(user.email) === normalizeEmail(RETAINED_TEST_EMAIL));
+  localStorage.setItem('users', JSON.stringify(retainedUsers));
+
+  const currentUserRaw = localStorage.getItem('currentUser');
+  if (currentUserRaw) {
+    try {
+      const parsedCurrentUser = JSON.parse(currentUserRaw);
+      if (normalizeEmail(parsedCurrentUser?.email) !== normalizeEmail(RETAINED_TEST_EMAIL)) {
+        localStorage.removeItem('currentUser');
+      }
+    } catch {
+      localStorage.removeItem('currentUser');
+    }
+  }
+
+  const resetRequests = JSON.parse(localStorage.getItem('resetRequests') || '{}');
+  const safeResetRequests = resetRequests && typeof resetRequests === 'object' ? resetRequests : {};
+  const retainedResetRequests = {};
+  const retainedResetRequestKey = Object.keys(safeResetRequests).find(
+    email => normalizeEmail(email) === normalizeEmail(RETAINED_TEST_EMAIL)
+  );
+  if (retainedResetRequestKey) {
+    retainedResetRequests[retainedResetRequestKey] = safeResetRequests[retainedResetRequestKey];
+  }
+  localStorage.setItem('resetRequests', JSON.stringify(retainedResetRequests));
+
+  localStorage.setItem(cleanupKey, 'done');
+}
 
 // Initialize app
 function initializeApp() {
+  retainOnlyTestUserDataOnce();
+  enforceAdminRoleInStorage();
   currentUser = localStorage.getItem('currentUser');
   
   if (currentUser) {
     currentUser = JSON.parse(currentUser);
     showAppInterface();
+    loadUserData();
     updateDisplay();
   } else {
+    resetGameState();
     showAuthInterface();
   }
 }
@@ -23,6 +107,316 @@ function showAppInterface() {
   document.getElementById('authContainer').style.display = 'none';
   document.getElementById('appContainer').style.display = 'block';
   document.getElementById('userGreeting').textContent = `Welcome, ${currentUser.name}!`;
+  applyViewModeUI();
+}
+
+function isAdminUser() {
+  return currentUser?.role === 'admin' || getRoleByEmail(currentUser?.email) === 'admin';
+}
+
+function getCurrentViewMode() {
+  if (!currentUser) {
+    return 'user';
+  }
+
+  if (!isAdminUser()) {
+    return 'user';
+  }
+
+  return currentUser.viewMode === 'admin' ? 'admin' : 'user';
+}
+
+function applyViewModeUI() {
+  const isAdmin = isAdminUser();
+  const mode = getCurrentViewMode();
+  const isAdminView = isAdmin && mode === 'admin';
+
+  if (isAdmin && currentUser && currentUser.role !== 'admin') {
+    currentUser.role = 'admin';
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  }
+
+  document.body.classList.toggle('admin-view', isAdminView);
+
+  const userMainContainer = document.getElementById('userMainContainer');
+  const adminDashboard = document.getElementById('adminDashboard');
+  if (userMainContainer) {
+    userMainContainer.style.display = isAdminView ? 'none' : 'block';
+  }
+  if (adminDashboard) {
+    adminDashboard.style.display = isAdminView ? 'block' : 'none';
+  }
+
+  const toggleBtn = document.getElementById('switchAdminViewBtn');
+  if (toggleBtn) {
+    if (isAdmin) {
+      toggleBtn.style.display = 'block';
+      toggleBtn.textContent = isAdminView ? 'Switch to User View' : 'Switch to Admin View';
+    } else {
+      toggleBtn.style.display = 'none';
+    }
+  }
+
+  const modeIndicator = document.getElementById('viewModeIndicator');
+  if (modeIndicator) {
+    modeIndicator.style.display = isAdmin ? 'inline-block' : 'none';
+    modeIndicator.textContent = isAdminView ? 'ADMIN VIEW' : 'USER VIEW';
+  }
+
+  if (isAdminView) {
+    renderAdminDashboard();
+  }
+}
+
+function toggleAdminView() {
+  if (getRoleByEmail(currentUser?.email) === 'admin' && currentUser?.role !== 'admin') {
+    currentUser.role = 'admin';
+  }
+
+  if (!isAdminUser()) {
+    alert('Only admin users can switch to admin view.');
+    return;
+  }
+
+  currentUser.viewMode = getCurrentViewMode() === 'admin' ? 'user' : 'admin';
+  applyViewModeUI();
+  saveUserData();
+}
+
+function renderAdminDashboard() {
+  if (!isAdminUser() || getCurrentViewMode() !== 'admin') {
+    return;
+  }
+
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  const safeUsers = Array.isArray(users) ? users : [];
+
+  const totalUsers = safeUsers.length;
+  const totalFaithPoints = safeUsers.reduce((sum, user) => {
+    const value = Number(user.faithPoints ?? 0);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+  const totalAdmins = safeUsers.filter(user => getRoleByEmail(user.email) === 'admin').length;
+
+  const totalUsersEl = document.getElementById('adminTotalUsers');
+  const totalFaithPointsEl = document.getElementById('adminTotalFaithPoints');
+  const totalAdminsEl = document.getElementById('adminTotalAdmins');
+
+  if (totalUsersEl) totalUsersEl.textContent = String(totalUsers);
+  if (totalFaithPointsEl) totalFaithPointsEl.textContent = String(Math.floor(totalFaithPoints));
+  if (totalAdminsEl) totalAdminsEl.textContent = String(totalAdmins);
+
+  const tbody = document.getElementById('adminUsersTableBody');
+  if (!tbody) {
+    return;
+  }
+
+  if (safeUsers.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6">No users found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = safeUsers
+    .map(user => {
+      const role = getRoleByEmail(user.email);
+      const name = escapeHtml(user.name || 'N/A');
+      const email = escapeHtml(user.email || 'N/A');
+      const faithPoints = Math.floor(Number(user.faithPoints ?? 0) || 0);
+      const treeProgress = Math.floor(Number(user.treeProgress ?? 0) || 0);
+      const userId = Number(user.id);
+      return `
+        <tr>
+          <td>${name}</td>
+          <td>${email}</td>
+          <td><span class="admin-role-badge ${role}">${role}</span></td>
+          <td>${faithPoints}</td>
+          <td>${treeProgress}</td>
+          <td>
+            <div class="admin-actions">
+              <button class="admin-action-btn points" onclick="adminAddPoints(${userId})">+Points</button>
+              <button class="admin-action-btn password" onclick="adminResetPassword(${userId})">Reset PW</button>
+              <button class="admin-action-btn progress" onclick="adminResetProgress(${userId})">Reset Progress</button>
+              <button class="admin-action-btn view" onclick="adminViewProgress(${userId})">View</button>
+              <button class="admin-action-btn open" onclick="adminOpenUserUi(${userId})">Open UI</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+function assertAdminDashboardAccess() {
+  if (!isAdminUser() || getCurrentViewMode() !== 'admin') {
+    alert('Admin dashboard access required.');
+    return false;
+  }
+  return true;
+}
+
+function getStoredUsersSafe() {
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  return Array.isArray(users) ? users : [];
+}
+
+function setStoredUsers(users) {
+  localStorage.setItem('users', JSON.stringify(users));
+}
+
+function findUserIndexById(users, userId) {
+  return users.findIndex(user => Number(user.id) === Number(userId));
+}
+
+function syncCurrentSessionIfNeeded(updatedUser) {
+  if (currentUser && Number(currentUser.id) === Number(updatedUser.id)) {
+    currentUser = {
+      ...currentUser,
+      ...updatedUser,
+      role: getRoleByEmail(updatedUser.email),
+      viewMode: currentUser.viewMode ?? updatedUser.viewMode ?? 'user'
+    };
+    delete currentUser.password;
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    loadUserData();
+    updateDisplay();
+  }
+}
+
+function adminAddPoints(userId) {
+  if (!assertAdminDashboardAccess()) return;
+
+  const pointsInput = prompt('Enter points to add:', '10');
+  if (pointsInput === null) return;
+
+  const points = Number(pointsInput);
+  if (!Number.isFinite(points) || points <= 0) {
+    alert('Please enter a valid positive number.');
+    return;
+  }
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    alert('User not found.');
+    return;
+  }
+
+  users[userIndex].faithPoints = Math.floor(Number(users[userIndex].faithPoints ?? 0) + points);
+  users[userIndex].treeProgress = Math.floor(Number(users[userIndex].treeProgress ?? 0) + points);
+  setStoredUsers(users);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard();
+}
+
+function adminResetPassword(userId) {
+  if (!assertAdminDashboardAccess()) return;
+
+  const newPassword = prompt('Enter new password (min 6 characters):', 'password123');
+  if (newPassword === null) return;
+
+  if (newPassword.length < 6) {
+    alert('Password must be at least 6 characters.');
+    return;
+  }
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    alert('User not found.');
+    return;
+  }
+
+  users[userIndex].password = newPassword;
+  setStoredUsers(users);
+  alert(`Password reset for ${users[userIndex].email}`);
+}
+
+function adminResetProgress(userId) {
+  if (!assertAdminDashboardAccess()) return;
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    alert('User not found.');
+    return;
+  }
+
+  const targetEmail = users[userIndex].email;
+  const confirmReset = confirm(`Reset progress for ${targetEmail}?`);
+  if (!confirmReset) return;
+
+  users[userIndex].faithPoints = 0;
+  users[userIndex].treeProgress = 0;
+  users[userIndex].passiveRate = 1;
+  users[userIndex].fruitCount = 0;
+  users[userIndex].pointsForFruit = 0;
+  users[userIndex].maxBloomReached = false;
+  users[userIndex].taskCompletions = {};
+
+  setStoredUsers(users);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard();
+}
+
+function adminViewProgress(userId) {
+  if (!assertAdminDashboardAccess()) return;
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    alert('User not found.');
+    return;
+  }
+
+  const user = users[userIndex];
+  const progressMessage = [
+    `Name: ${user.name || 'N/A'}`,
+    `Email: ${user.email || 'N/A'}`,
+    `Role: ${getRoleByEmail(user.email)}`,
+    `Faith Points: ${Math.floor(Number(user.faithPoints ?? 0) || 0)}`,
+    `Tree Progress: ${Math.floor(Number(user.treeProgress ?? 0) || 0)}`,
+    `Fruits: ${Math.floor(Number(user.fruitCount ?? 0) || 0)}`
+  ].join('\n');
+
+  alert(progressMessage);
+}
+
+function adminOpenUserUi(userId) {
+  if (!assertAdminDashboardAccess()) return;
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    alert('User not found.');
+    return;
+  }
+
+  const selectedUser = { ...users[userIndex] };
+  const proceed = confirm(`Open actual UI as ${selectedUser.email}?\nYou can return by logging back in as admin.`);
+  if (!proceed) return;
+
+  const nextSessionUser = {
+    ...selectedUser,
+    role: getRoleByEmail(selectedUser.email),
+    viewMode: 'user'
+  };
+
+  delete nextSessionUser.password;
+  currentUser = nextSessionUser;
+  localStorage.setItem('currentUser', JSON.stringify(nextSessionUser));
+  closeProfileModal();
+  showAppInterface();
+  loadUserData();
+  updateDisplay();
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function switchToRegister() {
@@ -53,11 +447,24 @@ function handleLogin(event) {
   const user = users.find(u => u.email === email && u.password === password);
   
   if (user) {
-    currentUser = { ...user };
+    currentUser = {
+      ...user,
+      role: getRoleByEmail(user.email),
+      viewMode: user.viewMode ?? 'user',
+      faithPoints: user.faithPoints ?? 0,
+      treeProgress: user.treeProgress ?? 0,
+      passiveRate: user.passiveRate ?? 1,
+      fruitCount: user.fruitCount ?? 0,
+      pointsForFruit: user.pointsForFruit ?? 0,
+      maxBloomReached: user.maxBloomReached ?? false,
+      taskCompletions: user.taskCompletions ?? {}
+    };
     delete currentUser.password;
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
     clearAuthErrors();
     showAppInterface();
+    loadUserData();
+    updateDisplay();
   } else {
     document.getElementById('loginError').textContent = 'Invalid email or password';
   }
@@ -88,10 +495,17 @@ function handleRegister(event) {
     id: Date.now(),
     name,
     email,
+    role: getRoleByEmail(email),
+    viewMode: 'user',
     password,
     joinedDate: new Date().toLocaleDateString(),
     faithPoints: 0,
-    treeProgress: 0
+    treeProgress: 0,
+    passiveRate: 1,
+    fruitCount: 0,
+    pointsForFruit: 0,
+    maxBloomReached: false,
+    taskCompletions: {}
   };
   
   users.push(newUser);
@@ -99,13 +513,13 @@ function handleRegister(event) {
   
   currentUser = { ...newUser };
   delete currentUser.password;
-  currentUser.faithPoints = 0;
-  currentUser.treeProgress = 0;
   localStorage.setItem('currentUser', JSON.stringify(currentUser));
   
   clearAuthErrors();
   document.getElementById('registerForm').reset();
   showAppInterface();
+  resetGameState();
+  updateDisplay();
 }
 
 function sendResetCode() {
@@ -200,6 +614,7 @@ function handleLogout() {
 }
 
 function openProfileModal() {
+  applyViewModeUI();
   document.getElementById('profileName').textContent = currentUser.name;
   document.getElementById('profileEmail').textContent = currentUser.email;
   document.getElementById('profileJoined').textContent = currentUser.joinedDate;
@@ -277,7 +692,7 @@ function downloadUserData() {
   const url = URL.createObjectURL(dataBlob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `kingdom-roots-data-${Date.now()}.json`;
+  link.download = `growing-seed-data-${Date.now()}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -307,15 +722,30 @@ function clearAuthErrors() {
 }
 
 // Game Logic
-let faithPoints = 3650;
+let faithPoints = 0;
 let treeProgress = 0;
 let passiveRate = 1;
 let upgradeCost = 10;
 let currentAction = '';
 let html5QrcodeScanner = null;
+let isQrScannerRunning = false;
 let maxBloomReached = false;
 let pointsForFruit = 0;
 let fruitCount = 0;
+let taskCompletions = {};
+const FULL_BLOOM_THRESHOLD = 3650;
+
+function resetGameState() {
+  faithPoints = 0;
+  treeProgress = 0;
+  passiveRate = 1;
+  upgradeCost = 10;
+  currentAction = '';
+  maxBloomReached = false;
+  pointsForFruit = 0;
+  fruitCount = 0;
+  taskCompletions = {};
+}
 
 const scriptures = [
   "The kingdom of God is like a mustard seed... – Matthew 13:31",
@@ -327,8 +757,143 @@ const scriptures = [
 const actionRewards = {
   'pray': { fp: 1, fpMultiplier: 10, bonus: 0, name: 'Prayer' },
   'bible': { fp: 1, fpMultiplier: 10, bonus: 0, name: 'Bible Reading' },
-  'devotion': { fp: 3, fpMultiplier: 10, bonus: 0, name: 'Devotional Time' }
+  'devotion': { fp: 3, fpMultiplier: 10, bonus: 0, name: 'Devotional Time' },
+  'smallgroup': { fp: 3, fpMultiplier: 10, bonus: 0, name: 'Small Group' },
+  'sharegospel': { fp: 10, fpMultiplier: 10, bonus: 0, name: 'Share Gospel' }
 };
+
+const taskRecurrenceRules = {
+  pray: { unit: 'day', label: 'once per day' },
+  bible: { unit: 'day', label: 'once per day' },
+  devotion: { unit: 'day', label: 'once per day' },
+  smallgroup: { unit: 'week', label: 'once per week' },
+  attendService: { unit: 'week', label: 'once per week' }
+};
+
+const taskDisplayNames = {
+  pray: 'Pray',
+  bible: 'Read Bible',
+  devotion: 'Devotion',
+  smallgroup: 'Small Group',
+  attendService: 'Attend Service'
+};
+
+const taskButtonBindings = {
+  pray: { buttonId: 'prayBtn' },
+  bible: { buttonId: 'bibleBtn' },
+  devotion: { buttonId: 'devotionBtn' },
+  smallgroup: { buttonId: 'smallgroupBtn' },
+  attendService: { buttonId: 'attendServiceBtn' }
+};
+
+function getYearWeekKey(date) {
+  const tempDate = new Date(date.getTime());
+  const day = tempDate.getDay() || 7;
+  tempDate.setDate(tempDate.getDate() + 4 - day);
+  const yearStart = new Date(tempDate.getFullYear(), 0, 1);
+  const weekNumber = Math.ceil((((tempDate - yearStart) / 86400000) + 1) / 7);
+  return `${tempDate.getFullYear()}-W${weekNumber}`;
+}
+
+function getCurrentPeriodKey(unit) {
+  const now = new Date();
+  if (unit === 'week') {
+    return getYearWeekKey(now);
+  }
+  return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+}
+
+function canCompleteTask(taskKey) {
+  const rule = taskRecurrenceRules[taskKey];
+  if (!rule) {
+    return { allowed: true };
+  }
+
+  const periodKey = getCurrentPeriodKey(rule.unit);
+  const lastCompletedPeriod = taskCompletions[taskKey];
+  if (lastCompletedPeriod === periodKey) {
+    return {
+      allowed: false,
+      message: `${taskDisplayNames[taskKey] || 'This task'} can only be completed ${rule.label}.`
+    };
+  }
+
+  return { allowed: true, periodKey };
+}
+
+function markTaskCompleted(taskKey, periodKey) {
+  const rule = taskRecurrenceRules[taskKey];
+  if (!rule) {
+    return;
+  }
+  taskCompletions[taskKey] = periodKey || getCurrentPeriodKey(rule.unit);
+}
+
+function applyTreeProgress(pointsToAdd, options = {}) {
+  const { addFaithPoints = true } = options;
+
+  if (addFaithPoints) {
+    faithPoints += pointsToAdd;
+  }
+
+  const previousTreeProgress = treeProgress;
+  treeProgress += pointsToAdd;
+
+  let fruitEligiblePoints = 0;
+
+  if (maxBloomReached) {
+    fruitEligiblePoints = pointsToAdd;
+  } else if (previousTreeProgress >= FULL_BLOOM_THRESHOLD) {
+    maxBloomReached = true;
+    fruitEligiblePoints = pointsToAdd;
+  } else if (previousTreeProgress < FULL_BLOOM_THRESHOLD && treeProgress >= FULL_BLOOM_THRESHOLD) {
+    maxBloomReached = true;
+    fruitEligiblePoints = treeProgress - FULL_BLOOM_THRESHOLD;
+  }
+
+  if (maxBloomReached && fruitEligiblePoints > 0) {
+    addFruitIfNeeded(fruitEligiblePoints);
+  }
+}
+
+function normalizeFruitProgressState() {
+  if (treeProgress < FULL_BLOOM_THRESHOLD) {
+    return;
+  }
+
+  if (!maxBloomReached) {
+    maxBloomReached = true;
+
+    if (fruitCount === 0 && pointsForFruit === 0) {
+      const overflowPoints = Math.max(0, treeProgress - FULL_BLOOM_THRESHOLD);
+      fruitCount = Math.floor(overflowPoints / 100);
+      pointsForFruit = overflowPoints % 100;
+    }
+  }
+}
+
+function isTaskDoneForCurrentPeriod(taskKey) {
+  const rule = taskRecurrenceRules[taskKey];
+  if (!rule) {
+    return false;
+  }
+
+  const currentPeriod = getCurrentPeriodKey(rule.unit);
+  return taskCompletions[taskKey] === currentPeriod;
+}
+
+function updateTaskBadges() {
+  Object.entries(taskButtonBindings).forEach(([taskKey, binding]) => {
+    const buttonEl = document.getElementById(binding.buttonId);
+    if (!buttonEl) {
+      return;
+    }
+
+    const isDone = isTaskDoneForCurrentPeriod(taskKey);
+    buttonEl.classList.toggle('task-done', isDone);
+    buttonEl.classList.toggle('task-not-done', !isDone);
+  });
+}
 
 function updateDisplay() {
   const faithPointsEl = document.getElementById("faithPoints");
@@ -337,8 +902,10 @@ function updateDisplay() {
   if (faithPointsEl) faithPointsEl.textContent = Math.floor(faithPoints);
   if (upgradeCostEl) upgradeCostEl.textContent = upgradeCost;
   
+  updateTaskBadges();
   updateProgressDisplay();
   updateTreeGrowth();
+  updateFruitVisuals();
   saveUserData();
 }
 
@@ -355,6 +922,8 @@ function saveUserData() {
       users[userIndex].fruitCount = fruitCount;
       users[userIndex].pointsForFruit = pointsForFruit;
       users[userIndex].maxBloomReached = maxBloomReached;
+      users[userIndex].taskCompletions = taskCompletions;
+      users[userIndex].viewMode = getCurrentViewMode();
       
       localStorage.setItem('users', JSON.stringify(users));
       
@@ -365,12 +934,37 @@ function saveUserData() {
       currentUser.fruitCount = fruitCount;
       currentUser.pointsForFruit = pointsForFruit;
       currentUser.maxBloomReached = maxBloomReached;
+      currentUser.taskCompletions = taskCompletions;
+      currentUser.viewMode = getCurrentViewMode();
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
     }
   }
 }
 
 function loadUserData() {
+  if (!currentUser) {
+    resetGameState();
+    return;
+  }
+
+  faithPoints = Number(currentUser.faithPoints ?? 0);
+  treeProgress = Number(currentUser.treeProgress ?? 0);
+  passiveRate = Number(currentUser.passiveRate ?? 1);
+  fruitCount = Number(currentUser.fruitCount ?? 0);
+  pointsForFruit = Number(currentUser.pointsForFruit ?? 0);
+  maxBloomReached = Boolean(currentUser.maxBloomReached ?? false);
+  taskCompletions = currentUser.taskCompletions && typeof currentUser.taskCompletions === 'object'
+    ? currentUser.taskCompletions
+    : {};
+  currentUser.viewMode = currentUser.viewMode ?? 'user';
+
+  if (!Number.isFinite(faithPoints)) faithPoints = 0;
+  if (!Number.isFinite(treeProgress)) treeProgress = 0;
+  if (!Number.isFinite(passiveRate) || passiveRate < 1) passiveRate = 1;
+  if (!Number.isFinite(fruitCount) || fruitCount < 0) fruitCount = 0;
+  if (!Number.isFinite(pointsForFruit) || pointsForFruit < 0) pointsForFruit = 0;
+  normalizeFruitProgressState();
+  applyViewModeUI();
 }
 
 function updateProgressDisplay() {
@@ -409,10 +1003,10 @@ function updateProgressDisplay() {
       currentStart = stage.threshold;
     }
     
-    // If we've reached 3650 progress exactly, show completion message
-    if (!foundStage && treeProgress >= 3650) {
+    // If we've reached the final stage, show completion message
+    if (!foundStage && treeProgress >= 1500) {
       progressPercent = 100;
-      progressTextContent = `📈 ${Math.floor(treeProgress)}/3650 - Mature Tree Complete! (Add progress for Old Tree & Fruits)`;
+      progressTextContent = `📈 ${Math.floor(treeProgress)}/1500 - Old Tree Complete!`;
     }
   }
   
@@ -425,6 +1019,7 @@ function updateTreeGrowth() {
   const stages = [
     { id: 'seedStageImg', key: 'seed' },
     { id: 'germinationStageImg', key: 'germination' },
+    { id: 'seedlingStageImg', key: 'seedling' },
     { id: 'saplingStageImg', key: 'sapling' },
     { id: 'youngTreeStageImg', key: 'youngTree' },
     { id: 'matureTreeStageImg', key: 'matureTree' },
@@ -499,6 +1094,12 @@ function animateFruitBurst(fruitElement) {
 }
 
 function openUploadModal(action) {
+  const recurrenceCheck = canCompleteTask(action);
+  if (!recurrenceCheck.allowed) {
+    alert(recurrenceCheck.message);
+    return;
+  }
+
   currentAction = action;
   const reward = actionRewards[action];
   document.getElementById("actionName").textContent = reward.name;
@@ -517,55 +1118,125 @@ function closeUploadModal() {
 }
 
 function submitPhoto() {
+  const recurrenceCheck = canCompleteTask(currentAction);
+  if (!recurrenceCheck.allowed) {
+    alert(recurrenceCheck.message);
+    closeUploadModal();
+    return;
+  }
+
   const reward = actionRewards[currentAction];
   const pointsToAdd = reward.fp * reward.fpMultiplier;
-  const previousFP = faithPoints;
-  faithPoints += pointsToAdd;
-  treeProgress += pointsToAdd;
-  
-  // Check if we've just crossed into bloom (3650+)
-  if (previousFP < 3650 && faithPoints >= 3650) {
-    maxBloomReached = true;
-  }
-  
-  if (maxBloomReached) {
-    addFruitIfNeeded(pointsToAdd);
-  }
+  applyTreeProgress(pointsToAdd);
+
+  markTaskCompleted(currentAction, recurrenceCheck.periodKey);
   showScripture();
   updateDisplay();
   closeUploadModal();
 }
 
-function openQrScanner() {
+async function stopQrScannerInstance() {
+  if (!html5QrcodeScanner) {
+    return;
+  }
+
+  try {
+    if (isQrScannerRunning) {
+      await html5QrcodeScanner.stop();
+    }
+  } catch (error) {
+    console.warn('QR stop warning:', error);
+  }
+
+  try {
+    await html5QrcodeScanner.clear();
+  } catch (error) {
+    console.warn('QR clear warning:', error);
+  }
+
+  html5QrcodeScanner = null;
+  isQrScannerRunning = false;
+}
+
+async function openQrScanner() {
+  const recurrenceCheck = canCompleteTask('attendService');
+  if (!recurrenceCheck.allowed) {
+    alert(recurrenceCheck.message);
+    return;
+  }
+
   console.log('Opening QR Scanner');
   document.getElementById("qrModal").style.display = 'flex';
   document.getElementById("qr-status").textContent = "Initializing camera...";
   document.getElementById("qr-status").style.color = "#333";
-  
-  // Clear previous scanner if exists
-  if (html5QrcodeScanner) {
-    html5QrcodeScanner.clear();
+
+  if (!window.isSecureContext) {
+    document.getElementById("qr-status").textContent = "Camera requires HTTPS. Please open the secure app URL.";
+    document.getElementById("qr-status").style.color = "red";
+    return;
   }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    document.getElementById("qr-status").textContent = "Camera is not supported on this browser/device.";
+    document.getElementById("qr-status").style.color = "red";
+    return;
+  }
+
+  const qrReader = document.getElementById("qr-reader");
+  if (qrReader) {
+    qrReader.innerHTML = '';
+  }
+  
+  await stopQrScannerInstance();
   
   // Start new scanner
   html5QrcodeScanner = new Html5Qrcode("qr-reader");
+  const scannerConfig = {
+    fps: 10,
+    qrbox: { width: 250, height: 250 }
+  };
+
+  const setReadyStatus = () => {
+    document.getElementById("qr-status").textContent = "Camera ready. Scan church QR code.";
+    document.getElementById("qr-status").style.color = "#2e7d32";
+  };
+
+  try {
+    await html5QrcodeScanner.start(
+      { facingMode: { ideal: "environment" } },
+      scannerConfig,
+      onQrCodeSuccess,
+      onQrCodeError
+    );
+    isQrScannerRunning = true;
+    setReadyStatus();
+    return;
+  } catch (primaryError) {
+    console.warn('Primary camera start failed, trying fallback cameras:', primaryError);
+  }
   
-  html5QrcodeScanner.start(
-    { facingMode: "environment" },
-    {
-      fps: 10,
-      qrbox: { width: 250, height: 250 }
-    },
-    onQrCodeSuccess,
-    onQrCodeError
-  ).catch(err => {
-    console.error('Failed to start scanner:', err);
-    document.getElementById("qr-status").textContent = "Camera access denied or not available";
+  try {
+    const cameras = await Html5Qrcode.getCameras();
+    if (!cameras || cameras.length === 0) {
+      throw new Error('No cameras found on this device.');
+    }
+
+    await html5QrcodeScanner.start(
+      cameras[0].id,
+      scannerConfig,
+      onQrCodeSuccess,
+      onQrCodeError
+    );
+    isQrScannerRunning = true;
+    setReadyStatus();
+  } catch (fallbackError) {
+    console.error('Failed to start scanner:', fallbackError);
+    document.getElementById("qr-status").textContent = "Unable to start camera. Allow camera permission and retry.";
     document.getElementById("qr-status").style.color = "red";
-  });
+  }
 }
 
-function onQrCodeSuccess(decodedText, decodedResult) {
+async function onQrCodeSuccess(decodedText, decodedResult) {
   console.log('QR Code detected:', decodedText);
   
   // Check if QR contains church-related keywords
@@ -574,35 +1245,30 @@ function onQrCodeSuccess(decodedText, decodedResult) {
                      decodedText.toLowerCase().includes('attendance');
   
   if (isChurchQr) {
+    const recurrenceCheck = canCompleteTask('attendService');
+    if (!recurrenceCheck.allowed) {
+      document.getElementById("qr-status").textContent = recurrenceCheck.message;
+      document.getElementById("qr-status").style.color = "orange";
+      return;
+    }
+
     document.getElementById("qr-status").textContent = "✓ Valid Church QR Code! Service points awarded!";
     document.getElementById("qr-status").style.color = "green";
     
     // Award points (5 * 10 = 50)
     const pointsToAdd = 5 * 10;
-    const previousFP = faithPoints;
-    faithPoints += pointsToAdd;
-    treeProgress += pointsToAdd;
-    
-    // Check if we've just crossed into bloom (3650+)
-    if (previousFP < 3650 && faithPoints >= 3650) {
-      maxBloomReached = true;
-    }
-    
-    if (maxBloomReached) {
-      addFruitIfNeeded(pointsToAdd);
-    }
+    applyTreeProgress(pointsToAdd);
+
+    markTaskCompleted('attendService', recurrenceCheck.periodKey);
     showScripture();
     updateDisplay();
     
-    // Stop scanner
-    html5QrcodeScanner.stop().then(() => {
-      html5QrcodeScanner.clear();
-      
-      // Close modal after success
-      setTimeout(() => {
-        closeQrScanner();
-      }, 2000);
-    }).catch(err => console.error('Error stopping scanner:', err));
+    await stopQrScannerInstance();
+
+    // Close modal after success
+    setTimeout(() => {
+      closeQrScanner();
+    }, 2000);
   } else {
     document.getElementById("qr-status").textContent = "⚠ Invalid QR code. Please scan a church QR code.";
     document.getElementById("qr-status").style.color = "orange";
@@ -614,14 +1280,10 @@ function onQrCodeError(error) {
   console.log('Scanning error:', error);
 }
 
-function closeQrScanner() {
+async function closeQrScanner() {
   console.log('Closing QR Scanner');
-  
-  if (html5QrcodeScanner) {
-    html5QrcodeScanner.stop().then(() => {
-      html5QrcodeScanner.clear();
-    }).catch(err => console.error('Error stopping scanner:', err));
-  }
+
+  await stopQrScannerInstance();
   
   document.getElementById("qrModal").style.display = 'none';
   document.getElementById("qr-status").textContent = "";
@@ -629,35 +1291,38 @@ function closeQrScanner() {
 
 function shareGospel() {
   const pointsToAdd = 10 * 10;
-  const previousFP = faithPoints;
-  faithPoints += pointsToAdd;
-  treeProgress += pointsToAdd;
-  
-  // Check if we've just crossed into bloom (3650+)
-  if (previousFP < 3650 && faithPoints >= 3650) {
-    maxBloomReached = true;
-  }
-  
-  if (maxBloomReached) {
-    addFruitIfNeeded(pointsToAdd);
-  }
+  applyTreeProgress(pointsToAdd);
   showScripture();
   updateDisplay();
 }
 
 function addFruitIfNeeded(pointsAdded) {
   pointsForFruit += pointsAdded;
-  
-  if (pointsForFruit >= 100) {
+
+  while (pointsForFruit >= 100) {
     fruitCount++;
     pointsForFruit -= 100;
     addFruit();
   }
 }
 
+function updateFruitVisuals() {
+  const fruitsGroup = document.getElementById("oldTreeFruits");
+  if (!fruitsGroup) {
+    return;
+  }
+
+  const fruitCircles = fruitsGroup.querySelectorAll('circle');
+  const visibleFruitCount = Math.min(Math.max(fruitCount, 0), fruitCircles.length);
+
+  fruitCircles.forEach((circle, index) => {
+    circle.style.opacity = index < visibleFruitCount ? '1' : '0';
+  });
+}
+
 function addFruit() {
   // Add a bounce animation to fruits
-  const fruitsGroup = document.getElementById("fruits");
+  const fruitsGroup = document.getElementById("oldTreeFruits");
   if (fruitsGroup) {
     fruitsGroup.style.animation = "none";
     // Trigger reflow
@@ -667,10 +1332,14 @@ function addFruit() {
     // Animate individual fruit circles with pop effect
     const circles = fruitsGroup.querySelectorAll('circle');
     if (circles.length > 0) {
-      const lastCircle = circles[circles.length - 1];
-      lastCircle.style.animation = 'none';
-      void lastCircle.offsetWidth;
-      lastCircle.style.animation = 'fruitPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards';
+      const newlyShownIndex = Math.min(Math.max(fruitCount - 1, 0), circles.length - 1);
+      const latestFruit = circles[newlyShownIndex];
+      if (latestFruit) {
+        latestFruit.style.opacity = '1';
+        latestFruit.style.animation = 'none';
+        void latestFruit.offsetWidth;
+        latestFruit.style.animation = 'fruitPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards';
+      }
     }
   }
 }
@@ -678,18 +1347,9 @@ function addFruit() {
 function useAllPoints() {
   if (faithPoints >= 10 && faithPoints % 10 === 0) {
     const pointsUsed = faithPoints;
-    
-    // If tree is not in full bloom, add to progress
-    if (!maxBloomReached) {
-      treeProgress += pointsUsed;
-    }
-    
-    // If tree is in full bloom, add points to fruit counter
-    if (maxBloomReached) {
-      addFruitIfNeeded(pointsUsed);
-    }
-    
+
     faithPoints = 0;
+    applyTreeProgress(pointsUsed, { addFaithPoints: false });
     
     // Show success message
     const message = maxBloomReached 
@@ -717,18 +1377,7 @@ function upgrade() {
     const pointsToAdd = upgradeCost;
     faithPoints -= upgradeCost;
     passiveRate += 1;
-    treeProgress += pointsToAdd;
-    
-    // Check if we've just crossed into bloom (3650+)
-    const previousTreeProgress = treeProgress - pointsToAdd;
-    if (previousTreeProgress < 3650 && treeProgress >= 3650) {
-      maxBloomReached = true;
-    }
-    
-    // If tree is in full bloom, add points to fruit
-    if (maxBloomReached) {
-      addFruitIfNeeded(pointsToAdd);
-    }
+    applyTreeProgress(pointsToAdd, { addFaithPoints: false });
     
     // upgradeCost stays at 10 - do not increment
     updateDisplay();
@@ -819,8 +1468,4 @@ window.addEventListener('click', function(event) {
 // Initialize app on page load
 window.addEventListener('DOMContentLoaded', function() {
   initializeApp();
-  if (currentUser) {
-    loadUserData();
-    updateDisplay();
-  }
 });
