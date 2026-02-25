@@ -1,14 +1,19 @@
 // Authentication System
 let currentUser = null;
 const RETAINED_TEST_EMAIL = 'endlesssh0014@gmail.com';
-const ADMIN_EMAIL = 'endlesssh0014@gmail.com';
+const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endless0014@gmail.com'];
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+function isAdminEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  return ADMIN_EMAILS.some(adminEmail => normalizeEmail(adminEmail) === normalizedEmail);
+}
+
 function getRoleByEmail(email) {
-  return normalizeEmail(email) === normalizeEmail(ADMIN_EMAIL) ? 'admin' : 'user';
+  return isAdminEmail(email) ? 'admin' : 'user';
 }
 
 function enforceAdminRoleInStorage() {
@@ -442,15 +447,18 @@ function handleLogin(event) {
   event.preventDefault();
   const email = document.getElementById('loginEmail').value;
   const password = document.getElementById('loginPassword').value;
+  const normalizedEmail = normalizeEmail(email);
   
   const users = JSON.parse(localStorage.getItem('users') || '[]');
-  const user = users.find(u => u.email === email && u.password === password);
+  const user = users.find(
+    u => normalizeEmail(u.email) === normalizedEmail && u.password === password
+  );
   
   if (user) {
     currentUser = {
       ...user,
       role: getRoleByEmail(user.email),
-      viewMode: user.viewMode ?? 'user',
+      viewMode: user.viewMode ?? (isAdminEmail(user.email) ? 'admin' : 'user'),
       faithPoints: user.faithPoints ?? 0,
       treeProgress: user.treeProgress ?? 0,
       passiveRate: user.passiveRate ?? 1,
@@ -473,7 +481,7 @@ function handleLogin(event) {
 function handleRegister(event) {
   event.preventDefault();
   const name = document.getElementById('regName').value;
-  const email = document.getElementById('regEmail').value;
+  const email = normalizeEmail(document.getElementById('regEmail').value);
   const password = document.getElementById('regPassword').value;
   const confirmPassword = document.getElementById('regConfirmPassword').value;
   
@@ -486,7 +494,7 @@ function handleRegister(event) {
   
   const users = JSON.parse(localStorage.getItem('users') || '[]');
   
-  if (users.find(u => u.email === email)) {
+  if (users.find(u => normalizeEmail(u.email) === email)) {
     document.getElementById('registerError').textContent = 'Email already registered';
     return;
   }
@@ -956,7 +964,7 @@ function loadUserData() {
   taskCompletions = currentUser.taskCompletions && typeof currentUser.taskCompletions === 'object'
     ? currentUser.taskCompletions
     : {};
-  currentUser.viewMode = currentUser.viewMode ?? 'user';
+  currentUser.viewMode = currentUser.viewMode ?? (isAdminUser() ? 'admin' : 'user');
 
   if (!Number.isFinite(faithPoints)) faithPoints = 0;
   if (!Number.isFinite(treeProgress)) treeProgress = 0;
