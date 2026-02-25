@@ -3,12 +3,12 @@ let currentUser = null;
 const RETAINED_TEST_EMAIL = 'endlesssh0014@gmail.com';
 const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
 const FIREBASE_CONFIG = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: ''
+  apiKey: 'AIzaSyDXPQnVHn9ux9Je5vGASWKig3AdBvnlOIk',
+  authDomain: 'growing-seed-fc973.firebaseapp.com',
+  projectId: 'growing-seed-fc973',
+  storageBucket: 'growing-seed-fc973.firebasestorage.app',
+  messagingSenderId: '154122860320',
+  appId: '1:154122860320:web:90f610016b49ad25ef0945'
 };
 const CLOUD_USERS_COLLECTION = 'users';
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
