@@ -65,6 +65,7 @@ function normalizeStoredUser(user, fallbackId) {
     email: normalizeEmail(user?.email),
     role: getRoleByEmail(user?.email),
     viewMode: user?.viewMode ?? 'user',
+    lastLogin: user?.lastLogin ?? '',
     taskCompletions: user?.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {}
   };
 }
@@ -324,7 +325,7 @@ async function renderAdminDashboard() {
   }
 
   if (safeUsers.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6">No users found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7">No users found.</td></tr>';
     return;
   }
 
@@ -332,6 +333,7 @@ async function renderAdminDashboard() {
     .map(user => {
       const role = getRoleByEmail(user.email);
       const name = escapeHtml(user.name || 'N/A');
+      const lastLogin = escapeHtml(user.lastLogin || 'Never');
       const email = escapeHtml(user.email || 'N/A');
       const faithPoints = Math.floor(Number(user.faithPoints ?? 0) || 0);
       const treeProgress = Math.floor(Number(user.treeProgress ?? 0) || 0);
@@ -339,6 +341,7 @@ async function renderAdminDashboard() {
       return `
         <tr>
           <td>${name}</td>
+          <td>${lastLogin}</td>
           <td>${email}</td>
           <td><span class="admin-role-badge ${role}">${role}</span></td>
           <td>${faithPoints}</td>
@@ -566,6 +569,7 @@ async function handleLogin(event) {
   if (user) {
     const userIndex = users.findIndex(u => Number(u.id) === Number(user.id));
     const normalizedUser = normalizeStoredUser(user, user.id);
+    normalizedUser.lastLogin = new Date().toLocaleString();
     normalizedUser.viewMode = isAdminEmail(normalizedUser.email) ? 'admin' : (normalizedUser.viewMode ?? 'user');
 
     if (userIndex !== -1) {
@@ -588,6 +592,7 @@ async function handleLogin(event) {
       fruitCount: normalizedUser.fruitCount ?? 0,
       pointsForFruit: normalizedUser.pointsForFruit ?? 0,
       maxBloomReached: normalizedUser.maxBloomReached ?? false,
+      lastLogin: normalizedUser.lastLogin ?? '',
       taskCompletions: normalizedUser.taskCompletions ?? {}
     };
     delete currentUser.password;
@@ -630,6 +635,7 @@ function handleRegister(event) {
     viewMode: 'user',
     password,
     joinedDate: new Date().toLocaleDateString(),
+    lastLogin: new Date().toLocaleString(),
     faithPoints: 0,
     treeProgress: 0,
     passiveRate: 1,
