@@ -50,45 +50,11 @@ function enforceAdminRoleInStorage() {
 }
 
 function retainOnlyTestUserDataOnce() {
-  const cleanupKey = 'kingdomRootsRetainTestUserCleanupV1';
-  if (localStorage.getItem(cleanupKey) === 'done') {
-    return;
-  }
-
-  const users = JSON.parse(localStorage.getItem('users') || '[]');
-  const safeUsers = Array.isArray(users) ? users : [];
-  const retainedUsers = safeUsers.filter(user => normalizeEmail(user.email) === normalizeEmail(RETAINED_TEST_EMAIL));
-  localStorage.setItem('users', JSON.stringify(retainedUsers));
-
-  const currentUserRaw = localStorage.getItem('currentUser');
-  if (currentUserRaw) {
-    try {
-      const parsedCurrentUser = JSON.parse(currentUserRaw);
-      if (normalizeEmail(parsedCurrentUser?.email) !== normalizeEmail(RETAINED_TEST_EMAIL)) {
-        localStorage.removeItem('currentUser');
-      }
-    } catch {
-      localStorage.removeItem('currentUser');
-    }
-  }
-
-  const resetRequests = JSON.parse(localStorage.getItem('resetRequests') || '{}');
-  const safeResetRequests = resetRequests && typeof resetRequests === 'object' ? resetRequests : {};
-  const retainedResetRequests = {};
-  const retainedResetRequestKey = Object.keys(safeResetRequests).find(
-    email => normalizeEmail(email) === normalizeEmail(RETAINED_TEST_EMAIL)
-  );
-  if (retainedResetRequestKey) {
-    retainedResetRequests[retainedResetRequestKey] = safeResetRequests[retainedResetRequestKey];
-  }
-  localStorage.setItem('resetRequests', JSON.stringify(retainedResetRequests));
-
-  localStorage.setItem(cleanupKey, 'done');
+  return;
 }
 
 // Initialize app
 function initializeApp() {
-  retainOnlyTestUserDataOnce();
   enforceAdminRoleInStorage();
   currentUser = localStorage.getItem('currentUser');
   
@@ -133,9 +99,6 @@ function getCurrentViewMode() {
 
 function applyViewModeUI() {
   const isAdmin = isAdminUser();
-  if (isAdmin && currentUser && currentUser.viewMode !== 'admin') {
-    currentUser.viewMode = 'admin';
-  }
   const mode = getCurrentViewMode();
   const isAdminView = isAdmin && mode === 'admin';
 
@@ -629,9 +592,6 @@ function openProfileModal() {
     if (currentUser.role !== 'admin') {
       currentUser.role = 'admin';
     }
-    if (currentUser.viewMode !== 'admin') {
-      currentUser.viewMode = 'admin';
-    }
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
   }
 
@@ -987,7 +947,7 @@ function loadUserData() {
   taskCompletions = currentUser.taskCompletions && typeof currentUser.taskCompletions === 'object'
     ? currentUser.taskCompletions
     : {};
-  currentUser.viewMode = isAdminUser() ? 'admin' : (currentUser.viewMode ?? 'user');
+  currentUser.viewMode = currentUser.viewMode ?? (isAdminUser() ? 'admin' : 'user');
 
   if (!Number.isFinite(faithPoints)) faithPoints = 0;
   if (!Number.isFinite(treeProgress)) treeProgress = 0;
