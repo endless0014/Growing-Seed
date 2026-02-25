@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kingdom Roots</title>
+  <title>Growing Seed</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://unpkg.com/html5-qrcode@2.3.4/dist/html5-qrcode.min.js"></script>
 </head>
@@ -13,7 +13,7 @@
     <!-- Login Screen -->
     <div id="loginScreen" class="auth-screen active">
       <div class="auth-card">
-        <h1>🌱 Kingdom Roots</h1>
+        <h1>🌱 Growing Seed</h1>
         <p class="auth-subtitle">Grow your faith journey</p>
         <form id="loginForm" onsubmit="handleLogin(event)">
           <div class="form-group">
@@ -35,7 +35,7 @@
     <!-- Registration Screen -->
     <div id="registerScreen" class="auth-screen">
       <div class="auth-card">
-        <h1>🌱 Kingdom Roots</h1>
+        <h1>🌱 Growing Seed</h1>
         <p class="auth-subtitle">Create your account</p>
         <form id="registerForm" onsubmit="handleRegister(event)">
           <div class="form-group">
@@ -64,7 +64,7 @@
     <!-- Forgot Password Screen -->
     <div id="forgotPasswordScreen" class="auth-screen">
       <div class="auth-card">
-        <h1>🌱 Kingdom Roots</h1>
+        <h1>🌱 Growing Seed</h1>
         <p class="auth-subtitle">Reset your password</p>
         <div id="forgotStep1">
           <p>Enter your email to receive a reset code</p>
@@ -102,75 +102,158 @@
   <div id="appContainer" class="app-container" style="display: none;">
     <!-- Header with User Info and Logout -->
     <div class="app-header">
-      <div class="header-logo-title">
-        <img src="logo-a.jpg" alt="Logo" class="app-logo-img">
-        <h1>Kingdom Roots</h1>
-      </div>
+      <h1>Growing Seed</h1>
       <div class="header-right">
+        <span id="viewModeIndicator" class="view-mode-indicator" style="display: none;">USER VIEW</span>
         <span class="user-greeting" id="userGreeting"></span>
         <button onclick="openProfileModal()" class="profile-btn">👤 Profile</button>
         <button onclick="handleLogout()" class="logout-btn">Logout</button>
       </div>
     </div>
 
-    <div class="container">
-    <h1>🌱 Kingdom Roots</h1>
+    <div id="userMainContainer" class="container">
+    <h1>🌱 Growing Seed</h1>
     <p>Faith Points: <span id="faithPoints">0</span></p>
     <button onclick="openUpgradeModal()" class="upgrade-btn">Upgrade Roots (Cost: <span id="upgradeCost">10</span> FP)</button>
-    <svg id="tree" viewBox="0 0 250 350" width="250" height="350">
-      <!-- Tree Stage Images -->
+    <div id="tree">
       <div id="treeStageImages" style="position: relative; width: 250px; height: 350px;">
         <div id="seedStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
-            <ellipse cx="60" cy="90" rx="18" ry="10" fill="#8B7355"/>
-            <ellipse cx="60" cy="85" rx="12" ry="8" fill="#A67C52"/>
+            <defs>
+              <radialGradient id="seedBodyGrad" cx="35%" cy="35%">
+                <stop offset="0%" stop-color="#b98d5d"/>
+                <stop offset="100%" stop-color="#7b5a3d"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="60" cy="97" rx="24" ry="7" fill="rgba(80,60,35,0.25)"/>
+            <ellipse cx="60" cy="93" rx="17" ry="6" fill="#8c6c4b" opacity="0.55"/>
+            <path d="M53 88 C51 79 57 74 62 73 C69 72 73 77 72 85 C71 92 65 98 58 97 C55 96 53 93 53 88 Z" fill="url(#seedBodyGrad)"/>
+            <path d="M60 75 C62 80 62 88 59 94" stroke="#6b4a2f" stroke-width="1.2" fill="none" opacity="0.75"/>
           </svg>
         </div>
         <div id="germinationStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
-            <ellipse cx="60" cy="90" rx="18" ry="10" fill="#8B7355"/>
-            <ellipse cx="60" cy="85" rx="12" ry="8" fill="#A67C52"/>
-            <path d="M60 85 Q62 75 65 70 Q68 65 70 60" stroke="#388E3C" stroke-width="4" fill="none"/>
-            <ellipse cx="70" cy="60" rx="6" ry="10" fill="#66BB6A"/>
+            <defs>
+              <linearGradient id="sproutGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#7ed957"/>
+                <stop offset="100%" stop-color="#2f8f3d"/>
+              </linearGradient>
+            </defs>
+            <ellipse cx="60" cy="98" rx="24" ry="7" fill="rgba(80,60,35,0.25)"/>
+            <ellipse cx="60" cy="94" rx="17" ry="6" fill="#8c6c4b" opacity="0.55"/>
+            <path d="M59 91 C59 84 60 78 64 72 C67 67 70 63 72 58" stroke="#2f8f3d" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+            <ellipse cx="73" cy="58" rx="6" ry="11" fill="url(#sproutGrad)" transform="rotate(22 73 58)"/>
+            <ellipse cx="66" cy="66" rx="4.5" ry="8" fill="#65c653" transform="rotate(-28 66 66)"/>
+          </svg>
+        </div>
+        <div id="seedlingStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <defs>
+              <linearGradient id="seedlingStemGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#7b5e3c"/>
+                <stop offset="100%" stop-color="#5d452f"/>
+              </linearGradient>
+            </defs>
+            <ellipse cx="60" cy="106" rx="22" ry="6.8" fill="rgba(80,60,35,0.22)"/>
+            <path d="M60 98 C58 87 59 78 61 67" stroke="url(#seedlingStemGrad)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+            <ellipse cx="53" cy="78" rx="7" ry="11" fill="#67c95a" transform="rotate(-28 53 78)"/>
+            <ellipse cx="68" cy="72" rx="7" ry="11" fill="#63c255" transform="rotate(24 68 72)"/>
+            <ellipse cx="58" cy="65" rx="6" ry="10" fill="#6ed25e" transform="rotate(-8 58 65)"/>
+            <ellipse cx="60" cy="102" rx="15" ry="4.8" fill="#8c6c4b" opacity="0.5"/>
           </svg>
         </div>
         <div id="saplingStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
-            <ellipse cx="60" cy="100" rx="18" ry="10" fill="#8B7355"/>
-            <rect x="57" y="70" width="6" height="30" fill="#A67C52"/>
-            <path d="M60 90 Q65 80 70 75" stroke="#388E3C" stroke-width="3" fill="none"/>
-            <ellipse cx="70" cy="75" rx="7" ry="12" fill="#66BB6A"/>
-            <ellipse cx="60" cy="70" rx="7" ry="12" fill="#66BB6A"/>
+            <defs>
+              <linearGradient id="saplingLeafGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#7cda63"/>
+                <stop offset="100%" stop-color="#2f8d45"/>
+              </linearGradient>
+            </defs>
+            <ellipse cx="60" cy="106" rx="24" ry="7" fill="rgba(80,60,35,0.22)"/>
+            <path d="M60 101 C57 86 58 72 61 57" stroke="#6f5338" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M60 82 C66 76 69 71 72 66" stroke="#4a7c43" stroke-width="2.2" fill="none"/>
+            <path d="M60 73 C54 67 50 62 48 57" stroke="#4a7c43" stroke-width="2" fill="none"/>
+            <ellipse cx="73" cy="66" rx="7" ry="12" fill="url(#saplingLeafGrad)" transform="rotate(24 73 66)"/>
+            <ellipse cx="48" cy="57" rx="6" ry="10" fill="#5fbe52" transform="rotate(-30 48 57)"/>
+            <ellipse cx="60" cy="54" rx="8" ry="13" fill="#6fcd5e"/>
+            <ellipse cx="60" cy="102" rx="15" ry="5" fill="#8c6c4b" opacity="0.45"/>
           </svg>
         </div>
         <div id="youngTreeStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
-            <ellipse cx="60" cy="110" rx="18" ry="10" fill="#8B7355"/>
-            <rect x="57" y="60" width="6" height="50" fill="#A67C52"/>
-            <ellipse cx="60" cy="60" rx="25" ry="18" fill="#66BB6A"/>
-            <ellipse cx="80" cy="70" rx="12" ry="8" fill="#388E3C"/>
-            <ellipse cx="40" cy="70" rx="12" ry="8" fill="#388E3C"/>
+            <defs>
+              <radialGradient id="youngCanopyGrad" cx="42%" cy="35%">
+                <stop offset="0%" stop-color="#7fe169"/>
+                <stop offset="100%" stop-color="#2e7f3f"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="60" cy="113" rx="28" ry="7" fill="rgba(80,60,35,0.23)"/>
+            <path d="M56 109 C56 90 56 75 58 58 C60 55 62 55 64 58 C66 75 66 90 66 109 Z" fill="#8a6748"/>
+            <circle cx="60" cy="53" r="18" fill="url(#youngCanopyGrad)"/>
+            <circle cx="46" cy="63" r="13" fill="#3f9a4b"/>
+            <circle cx="74" cy="63" r="13" fill="#3f9a4b"/>
+            <circle cx="57" cy="66" r="10" fill="#66c95a" opacity="0.85"/>
+            <circle cx="67" cy="66" r="10" fill="#66c95a" opacity="0.85"/>
           </svg>
         </div>
         <div id="matureTreeStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
-            <ellipse cx="60" cy="115" rx="22" ry="12" fill="#8B7355"/>
-            <rect x="54" y="50" width="12" height="65" fill="#A67C52"/>
-            <ellipse cx="60" cy="60" rx="35" ry="25" fill="#388E3C"/>
-            <ellipse cx="80" cy="70" rx="18" ry="12" fill="#66BB6A"/>
-            <ellipse cx="40" cy="70" rx="18" ry="12" fill="#66BB6A"/>
+            <defs>
+              <radialGradient id="matureCanopyGrad" cx="40%" cy="34%">
+                <stop offset="0%" stop-color="#8bea76"/>
+                <stop offset="100%" stop-color="#246f3c"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="60" cy="114" rx="30" ry="7" fill="rgba(70,50,30,0.25)"/>
+            <path d="M53 110 C54 87 53 67 57 50 C59 46 61 46 63 50 C67 67 66 87 67 110 Z" fill="#7c5a3f"/>
+            <circle cx="60" cy="48" r="24" fill="url(#matureCanopyGrad)"/>
+            <circle cx="40" cy="62" r="18" fill="#3b9049"/>
+            <circle cx="80" cy="62" r="18" fill="#3b9049"/>
+            <circle cx="55" cy="69" r="14" fill="#63c75a" opacity="0.9"/>
+            <circle cx="66" cy="69" r="14" fill="#63c75a" opacity="0.9"/>
+            <circle cx="61" cy="40" r="10" fill="#9bf07f" opacity="0.55"/>
           </svg>
         </div>
         <div id="oldTreeStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
-            <ellipse cx="60" cy="115" rx="26" ry="14" fill="#8B7355"/>
-            <rect x="52" y="40" width="16" height="75" fill="#A67C52"/>
-            <ellipse cx="60" cy="55" rx="45" ry="32" fill="#388E3C"/>
-            <ellipse cx="85" cy="70" rx="22" ry="15" fill="#66BB6A"/>
-            <ellipse cx="35" cy="70" rx="22" ry="15" fill="#66BB6A"/>
+            <defs>
+              <radialGradient id="oldCanopyGrad" cx="40%" cy="30%">
+                <stop offset="0%" stop-color="#9bf383"/>
+                <stop offset="100%" stop-color="#1f6337"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="60" cy="114" rx="34" ry="7" fill="rgba(65,48,30,0.27)"/>
+            <path d="M50 110 C50 86 50 63 56 42 C59 37 61 37 64 42 C70 63 70 86 70 110 Z" fill="#75553b"/>
+            <path d="M58 64 C53 56 47 53 42 49" stroke="#6f4f36" stroke-width="2" fill="none"/>
+            <path d="M62 60 C68 54 74 50 79 47" stroke="#6f4f36" stroke-width="2" fill="none"/>
+            <circle cx="60" cy="44" r="28" fill="url(#oldCanopyGrad)"/>
+            <circle cx="36" cy="60" r="20" fill="#2f7f44"/>
+            <circle cx="84" cy="60" r="20" fill="#2f7f44"/>
+            <circle cx="50" cy="70" r="16" fill="#5fc757" opacity="0.9"/>
+            <circle cx="70" cy="70" r="16" fill="#5fc757" opacity="0.9"/>
+            <circle cx="62" cy="34" r="12" fill="#a4f58c" opacity="0.5"/>
+            <g id="oldTreeFruits">
+              <circle cx="49" cy="50" r="3.4" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="67" cy="48" r="3.4" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="77" cy="58" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="41" cy="61" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="59" cy="63" r="3.5" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="71" cy="70" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="47" cy="73" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="61" cy="78" r="3.3" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="82" cy="67" r="3.1" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="34" cy="68" r="3.1" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+            </g>
           </svg>
+          <div class="bird-overlay" aria-hidden="true">
+            <span class="tree-bird bird-a">🕊️</span>
+            <span class="tree-bird bird-b">🐦</span>
+            <span class="tree-bird bird-c">🕊️</span>
+          </div>
         </div>
       </div>
+    </div>
     <div id="progressDisplay" class="progress-container">
       <div class="progress-bar-bg">
         <div class="progress-bar-fill" id="progressBarFill"></div>
@@ -178,13 +261,66 @@
       <p id="progressText" class="progress-text">📈 0/50 points to Germination</p>
     </div>
     <div class="button-group">
-      <button onclick="openUploadModal('pray')">Pray (+1 FP)</button>
-      <button onclick="openUploadModal('bible')">Read Bible (+1 FP)</button>
-      <button onclick="openUploadModal('devotion')">Devotion Time (+3 FP)</button>
-      <button onclick="openQrScanner()">Attend Service (+5 FP)</button>
-      <button id="shareGospelBtn" onclick="shareGospel()" style="display: none;">Share Gospel (+10 FP)</button>
+      <button id="prayBtn" class="task-action-btn" onclick="openUploadModal('pray')">
+        <span class="task-title">🙏 Pray (+1 FP)</span>
+      </button>
+      <button id="bibleBtn" class="task-action-btn" onclick="openUploadModal('bible')">
+        <span class="task-title">📖 Read Bible (+1 FP)</span>
+      </button>
+      <button id="devotionBtn" class="task-action-btn" onclick="openUploadModal('devotion')">
+        <span class="task-title">🕊️ Devotion Time (+3 FP)</span>
+      </button>
+      <button id="smallgroupBtn" class="task-action-btn" onclick="openUploadModal('smallgroup')">
+        <span class="task-title">👥 Small Group (+3 FP)</span>
+      </button>
+      <button id="attendServiceBtn" class="task-action-btn" onclick="openQrScanner()">
+        <span class="task-title">⛪ Attend Service (+5 FP)</span>
+      </button>
+      <button id="shareGospelBtn" onclick="openUploadModal('sharegospel')" style="display: none;">Share Gospel (+10 FP)</button>
     </div>
     <div id="scriptureBox"></div>
+    </div>
+
+    <div id="adminDashboard" class="container admin-dashboard" style="display: none;">
+      <h1>🛡️ Admin Dashboard</h1>
+      <p>Admin-only overview and user insights.</p>
+
+      <div class="admin-stats-grid">
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Total Users</div>
+          <div id="adminTotalUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Total Faith Points</div>
+          <div id="adminTotalFaithPoints" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Admins</div>
+          <div id="adminTotalAdmins" class="admin-stat-value">0</div>
+        </div>
+      </div>
+
+      <div class="admin-users-section">
+        <div class="admin-users-header">
+          <h3>Registered Users</h3>
+          <button onclick="renderAdminDashboard()" class="settings-btn">Refresh</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Faith Points</th>
+                <th>Tree Progress</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="adminUsersTableBody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -202,6 +338,7 @@
       </div>
       <div class="profile-section">
         <h3>⚙️ Settings</h3>
+        <button id="switchAdminViewBtn" onclick="toggleAdminView()" class="settings-btn" style="display: none;">Switch to Admin View</button>
         <button onclick="openChangePasswordModal()" class="settings-btn">Change Password</button>
         <button onclick="downloadUserData()" class="settings-btn">Download My Data</button>
         <button onclick="deleteAccountConfirm()" class="settings-btn danger-btn">Delete Account</button>
