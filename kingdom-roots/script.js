@@ -133,6 +133,9 @@ function getCurrentViewMode() {
 
 function applyViewModeUI() {
   const isAdmin = isAdminUser();
+  if (isAdmin && currentUser && currentUser.viewMode !== 'admin') {
+    currentUser.viewMode = 'admin';
+  }
   const mode = getCurrentViewMode();
   const isAdminView = isAdmin && mode === 'admin';
 
@@ -458,7 +461,7 @@ function handleLogin(event) {
     currentUser = {
       ...user,
       role: getRoleByEmail(user.email),
-      viewMode: user.viewMode ?? (isAdminEmail(user.email) ? 'admin' : 'user'),
+      viewMode: isAdminEmail(user.email) ? 'admin' : (user.viewMode ?? 'user'),
       faithPoints: user.faithPoints ?? 0,
       treeProgress: user.treeProgress ?? 0,
       passiveRate: user.passiveRate ?? 1,
@@ -964,7 +967,7 @@ function loadUserData() {
   taskCompletions = currentUser.taskCompletions && typeof currentUser.taskCompletions === 'object'
     ? currentUser.taskCompletions
     : {};
-  currentUser.viewMode = currentUser.viewMode ?? (isAdminUser() ? 'admin' : 'user');
+  currentUser.viewMode = isAdminUser() ? 'admin' : (currentUser.viewMode ?? 'user');
 
   if (!Number.isFinite(faithPoints)) faithPoints = 0;
   if (!Number.isFinite(treeProgress)) treeProgress = 0;
