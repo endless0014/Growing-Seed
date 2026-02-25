@@ -1258,12 +1258,6 @@ function animateFruitBurst(fruitElement) {
 }
 
 function openUploadModal(action) {
-  const recurrenceCheck = canCompleteTask(action);
-  if (!recurrenceCheck.allowed) {
-    alert(recurrenceCheck.message);
-    return;
-  }
-
   currentAction = action;
   const reward = actionRewards[action];
   document.getElementById("actionName").textContent = reward.name;
@@ -1298,18 +1292,19 @@ function submitPhoto() {
   }
 
   const recurrenceCheck = canCompleteTask(currentAction);
-  if (!recurrenceCheck.allowed) {
-    alert(recurrenceCheck.message);
-    closeUploadModal();
-    return;
-  }
-
   const reward = actionRewards[currentAction];
   const pointsToAdd = reward.fp * reward.fpMultiplier;
-  applyTreeProgress(pointsToAdd);
-
-  markTaskCompleted(currentAction, recurrenceCheck.periodKey);
-  showScripture();
+  if (recurrenceCheck.allowed) {
+    applyTreeProgress(pointsToAdd);
+    markTaskCompleted(currentAction, recurrenceCheck.periodKey);
+    showScripture();
+  } else {
+    faithPoints += pointsToAdd;
+    const scriptureBox = document.getElementById('scriptureBox');
+    if (scriptureBox) {
+      scriptureBox.textContent = `${taskDisplayNames[currentAction] || 'Task'} already completed for this period. Faith Points added only.`;
+    }
+  }
   updateDisplay();
   closeUploadModal();
 }
