@@ -1033,6 +1033,13 @@ function updateTreeGrowth() {
   } else {
     currentStage = 'seed';
   }
+
+  const currentStageNameEl = document.getElementById('currentStageName');
+  if (currentStageNameEl) {
+    const stageName = currentStage.replace(/([A-Z])/g, ' $1').trim().toLowerCase();
+    currentStageNameEl.textContent = stageName;
+  }
+
   // Remove 'active' class from all images
   stages.forEach(stage => {
     const el = document.getElementById(stage.id);
