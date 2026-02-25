@@ -947,9 +947,27 @@ function ensureLogosInjected() {
     ensureLogoContainer(loginLogoRow, 'auth-card-logos', 'Login logos');
   }
 
-  const appHeaderLogos = document.querySelector('.app-header .mobile-header-logos');
-  if (appHeaderLogos) {
-    appHeaderLogos.remove();
+  const appHeader = document.querySelector('.app-header');
+  if (appHeader) {
+    let titleWithLogos = appHeader.querySelector('.title-with-logos');
+    if (!titleWithLogos) {
+      const headerTitle = appHeader.querySelector('h1');
+      titleWithLogos = document.createElement('div');
+      titleWithLogos.className = 'title-with-logos';
+
+      if (headerTitle) {
+        titleWithLogos.appendChild(headerTitle);
+      }
+
+      const headerRight = appHeader.querySelector('.header-right');
+      if (headerRight) {
+        appHeader.insertBefore(titleWithLogos, headerRight);
+      } else {
+        appHeader.appendChild(titleWithLogos);
+      }
+    }
+
+    ensureLogoContainer(titleWithLogos, 'mobile-header-logos', 'Header logos');
   }
 }
 
