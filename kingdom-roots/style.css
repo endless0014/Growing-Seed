@@ -206,13 +206,7 @@ body {
 }
 
 .auth-mobile-logos {
-  position: absolute;
-  top: 0.8rem;
-  right: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  z-index: 2;
+  display: none !important;
 }
 
 .auth-screen {

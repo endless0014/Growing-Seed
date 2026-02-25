@@ -924,8 +924,10 @@ function ensureLogoContainer(targetEl, containerClass, ariaLabel) {
 }
 
 function ensureLogosInjected() {
-  const authContainer = document.getElementById('authContainer');
-  ensureLogoContainer(authContainer, 'auth-mobile-logos', 'Authentication logos');
+  const authTopRightLogos = document.querySelector('#authContainer .auth-mobile-logos');
+  if (authTopRightLogos) {
+    authTopRightLogos.remove();
+  }
 
   const loginCard = document.querySelector('#loginScreen .auth-card');
   if (loginCard) {
@@ -945,27 +947,9 @@ function ensureLogosInjected() {
     ensureLogoContainer(loginLogoRow, 'auth-card-logos', 'Login logos');
   }
 
-  const appHeader = document.querySelector('.app-header');
-  if (appHeader) {
-    let titleWithLogos = appHeader.querySelector('.title-with-logos');
-    if (!titleWithLogos) {
-      const headerTitle = appHeader.querySelector('h1');
-      titleWithLogos = document.createElement('div');
-      titleWithLogos.className = 'title-with-logos';
-
-      if (headerTitle) {
-        titleWithLogos.appendChild(headerTitle);
-      }
-
-      const headerRight = appHeader.querySelector('.header-right');
-      if (headerRight) {
-        appHeader.insertBefore(titleWithLogos, headerRight);
-      } else {
-        appHeader.appendChild(titleWithLogos);
-      }
-    }
-
-    ensureLogoContainer(titleWithLogos, 'mobile-header-logos', 'Header logos');
+  const appHeaderLogos = document.querySelector('.app-header .mobile-header-logos');
+  if (appHeaderLogos) {
+    appHeaderLogos.remove();
   }
 }
 
