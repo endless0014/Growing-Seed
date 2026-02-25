@@ -723,7 +723,7 @@ let maxBloomReached = false;
 let pointsForFruit = 0;
 let fruitCount = 0;
 let taskCompletions = {};
-const FULL_BLOOM_THRESHOLD = 3650;
+const FULL_BLOOM_THRESHOLD = 1500;
 
 function resetGameState() {
   faithPoints = 0;
