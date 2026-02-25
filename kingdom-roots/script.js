@@ -1294,12 +1294,12 @@ function submitPhoto() {
   const recurrenceCheck = canCompleteTask(currentAction);
   const reward = actionRewards[currentAction];
   const pointsToAdd = reward.fp * reward.fpMultiplier;
+  faithPoints += pointsToAdd;
+
   if (recurrenceCheck.allowed) {
-    applyTreeProgress(pointsToAdd);
     markTaskCompleted(currentAction, recurrenceCheck.periodKey);
     showScripture();
   } else {
-    faithPoints += pointsToAdd;
     const scriptureBox = document.getElementById('scriptureBox');
     if (scriptureBox) {
       scriptureBox.textContent = `${taskDisplayNames[currentAction] || 'Task'} already completed for this period. Faith Points added only.`;
