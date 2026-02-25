@@ -900,7 +900,9 @@ function ensureLogoContainer(targetEl, containerClass, ariaLabel) {
     return null;
   }
 
-  let container = targetEl.querySelector(`.${containerClass}`);
+  let container = targetEl.classList && targetEl.classList.contains(containerClass)
+    ? targetEl
+    : targetEl.querySelector(`.${containerClass}`);
   if (!container) {
     container = document.createElement('div');
     container.className = containerClass;
@@ -940,7 +942,7 @@ function ensureLogosInjected() {
         loginCard.appendChild(loginLogoRow);
       }
     }
-    ensureLogoContainer(loginLogoRow, 'mobile-header-logos', 'Login logos');
+    ensureLogoContainer(loginLogoRow, 'auth-card-logos', 'Login logos');
   }
 
   const appHeader = document.querySelector('.app-header');
