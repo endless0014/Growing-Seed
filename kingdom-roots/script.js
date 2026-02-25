@@ -59,9 +59,15 @@ function getCloudUsersCollection() {
 }
 
 function normalizeStoredUser(user, fallbackId) {
+  const fallbackNumericId = Number(fallbackId ?? Date.now());
+  const parsedUserId = Number(user?.id);
+  const safeUserId = Number.isFinite(parsedUserId)
+    ? parsedUserId
+    : (Number.isFinite(fallbackNumericId) ? fallbackNumericId : Date.now());
+
   return {
     ...user,
-    id: Number(user?.id ?? fallbackId ?? Date.now()),
+    id: safeUserId,
     email: normalizeEmail(user?.email),
     role: getRoleByEmail(user?.email),
     viewMode: user?.viewMode ?? 'user',
@@ -116,6 +122,40 @@ function syncUsersToCloud(users) {
   });
 }
 
+function mergeUsersByLatestTimestamp(localUsers, cloudUsers) {
+  const mergedByEmail = new Map();
+
+  localUsers
+    .map((user, index) => normalizeStoredUser(user, Date.now() + index))
+    .forEach(user => {
+      if (user.email) {
+        mergedByEmail.set(user.email, user);
+      }
+    });
+
+  cloudUsers
+    .map((user, index) => normalizeStoredUser(user, Date.now() + index + 5000))
+    .forEach(cloudUser => {
+      if (!cloudUser.email) {
+        return;
+      }
+
+      const localUser = mergedByEmail.get(cloudUser.email);
+      if (!localUser) {
+        mergedByEmail.set(cloudUser.email, cloudUser);
+        return;
+      }
+
+      const localUpdatedAt = Number(localUser.updatedAt ?? 0);
+      const cloudUpdatedAt = Number(cloudUser.updatedAt ?? 0);
+      if (Number.isFinite(cloudUpdatedAt) && cloudUpdatedAt > localUpdatedAt) {
+        mergedByEmail.set(cloudUser.email, cloudUser);
+      }
+    });
+
+  return Array.from(mergedByEmail.values());
+}
+
 async function syncUsersFromCloudToLocal() {
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection) {
@@ -123,12 +163,15 @@ async function syncUsersFromCloudToLocal() {
   }
 
   try {
+    const localUsers = getStoredUsersSafe();
     const snapshot = await usersCollection.get();
     const cloudUsers = snapshot.docs
       .map((doc, index) => normalizeStoredUser(doc.data(), Date.now() + index))
       .filter(user => Boolean(user.email));
 
-    localStorage.setItem('users', JSON.stringify(cloudUsers));
+    const mergedUsers = mergeUsersByLatestTimestamp(localUsers, cloudUsers);
+
+    localStorage.setItem('users', JSON.stringify(mergedUsers));
     return true;
   } catch (error) {
     console.warn('Cloud read failed:', error);
@@ -154,8 +197,7 @@ async function migrateLocalUsersToCloudOnce() {
 }
 
 function enforceAdminRoleInStorage() {
-  const users = JSON.parse(localStorage.getItem('users') || '[]');
-  const safeUsers = Array.isArray(users) ? users : [];
+  const safeUsers = getStoredUsersSafe();
   let usersChanged = false;
 
   const normalizedUsers = safeUsers.map(user => {
@@ -274,9 +316,22 @@ function applyViewModeUI() {
     modeIndicator.textContent = isAdminView ? 'ADMIN VIEW' : 'USER VIEW';
   }
 
+  removeLegacyAdminFaithPointsCard();
+
   if (isAdminView) {
     renderAdminDashboard();
   }
+}
+
+function removeLegacyAdminFaithPointsCard() {
+  const cards = document.querySelectorAll('.admin-stats-grid .admin-stat-card');
+  cards.forEach(card => {
+    const labelEl = card.querySelector('.admin-stat-label');
+    const labelText = String(labelEl?.textContent || '').trim().toLowerCase();
+    if (labelText === 'total faith points') {
+      card.remove();
+    }
+  });
 }
 
 function toggleAdminView() {
@@ -294,29 +349,27 @@ function toggleAdminView() {
   saveUserData();
 }
 
-async function renderAdminDashboard() {
+async function renderAdminDashboard(syncFromCloud = true) {
   if (!isAdminUser() || getCurrentViewMode() !== 'admin') {
     return;
   }
 
-  await syncUsersFromCloudToLocal();
+  if (syncFromCloud) {
+    await syncUsersFromCloudToLocal();
+  }
+
+  removeLegacyAdminFaithPointsCard();
 
   const users = JSON.parse(localStorage.getItem('users') || '[]');
   const safeUsers = Array.isArray(users) ? users : [];
 
   const totalUsers = safeUsers.length;
-  const totalFaithPoints = safeUsers.reduce((sum, user) => {
-    const value = Number(user.faithPoints ?? 0);
-    return sum + (Number.isFinite(value) ? value : 0);
-  }, 0);
   const totalAdmins = safeUsers.filter(user => getRoleByEmail(user.email) === 'admin').length;
 
   const totalUsersEl = document.getElementById('adminTotalUsers');
-  const totalFaithPointsEl = document.getElementById('adminTotalFaithPoints');
   const totalAdminsEl = document.getElementById('adminTotalAdmins');
 
   if (totalUsersEl) totalUsersEl.textContent = String(totalUsers);
-  if (totalFaithPointsEl) totalFaithPointsEl.textContent = String(Math.floor(totalFaithPoints));
   if (totalAdminsEl) totalAdminsEl.textContent = String(totalAdmins);
 
   const tbody = document.getElementById('adminUsersTableBody');
@@ -332,12 +385,13 @@ async function renderAdminDashboard() {
   tbody.innerHTML = safeUsers
     .map(user => {
       const role = getRoleByEmail(user.email);
+      const normalizedEmail = normalizeEmail(user.email || '');
       const name = escapeHtml(user.name || 'N/A');
       const lastLogin = escapeHtml(user.lastLogin || 'Never');
       const email = escapeHtml(user.email || 'N/A');
       const faithPoints = Math.floor(Number(user.faithPoints ?? 0) || 0);
       const treeProgress = Math.floor(Number(user.treeProgress ?? 0) || 0);
-      const userId = Number(user.id);
+      const userId = Number.isFinite(Number(user.id)) ? Number(user.id) : Date.now();
       return `
         <tr>
           <td>${name}</td>
@@ -348,11 +402,11 @@ async function renderAdminDashboard() {
           <td>${treeProgress}</td>
           <td>
             <div class="admin-actions">
-              <button class="admin-action-btn points" onclick="adminAddPoints(${userId})">+Points</button>
-              <button class="admin-action-btn password" onclick="adminResetPassword(${userId})">Reset PW</button>
-              <button class="admin-action-btn progress" onclick="adminResetProgress(${userId})">Reset Progress</button>
-              <button class="admin-action-btn view" onclick="adminViewProgress(${userId})">View</button>
-              <button class="admin-action-btn open" onclick="adminOpenUserUi(${userId})">Open UI</button>
+              <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
+              <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
+              <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})">Reset Progress</button>
+              <button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>
+              <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})">Open UI</button>
             </div>
           </td>
         </tr>
@@ -362,16 +416,38 @@ async function renderAdminDashboard() {
 }
 
 function assertAdminDashboardAccess() {
-  if (!isAdminUser() || getCurrentViewMode() !== 'admin') {
+  if (!isAdminUser()) {
     alert('Admin dashboard access required.');
     return false;
   }
+
+  if (getCurrentViewMode() !== 'admin' && currentUser) {
+    currentUser.viewMode = 'admin';
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  }
+
   return true;
 }
 
 function getStoredUsersSafe() {
   const users = JSON.parse(localStorage.getItem('users') || '[]');
-  return Array.isArray(users) ? users : [];
+
+  if (!Array.isArray(users)) {
+    return [];
+  }
+
+  const normalizedUsers = users.map((user, index) => normalizeStoredUser(user, Date.now() + index));
+  const didChange = normalizedUsers.some((user, index) => {
+    const previousUser = users[index];
+    const previousId = Number(previousUser?.id);
+    return !Number.isFinite(previousId) || previousId !== user.id || normalizeEmail(previousUser?.email) !== user.email;
+  });
+
+  if (didChange) {
+    localStorage.setItem('users', JSON.stringify(normalizedUsers));
+  }
+
+  return normalizedUsers;
 }
 
 function setStoredUsers(users) {
@@ -380,7 +456,12 @@ function setStoredUsers(users) {
 }
 
 function findUserIndexById(users, userId) {
-  return users.findIndex(user => Number(user.id) === Number(userId));
+  const numericUserId = Number(userId);
+  if (!Number.isFinite(numericUserId)) {
+    return -1;
+  }
+
+  return users.findIndex(user => Number(user.id) === numericUserId);
 }
 
 function syncCurrentSessionIfNeeded(updatedUser) {
@@ -398,7 +479,7 @@ function syncCurrentSessionIfNeeded(updatedUser) {
   }
 }
 
-function adminAddPoints(userId) {
+function adminAddPoints(userId, userEmail = '') {
   if (!assertAdminDashboardAccess()) return;
 
   const pointsInput = prompt('Enter points to add:', '10');
@@ -411,7 +492,12 @@ function adminAddPoints(userId) {
   }
 
   const users = getStoredUsersSafe();
-  const userIndex = findUserIndexById(users, userId);
+  let userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1 && userEmail) {
+    const normalizedTargetEmail = normalizeEmail(userEmail);
+    userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedTargetEmail);
+  }
+
   if (userIndex === -1) {
     alert('User not found.');
     return;
@@ -420,7 +506,7 @@ function adminAddPoints(userId) {
   users[userIndex].faithPoints = Math.floor(Number(users[userIndex].faithPoints ?? 0) + points);
   setStoredUsers(users);
   syncCurrentSessionIfNeeded(users[userIndex]);
-  renderAdminDashboard();
+  renderAdminDashboard(false);
 }
 
 function adminResetPassword(userId) {
@@ -524,6 +610,12 @@ function adminOpenUserUi(userId) {
   loadUserData();
   updateDisplay();
 }
+
+window.adminAddPoints = adminAddPoints;
+window.adminResetPassword = adminResetPassword;
+window.adminResetProgress = adminResetProgress;
+window.adminViewProgress = adminViewProgress;
+window.adminOpenUserUi = adminOpenUserUi;
 
 function escapeHtml(value) {
   return String(value)
@@ -1805,5 +1897,6 @@ window.addEventListener('click', function(event) {
 window.addEventListener('DOMContentLoaded', function() {
   ensureLogosInjected();
   resolveLogoSources();
+  removeLegacyAdminFaithPointsCard();
   initializeApp();
 });
