@@ -1,7 +1,7 @@
 // Authentication System
 let currentUser = null;
 const RETAINED_TEST_EMAIL = 'endlesssh0014@gmail.com';
-const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endless0014@gmail.com'];
+const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
