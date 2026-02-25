@@ -1036,7 +1036,12 @@ function updateTreeGrowth() {
 
   const currentStageNameEl = document.getElementById('currentStageName');
   if (currentStageNameEl) {
-    const stageName = currentStage.replace(/([A-Z])/g, ' $1').trim().toLowerCase();
+    const stageName = currentStage
+      .replace(/([A-Z])/g, ' $1')
+      .trim()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
     currentStageNameEl.textContent = stageName;
   }
 
