@@ -1,18 +1,3 @@
-/* Logo beside Kingdom Roots title */
-.header-logo-title {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-.app-logo-img {
-  width: 48px;
-  height: 48px;
-  background: #fff;
-  border-radius: 12px;
-  padding: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-  object-fit: contain;
-}
 /* Tree Stage Image Animations */
 /* Center the tree stage display */
 #treeStageImages {
@@ -35,6 +20,88 @@
   transform: scale(0.96) translateY(10px);
   transition: opacity 0.7s cubic-bezier(0.4,0,0.2,1),
               transform 0.7s cubic-bezier(0.4,0,0.2,1);
+}
+
+.bird-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.tree-bird {
+  position: absolute;
+  font-size: 0.9rem;
+  opacity: 0;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+  will-change: transform, opacity;
+}
+
+#oldTreeStageImg.active .bird-a {
+  animation: birdFlyAcrossA 8s linear infinite;
+}
+
+#oldTreeStageImg.active .bird-b {
+  animation: birdFlyAcrossB 10s linear infinite 1.2s;
+}
+
+#oldTreeStageImg.active .bird-c {
+  animation: birdPerchPulse 6s ease-in-out infinite 0.8s;
+}
+
+@keyframes birdFlyAcrossA {
+  0% {
+    opacity: 0;
+    transform: translate(-18px, 52px) scale(0.8);
+  }
+  10% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 1;
+    transform: translate(80px, 28px) scale(1);
+  }
+  80% {
+    opacity: 0;
+    transform: translate(140px, 40px) scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(140px, 40px) scale(0.9);
+  }
+}
+
+@keyframes birdFlyAcrossB {
+  0% {
+    opacity: 0;
+    transform: translate(136px, 65px) scale(0.75) scaleX(-1);
+  }
+  12% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 1;
+    transform: translate(40px, 34px) scale(0.95) scaleX(-1);
+  }
+  82% {
+    opacity: 0;
+    transform: translate(-14px, 50px) scale(0.8) scaleX(-1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-14px, 50px) scale(0.8) scaleX(-1);
+  }
+}
+
+@keyframes birdPerchPulse {
+  0%, 100% {
+    opacity: 0;
+    transform: translate(78px, 56px) scale(0.75);
+  }
+  20%, 65% {
+    opacity: 1;
+    transform: translate(72px, 52px) scale(0.85);
+  }
 }
 
 .tree-stage-img.active {
@@ -310,6 +377,164 @@ body {
   color: rgba(255, 255, 255, 0.95);
 }
 
+.view-mode-indicator {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+body.admin-view .app-header {
+  background: linear-gradient(135deg, #2c3e50 0%, #1c2833 100%);
+}
+
+body.admin-view .container {
+  border: 2px solid #1f8f7a;
+  box-shadow: 0 0 0 3px rgba(31, 143, 122, 0.15), 0 0 10px rgba(0,0,0,0.1);
+}
+
+.admin-dashboard {
+  text-align: left;
+}
+
+.admin-dashboard h1 {
+  margin-top: 0;
+  color: #1f3c56;
+}
+
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.admin-stat-card {
+  background: linear-gradient(135deg, #e8f4fd 0%, #eefaf5 100%);
+  border: 1px solid #cfe8df;
+  border-radius: 10px;
+  padding: 0.9rem;
+}
+
+.admin-stat-label {
+  font-size: 0.8rem;
+  color: #4f6879;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #173b5d;
+  margin-top: 0.2rem;
+}
+
+.admin-users-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.admin-users-header h3 {
+  margin: 0;
+  color: #27445d;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #dbe5ea;
+  border-radius: 10px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+  background: #fff;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #edf2f5;
+  text-align: left;
+  color: #31475c;
+}
+
+.admin-table th {
+  background: #f4f9fc;
+  font-size: 0.85rem;
+}
+
+.admin-role-badge {
+  display: inline-block;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.admin-role-badge.admin {
+  background: #8e44ad;
+}
+
+.admin-role-badge.user {
+  background: #607d8b;
+}
+
+.admin-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.admin-table th:last-child,
+.admin-table td:last-child {
+  white-space: nowrap;
+}
+
+.admin-action-btn {
+  min-width: auto;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+  border-radius: 6px;
+  background: #546e7a;
+}
+
+.admin-action-btn:hover {
+  transform: none;
+  background: #455a64;
+}
+
+.admin-action-btn.points {
+  background: #1976d2;
+}
+
+.admin-action-btn.password {
+  background: #8e24aa;
+}
+
+.admin-action-btn.progress {
+  background: #ef6c00;
+}
+
+.admin-action-btn.view {
+  background: #2e7d32;
+}
+
+.admin-action-btn.open {
+  background: #00897b;
+}
+
 .profile-btn,
 .logout-btn {
   background: rgba(255, 255, 255, 0.2);
@@ -567,6 +792,34 @@ body {
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.5rem;
+}
+
+.task-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  background-color: #d32f2f;
+}
+
+.task-title {
+  font-weight: 700;
+}
+
+.task-action-btn.task-done {
+  background-color: #2e7d32;
+}
+
+.task-action-btn.task-not-done {
+  background-color: #d32f2f;
+}
+
+.task-action-btn.task-not-done:hover {
+  background-color: #b71c1c;
+}
+
+.task-action-btn.task-done:hover {
+  background-color: #1b5e20;
 }
 
 .progress-container {
