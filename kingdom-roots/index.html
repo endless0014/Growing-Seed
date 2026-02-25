@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Growing Seed</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260225-logo-fix" />
   <script src="https://unpkg.com/html5-qrcode@2.3.4/dist/html5-qrcode.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -12,11 +15,31 @@
 <body>
   <!-- Authentication Screens -->
   <div id="authContainer" class="auth-container">
+    <div class="auth-mobile-logos" aria-label="Authentication logos">
+      <div class="mobile-logo-wrap">
+        <img src="assets/ABCF.png" data-logo-file="ABCF.png" alt="ABCF logo" class="mobile-header-logo">
+         <span class="logo-fallback-text">ABCF</span>
+      </div>
+      <div class="mobile-logo-wrap">
+        <img src="assets/Pulse.png" data-logo-file="Pulse.png" alt="Pulse logo" class="mobile-header-logo">
+         <span class="logo-fallback-text">Pulse</span>
+      </div>
+    </div>
     <!-- Login Screen -->
     <div id="loginScreen" class="auth-screen active">
       <div class="auth-card">
         <h1>🌱 Growing Seed</h1>
         <p class="auth-subtitle">Grow your faith journey</p>
+        <div class="auth-card-logos" aria-label="Login logos">
+          <div class="mobile-logo-wrap">
+            <img src="assets/ABCF.png" data-logo-file="ABCF.png" alt="ABCF logo" class="mobile-header-logo">
+             <span class="logo-fallback-text">ABCF</span>
+          </div>
+          <div class="mobile-logo-wrap">
+            <img src="assets/Pulse.png" data-logo-file="Pulse.png" alt="Pulse logo" class="mobile-header-logo">
+             <span class="logo-fallback-text">Pulse</span>
+          </div>
+        </div>
         <form id="loginForm" onsubmit="handleLogin(event)">
           <div class="form-group">
             <label for="loginEmail">Email</label>
@@ -104,7 +127,19 @@
   <div id="appContainer" class="app-container" style="display: none;">
     <!-- Header with User Info and Logout -->
     <div class="app-header">
-      <h1>Growing Seed</h1>
+      <div class="title-with-logos">
+        <h1>Growing Seed</h1>
+        <div class="mobile-header-logos" aria-label="Header logos">
+          <div class="mobile-logo-wrap">
+            <img src="assets/ABCF.png" data-logo-file="ABCF.png" alt="ABCF logo" class="mobile-header-logo">
+            <span class="logo-fallback-text">ABCF</span>
+          </div>
+          <div class="mobile-logo-wrap">
+            <img src="assets/Pulse.png" data-logo-file="Pulse.png" alt="Pulse logo" class="mobile-header-logo">
+            <span class="logo-fallback-text">Pulse</span>
+          </div>
+        </div>
+      </div>
       <div class="header-right">
         <span id="viewModeIndicator" class="view-mode-indicator" style="display: none;">USER VIEW</span>
         <span class="user-greeting" id="userGreeting"></span>
@@ -421,6 +456,6 @@
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=20260225-logo-fix"></script>
 </body>
 </html>

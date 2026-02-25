@@ -130,7 +130,7 @@ body {
   font-family: 'Segoe UI', sans-serif;
   background: linear-gradient(to bottom, #f0f8ff, #d0e6d6);
   text-align: center;
-  padding: 2rem;
+  padding: 0;
   margin: 0;
 }
 
@@ -202,6 +202,17 @@ body {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 2rem;
+  position: relative;
+}
+
+.auth-mobile-logos {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  z-index: 2;
 }
 
 .auth-screen {
@@ -243,6 +254,14 @@ body {
   color: #666;
   margin: 0 0 2rem 0;
   font-size: 1.1rem;
+}
+
+.auth-card-logos {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 1.1rem 0;
 }
 
 .form-group {
@@ -365,11 +384,81 @@ body {
   font-size: 2rem;
 }
 
+.title-with-logos {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+.mobile-header-logos {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.mobile-logo-wrap {
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.35rem;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  min-width: 72px;
+  min-height: 56px;
+  position: relative;
+  overflow: hidden;
+}
+
+.mobile-header-logo {
+  display: block;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.logo-fallback-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #333;
+  background: #fff;
+}
+
+.mobile-logo-wrap.logo-loaded .mobile-header-logo {
+  opacity: 1;
+}
+
+.mobile-logo-wrap.logo-loaded .logo-fallback-text {
+  display: none;
+}
+
+.mobile-header-logo[data-logo-file="ABCF.png"] {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+}
+
+.mobile-header-logo[data-logo-file="Pulse.png"] {
+  width: 120px;
+  height: 56px;
+  object-fit: cover;
+}
+
 .header-right {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
+  gap: 0.7rem;
+  flex-wrap: nowrap;
 }
 
 .user-greeting {
@@ -911,8 +1000,9 @@ button:hover {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  body {
-    padding: 1rem;
+  .auth-mobile-logos {
+    top: 0.6rem;
+    right: 0.75rem;
   }
 
   .auth-card {
@@ -931,6 +1021,11 @@ button:hover {
 
   .app-header h1 {
     font-size: 1.5rem;
+  }
+
+  .title-with-logos {
+    justify-content: center;
+    width: 100%;
   }
 
   .header-right {
@@ -960,6 +1055,26 @@ button:hover {
 }
 
 @media (max-width: 480px) {
+  .mobile-logo-wrap {
+    min-width: 58px;
+    min-height: 44px;
+  }
+
+  .mobile-header-logo {
+    width: 34px;
+    height: 34px;
+  }
+
+  .mobile-header-logo[data-logo-file="ABCF.png"] {
+    width: 42px;
+    height: 42px;
+  }
+
+  .mobile-header-logo[data-logo-file="Pulse.png"] {
+    width: 86px;
+    height: 42px;
+  }
+
   .auth-card {
     padding: 1.5rem 1rem;
   }

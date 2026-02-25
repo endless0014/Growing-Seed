@@ -870,6 +870,137 @@ function clearAuthErrors() {
   document.getElementById('changePassError').textContent = '';
 }
 
+function testImagePath(path) {
+  return new Promise(resolve => {
+    const testImg = new Image();
+    testImg.onload = () => resolve(true);
+    testImg.onerror = () => resolve(false);
+    testImg.src = path;
+  });
+}
+
+function createLogoWrapElement(fileName, altText) {
+  const wrap = document.createElement('div');
+  wrap.className = 'mobile-logo-wrap';
+
+  const img = document.createElement('img');
+  img.className = 'mobile-header-logo';
+  img.setAttribute('data-logo-file', fileName);
+  img.alt = altText;
+  img.src = `assets/${fileName}`;
+
+  wrap.appendChild(img);
+  return wrap;
+}
+
+function ensureLogoContainer(targetEl, containerClass, ariaLabel) {
+  if (!targetEl) {
+    return null;
+  }
+
+  let container = targetEl.querySelector(`.${containerClass}`);
+  if (!container) {
+    container = document.createElement('div');
+    container.className = containerClass;
+    container.setAttribute('aria-label', ariaLabel);
+    targetEl.appendChild(container);
+  }
+
+  const hasAbcf = container.querySelector('img[data-logo-file="ABCF.png"]');
+  const hasPulse = container.querySelector('img[data-logo-file="Pulse.png"]');
+
+  if (!hasAbcf) {
+    container.appendChild(createLogoWrapElement('ABCF.png', 'ABCF logo'));
+  }
+  if (!hasPulse) {
+    container.appendChild(createLogoWrapElement('Pulse.png', 'Pulse logo'));
+  }
+
+  return container;
+}
+
+function ensureLogosInjected() {
+  const authContainer = document.getElementById('authContainer');
+  ensureLogoContainer(authContainer, 'auth-mobile-logos', 'Authentication logos');
+
+  const loginCard = document.querySelector('#loginScreen .auth-card');
+  if (loginCard) {
+    let loginLogoRow = loginCard.querySelector('.auth-card-logos');
+    if (!loginLogoRow) {
+      loginLogoRow = document.createElement('div');
+      loginLogoRow.className = 'auth-card-logos';
+      loginLogoRow.setAttribute('aria-label', 'Login logos');
+
+      const loginForm = loginCard.querySelector('#loginForm');
+      if (loginForm) {
+        loginCard.insertBefore(loginLogoRow, loginForm);
+      } else {
+        loginCard.appendChild(loginLogoRow);
+      }
+    }
+    ensureLogoContainer(loginLogoRow, 'mobile-header-logos', 'Login logos');
+  }
+
+  const appHeader = document.querySelector('.app-header');
+  if (appHeader) {
+    let titleWithLogos = appHeader.querySelector('.title-with-logos');
+    if (!titleWithLogos) {
+      const headerTitle = appHeader.querySelector('h1');
+      titleWithLogos = document.createElement('div');
+      titleWithLogos.className = 'title-with-logos';
+
+      if (headerTitle) {
+        titleWithLogos.appendChild(headerTitle);
+      }
+
+      const headerRight = appHeader.querySelector('.header-right');
+      if (headerRight) {
+        appHeader.insertBefore(titleWithLogos, headerRight);
+      } else {
+        appHeader.appendChild(titleWithLogos);
+      }
+    }
+
+    ensureLogoContainer(titleWithLogos, 'mobile-header-logos', 'Header logos');
+  }
+}
+
+async function resolveLogoSources() {
+  const logoEls = Array.from(document.querySelectorAll('.mobile-header-logo[data-logo-file]'));
+  if (logoEls.length === 0) {
+    return;
+  }
+
+  const basePath = window.location.pathname.replace(/[^/]*$/, '');
+
+  await Promise.all(logoEls.map(async logoEl => {
+    const logoFile = logoEl.getAttribute('data-logo-file');
+    if (!logoFile) {
+      return;
+    }
+
+    const candidates = [
+      `assets/${logoFile}`,
+      `./assets/${logoFile}`,
+      `/assets/${logoFile}`,
+      `/kingdom-roots/assets/${logoFile}`,
+      `${basePath}assets/${logoFile}`
+    ];
+
+    for (const candidate of candidates) {
+      const exists = await testImagePath(candidate);
+      if (exists) {
+        logoEl.src = candidate;
+        const wrapper = logoEl.closest('.mobile-logo-wrap');
+        if (wrapper) {
+          wrapper.classList.add('logo-loaded');
+        }
+        return;
+      }
+    }
+  }));
+}
+
 // Game Logic
 let faithPoints = 0;
 let treeProgress = 0;
@@ -904,12 +1035,12 @@ const scriptures = [
 ];
 
 const actionRewards = {
-  'pray': { fp: 1, fpMultiplier: 10, bonus: 0, name: 'Prayer' },
-  'bible': { fp: 1, fpMultiplier: 10, bonus: 0, name: 'Bible Reading' },
-  'devotion': { fp: 3, fpMultiplier: 10, bonus: 0, name: 'Devotional Time' },
-  'smallgroup': { fp: 3, fpMultiplier: 10, bonus: 0, name: 'Small Group' },
-  'attendService': { fp: 5, fpMultiplier: 10, bonus: 0, name: 'Selfie with the Pastor' },
-  'sharegospel': { fp: 10, fpMultiplier: 10, bonus: 0, name: 'Share Gospel' }
+  'pray': { fp: 1, bonus: 0, name: 'Prayer' },
+  'bible': { fp: 1, bonus: 0, name: 'Bible Reading' },
+  'devotion': { fp: 3, bonus: 0, name: 'Devotional Time' },
+  'smallgroup': { fp: 3, bonus: 0, name: 'Small Group' },
+  'attendService': { fp: 5, bonus: 0, name: 'Attend Service' },
+  'sharegospel': { fp: 10, bonus: 0, name: 'Share Gospel' }
 };
 
 const taskRecurrenceRules = {
@@ -925,7 +1056,7 @@ const taskDisplayNames = {
   bible: 'Read Bible',
   devotion: 'Devotion',
   smallgroup: 'Small Group',
-  attendService: 'Selfie with the Pastor'
+  attendService: 'Attend Service'
 };
 
 const taskButtonBindings = {
@@ -1292,19 +1423,23 @@ function submitPhoto() {
   }
 
   const recurrenceCheck = canCompleteTask(currentAction);
+  if (!recurrenceCheck.allowed) {
+    alert(recurrenceCheck.message);
+    closeUploadModal();
+    return;
+  }
+
   const reward = actionRewards[currentAction];
-  const pointsToAdd = reward.fp * reward.fpMultiplier;
+  if (!reward) {
+    closeUploadModal();
+    return;
+  }
+
+  const pointsToAdd = reward.fp;
   faithPoints += pointsToAdd;
 
-  if (recurrenceCheck.allowed) {
-    markTaskCompleted(currentAction, recurrenceCheck.periodKey);
-    showScripture();
-  } else {
-    const scriptureBox = document.getElementById('scriptureBox');
-    if (scriptureBox) {
-      scriptureBox.textContent = `${taskDisplayNames[currentAction] || 'Task'} already completed for this period. Faith Points added only.`;
-    }
-  }
+  markTaskCompleted(currentAction, recurrenceCheck.periodKey);
+  showScripture();
   updateDisplay();
   closeUploadModal();
 }
@@ -1429,8 +1564,7 @@ async function onQrCodeSuccess(decodedText, decodedResult) {
     document.getElementById("qr-status").textContent = "✓ Valid Church QR Code! Service points awarded!";
     document.getElementById("qr-status").style.color = "green";
     
-    // Award points (5 * 10 = 50)
-    const pointsToAdd = 5 * 10;
+    const pointsToAdd = actionRewards.attendService.fp;
     applyTreeProgress(pointsToAdd);
 
     markTaskCompleted('attendService', recurrenceCheck.periodKey);
@@ -1464,7 +1598,7 @@ async function closeQrScanner() {
 }
 
 function shareGospel() {
-  const pointsToAdd = 10 * 10;
+  const pointsToAdd = actionRewards.sharegospel.fp;
   applyTreeProgress(pointsToAdd);
   showScripture();
   updateDisplay();
@@ -1652,5 +1786,7 @@ window.addEventListener('click', function(event) {
 
 // Initialize app on page load
 window.addEventListener('DOMContentLoaded', function() {
+  ensureLogosInjected();
+  resolveLogoSources();
   initializeApp();
 });
