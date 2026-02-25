@@ -1052,7 +1052,7 @@ function updateTreeGrowth() {
     // Share Gospel button logic
     const shareGospelBtn = document.getElementById('shareGospelBtn');
     if (shareGospelBtn) {
-      if (['youngTree', 'matureTree', 'oldTree'].includes(currentStage)) {
+      if (treeProgress >= 600) {
         shareGospelBtn.style.display = 'inline-block';
       } else {
         shareGospelBtn.style.display = 'none';
