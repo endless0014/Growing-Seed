@@ -870,6 +870,8 @@ function clearAuthErrors() {
   document.getElementById('changePassError').textContent = '';
 }
 
+const LOGO_CACHE_BUSTER = '20260225-logo-refresh-2';
+
 function testImagePath(path) {
   return new Promise(resolve => {
     const testImg = new Image();
@@ -887,7 +889,7 @@ function createLogoWrapElement(fileName, altText) {
   img.className = 'mobile-header-logo';
   img.setAttribute('data-logo-file', fileName);
   img.alt = altText;
-  img.src = `assets/${fileName}`;
+  img.src = `assets/${fileName}?v=${LOGO_CACHE_BUSTER}`;
 
   wrap.appendChild(img);
   return wrap;
@@ -980,11 +982,11 @@ async function resolveLogoSources() {
     }
 
     const candidates = [
-      `assets/${logoFile}`,
-      `./assets/${logoFile}`,
-      `/assets/${logoFile}`,
-      `/kingdom-roots/assets/${logoFile}`,
-      `${basePath}assets/${logoFile}`
+      `assets/${logoFile}?v=${LOGO_CACHE_BUSTER}`,
+      `./assets/${logoFile}?v=${LOGO_CACHE_BUSTER}`,
+      `/assets/${logoFile}?v=${LOGO_CACHE_BUSTER}`,
+      `/kingdom-roots/assets/${logoFile}?v=${LOGO_CACHE_BUSTER}`,
+      `${basePath}assets/${logoFile}?v=${LOGO_CACHE_BUSTER}`
     ];
 
     for (const candidate of candidates) {
