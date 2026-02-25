@@ -937,11 +937,16 @@ function ensureLogosInjected() {
       loginLogoRow.className = 'auth-card-logos';
       loginLogoRow.setAttribute('aria-label', 'Login logos');
 
-      const loginForm = loginCard.querySelector('#loginForm');
-      if (loginForm) {
-        loginCard.insertBefore(loginLogoRow, loginForm);
+      const loginTitle = loginCard.querySelector('h1');
+      if (loginTitle) {
+        loginCard.insertBefore(loginLogoRow, loginTitle);
       } else {
-        loginCard.appendChild(loginLogoRow);
+        const loginForm = loginCard.querySelector('#loginForm');
+        if (loginForm) {
+          loginCard.insertBefore(loginLogoRow, loginForm);
+        } else {
+          loginCard.appendChild(loginLogoRow);
+        }
       }
     }
     ensureLogoContainer(loginLogoRow, 'auth-card-logos', 'Login logos');
