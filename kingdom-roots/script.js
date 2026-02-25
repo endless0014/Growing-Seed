@@ -985,8 +985,9 @@ function updateProgressDisplay() {
     let foundStage = false;
     for (let stage of stages) {
       if (treeProgress < stage.threshold) {
-        progressPercent = ((treeProgress - currentStart) / (stage.threshold - currentStart)) * 100;
-        progressTextContent = `📈 ${Math.floor(treeProgress)}/${stage.threshold} progress to ${stage.name}`;
+        const stageProgress = treeProgress - currentStart;
+        progressPercent = (stageProgress / stage.threshold) * 100;
+        progressTextContent = `📈 ${Math.floor(stageProgress)}/${stage.threshold} progress to ${stage.name}`;
         foundStage = true;
         break;
       }
