@@ -2,6 +2,17 @@
 let currentUser = null;
 const RETAINED_TEST_EMAIL = 'endlesssh0014@gmail.com';
 const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
+const FIREBASE_CONFIG = {
+  apiKey: '',
+  authDomain: '',
+  projectId: '',
+  storageBucket: '',
+  messagingSenderId: '',
+  appId: ''
+};
+const CLOUD_USERS_COLLECTION = 'users';
+const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
+let cloudDb = null;
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -14,6 +25,131 @@ function isAdminEmail(email) {
 
 function getRoleByEmail(email) {
   return isAdminEmail(email) ? 'admin' : 'user';
+}
+
+function isFirebaseConfigured() {
+  return Object.values(FIREBASE_CONFIG).every(value => String(value || '').trim() !== '');
+}
+
+function initializeCloudDatabase() {
+  if (!window.firebase) {
+    return false;
+  }
+
+  if (!isFirebaseConfigured()) {
+    console.warn('Firebase config is missing. Shared registration sync is disabled until FIREBASE_CONFIG is filled.');
+    return false;
+  }
+
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(FIREBASE_CONFIG);
+    }
+    cloudDb = firebase.firestore();
+    return true;
+  } catch (error) {
+    console.warn('Cloud database init failed:', error);
+    cloudDb = null;
+    return false;
+  }
+}
+
+function getCloudUsersCollection() {
+  return cloudDb ? cloudDb.collection(CLOUD_USERS_COLLECTION) : null;
+}
+
+function normalizeStoredUser(user, fallbackId) {
+  return {
+    ...user,
+    id: Number(user?.id ?? fallbackId ?? Date.now()),
+    email: normalizeEmail(user?.email),
+    role: getRoleByEmail(user?.email),
+    viewMode: user?.viewMode ?? 'user',
+    taskCompletions: user?.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {}
+  };
+}
+
+function sanitizeUserForCloud(user) {
+  const normalizedUser = normalizeStoredUser(user, Date.now());
+  return {
+    ...normalizedUser,
+    updatedAt: Date.now()
+  };
+}
+
+async function upsertUserInCloud(user) {
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection || !user?.email) {
+    return;
+  }
+
+  try {
+    const normalizedEmail = normalizeEmail(user.email);
+    await usersCollection.doc(normalizedEmail).set(sanitizeUserForCloud(user), { merge: true });
+  } catch (error) {
+    console.warn('Cloud upsert failed:', error);
+  }
+}
+
+async function deleteUserFromCloud(email) {
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection || !email) {
+    return;
+  }
+
+  try {
+    await usersCollection.doc(normalizeEmail(email)).delete();
+  } catch (error) {
+    console.warn('Cloud delete failed:', error);
+  }
+}
+
+function syncUsersToCloud(users) {
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection || !Array.isArray(users)) {
+    return;
+  }
+
+  Promise.all(users.map(user => upsertUserInCloud(user))).catch(error => {
+    console.warn('Cloud sync failed:', error);
+  });
+}
+
+async function syncUsersFromCloudToLocal() {
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection) {
+    return false;
+  }
+
+  try {
+    const snapshot = await usersCollection.get();
+    const cloudUsers = snapshot.docs
+      .map((doc, index) => normalizeStoredUser(doc.data(), Date.now() + index))
+      .filter(user => Boolean(user.email));
+
+    localStorage.setItem('users', JSON.stringify(cloudUsers));
+    return true;
+  } catch (error) {
+    console.warn('Cloud read failed:', error);
+    return false;
+  }
+}
+
+async function migrateLocalUsersToCloudOnce() {
+  if (!getCloudUsersCollection()) {
+    return;
+  }
+
+  if (localStorage.getItem(CLOUD_MIGRATION_KEY) === 'done') {
+    return;
+  }
+
+  const localUsers = getStoredUsersSafe();
+  if (localUsers.length > 0) {
+    await Promise.all(localUsers.map(user => upsertUserInCloud(user)));
+  }
+
+  localStorage.setItem(CLOUD_MIGRATION_KEY, 'done');
 }
 
 function enforceAdminRoleInStorage() {
@@ -31,7 +167,7 @@ function enforceAdminRoleInStorage() {
   });
 
   if (usersChanged) {
-    localStorage.setItem('users', JSON.stringify(normalizedUsers));
+    setStoredUsers(normalizedUsers);
   }
 
   const currentUserRaw = localStorage.getItem('currentUser');
@@ -54,7 +190,10 @@ function retainOnlyTestUserDataOnce() {
 }
 
 // Initialize app
-function initializeApp() {
+async function initializeApp() {
+  initializeCloudDatabase();
+  await migrateLocalUsersToCloudOnce();
+  await syncUsersFromCloudToLocal();
   enforceAdminRoleInStorage();
   currentUser = localStorage.getItem('currentUser');
   
@@ -154,10 +293,12 @@ function toggleAdminView() {
   saveUserData();
 }
 
-function renderAdminDashboard() {
+async function renderAdminDashboard() {
   if (!isAdminUser() || getCurrentViewMode() !== 'admin') {
     return;
   }
+
+  await syncUsersFromCloudToLocal();
 
   const users = JSON.parse(localStorage.getItem('users') || '[]');
   const safeUsers = Array.isArray(users) ? users : [];
@@ -232,6 +373,7 @@ function getStoredUsersSafe() {
 
 function setStoredUsers(users) {
   localStorage.setItem('users', JSON.stringify(users));
+  syncUsersToCloud(users);
 }
 
 function findUserIndexById(users, userId) {
@@ -482,7 +624,7 @@ function handleRegister(event) {
   };
   
   users.push(newUser);
-  localStorage.setItem('users', JSON.stringify(users));
+  setStoredUsers(users);
   
   currentUser = { ...newUser };
   delete currentUser.password;
@@ -554,7 +696,7 @@ function resetPasswordWithCode() {
   
   if (userIndex !== -1) {
     users[userIndex].password = newPassword;
-    localStorage.setItem('users', JSON.stringify(users));
+    setStoredUsers(users);
     
     // Clear reset request
     delete resetRequests[email];
@@ -655,7 +797,7 @@ function handleChangePassword(event) {
   
   const userIndex = users.findIndex(u => u.id === currentUser.id);
   users[userIndex].password = newPassword;
-  localStorage.setItem('users', JSON.stringify(users));
+  setStoredUsers(users);
   
   alert('Password changed successfully!');
   closeChangePasswordModal();
@@ -692,7 +834,8 @@ function deleteAccountConfirm() {
     if (confirm('This will permanently delete all your data. Type your email to confirm: ' + currentUser.email)) {
       const users = JSON.parse(localStorage.getItem('users') || '[]');
       const filteredUsers = users.filter(u => u.id !== currentUser.id);
-      localStorage.setItem('users', JSON.stringify(filteredUsers));
+      setStoredUsers(filteredUsers);
+      deleteUserFromCloud(currentUser.email);
       
       alert('Account deleted successfully');
       localStorage.removeItem('currentUser');
@@ -916,7 +1059,7 @@ function saveUserData() {
       users[userIndex].taskCompletions = taskCompletions;
       users[userIndex].viewMode = getCurrentViewMode();
       
-      localStorage.setItem('users', JSON.stringify(users));
+      setStoredUsers(users);
       
       // Also update current user session with all game data
       currentUser.faithPoints = Math.floor(faithPoints);
