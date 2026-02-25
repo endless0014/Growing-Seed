@@ -273,7 +273,6 @@ function adminAddPoints(userId) {
   }
 
   users[userIndex].faithPoints = Math.floor(Number(users[userIndex].faithPoints ?? 0) + points);
-  users[userIndex].treeProgress = Math.floor(Number(users[userIndex].treeProgress ?? 0) + points);
   setStoredUsers(users);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard();
