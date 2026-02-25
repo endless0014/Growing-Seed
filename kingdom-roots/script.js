@@ -749,6 +749,7 @@ const actionRewards = {
   'bible': { fp: 1, fpMultiplier: 10, bonus: 0, name: 'Bible Reading' },
   'devotion': { fp: 3, fpMultiplier: 10, bonus: 0, name: 'Devotional Time' },
   'smallgroup': { fp: 3, fpMultiplier: 10, bonus: 0, name: 'Small Group' },
+  'attendService': { fp: 5, fpMultiplier: 10, bonus: 0, name: 'Selfie with the Pastor' },
   'sharegospel': { fp: 10, fpMultiplier: 10, bonus: 0, name: 'Share Gospel' }
 };
 
@@ -765,7 +766,7 @@ const taskDisplayNames = {
   bible: 'Read Bible',
   devotion: 'Devotion',
   smallgroup: 'Small Group',
-  attendService: 'Attend Service'
+  attendService: 'Selfie with the Pastor'
 };
 
 const taskButtonBindings = {
