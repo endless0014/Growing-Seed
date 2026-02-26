@@ -1186,7 +1186,7 @@ const actionRewards = {
   'bible': { fp: 1, bonus: 0, name: 'Bible Reading' },
   'devotion': { fp: 3, bonus: 0, name: 'Devotional Time' },
   'smallgroup': { fp: 3, bonus: 0, name: 'Small Group' },
-  'attendService': { fp: 5, bonus: 0, name: 'Attend Service' },
+  'attendService': { fp: 5, bonus: 0, name: 'Attended Service' },
   'sharegospel': { fp: 10, bonus: 0, name: 'Share Gospel' }
 };
 
@@ -1203,7 +1203,7 @@ const taskDisplayNames = {
   bible: 'Read Bible',
   devotion: 'Devotion',
   smallgroup: 'Small Group',
-  attendService: 'Attend Service'
+  attendService: 'Attended Service'
 };
 
 const taskButtonBindings = {
@@ -1577,7 +1577,16 @@ function animateFruitBurst(fruitElement) {
 function openUploadModal(action) {
   currentAction = action;
   const reward = actionRewards[action];
-  document.getElementById("actionName").textContent = reward.name;
+  const titlePrefixElement = document.getElementById("uploadTitlePrefix");
+  const actionNameElement = document.getElementById("actionName");
+
+  if (action === 'attendService') {
+    titlePrefixElement.textContent = 'Share a';
+    actionNameElement.textContent = 'Selfie with the Pastor';
+  } else {
+    titlePrefixElement.textContent = 'Share Your';
+    actionNameElement.textContent = reward.name;
+  }
   document.getElementById("photoInput").value = '';
   document.getElementById("photoPreview").style.display = 'none';
   const submitPhotoBtn = document.getElementById('submitPhotoBtn');
