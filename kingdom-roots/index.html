@@ -289,19 +289,19 @@
     </div>
     <div class="button-group">
       <button id="prayBtn" class="task-action-btn" onclick="openUploadModal('pray')">
-        <span class="task-title">🙏 Pray (+1 FP)</span>
+        <span class="task-title">🙏 Prayer Time (+2 FP)</span>
       </button>
       <button id="bibleBtn" class="task-action-btn" onclick="openUploadModal('bible')">
-        <span class="task-title">📖 Read Bible (+1 FP)</span>
+        <span class="task-title">📘 Bible Reading (+2 FP)</span>
       </button>
       <button id="devotionBtn" class="task-action-btn" onclick="openUploadModal('devotion')">
-        <span class="task-title">🕊️ Devotion Time (+3 FP)</span>
+        <span class="task-title">🕊️ Daily Devotion (+4 FP)</span>
       </button>
       <button id="smallgroupBtn" class="task-action-btn" onclick="openUploadModal('smallgroup')">
-        <span class="task-title">👥 Small Group (+3 FP)</span>
+        <span class="task-title">🧑‍🤝‍🧑 Small Group (+10 FP)</span>
       </button>
       <button id="attendServiceBtn" class="task-action-btn" onclick="openUploadModal('attendService')">
-        <span class="task-title">⛪ Attended Service (+5 FP)</span>
+        <span class="task-title">🏠 Worship Attendance (+15 FP)</span>
       </button>
       <button id="shareGospelBtn" onclick="openUploadModal('sharegospel')" style="display: none;">Share Gospel (+10 FP)</button>
     </div>
@@ -406,7 +406,7 @@
   <div id="uploadModal" class="modal" style="display: none;">
     <div class="modal-content">
       <span class="close" onclick="closeUploadModal()">&times;</span>
-      <h2><span id="uploadTitlePrefix">Share Your</span> <span id="actionName">Prayer</span></h2>
+      <h2><span id="uploadTitlePrefix">Share Your</span> <span id="actionName">Prayer Time</span></h2>
       <p>Upload a photo to receive bonus points!</p>
       <input type="file" id="photoInput" accept="image/*" />
       <img id="photoPreview" style="max-width: 100%; margin-top: 1rem; display: none;" />
@@ -432,6 +432,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260226-final-pass-1"></script>
+  <script src="script.js?v=20260226-points-update-1"></script>
 </body>
 </html>

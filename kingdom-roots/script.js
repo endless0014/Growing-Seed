@@ -1175,11 +1175,11 @@ const scriptures = [
 ];
 
 const actionRewards = {
-  'pray': { fp: 1, bonus: 0, name: 'Prayer' },
-  'bible': { fp: 1, bonus: 0, name: 'Bible Reading' },
-  'devotion': { fp: 3, bonus: 0, name: 'Devotional Time' },
-  'smallgroup': { fp: 3, bonus: 0, name: 'Small Group' },
-  'attendService': { fp: 5, bonus: 0, name: 'Attended Service' },
+  'pray': { fp: 2, bonus: 0, name: 'Prayer Time' },
+  'bible': { fp: 2, bonus: 0, name: 'Bible Reading' },
+  'devotion': { fp: 4, bonus: 0, name: 'Daily Devotion' },
+  'smallgroup': { fp: 10, bonus: 0, name: 'Small Group' },
+  'attendService': { fp: 15, bonus: 0, name: 'Worship Attendance' },
   'sharegospel': { fp: 10, bonus: 0, name: 'Share Gospel' }
 };
 
@@ -1192,11 +1192,11 @@ const taskRecurrenceRules = {
 };
 
 const taskDisplayNames = {
-  pray: 'Pray',
-  bible: 'Read Bible',
-  devotion: 'Devotion',
+  pray: 'Prayer Time',
+  bible: 'Bible Reading',
+  devotion: 'Daily Devotion',
   smallgroup: 'Small Group',
-  attendService: 'Attended Service'
+  attendService: 'Worship Attendance'
 };
 
 const taskButtonBindings = {
@@ -1573,13 +1573,8 @@ function openUploadModal(action) {
   const titlePrefixElement = document.getElementById("uploadTitlePrefix");
   const actionNameElement = document.getElementById("actionName");
 
-  if (action === 'attendService') {
-    titlePrefixElement.textContent = 'Share a';
-    actionNameElement.textContent = 'Selfie with the Pastor';
-  } else {
-    titlePrefixElement.textContent = 'Share Your';
-    actionNameElement.textContent = reward.name;
-  }
+  titlePrefixElement.textContent = 'Share Your';
+  actionNameElement.textContent = reward.name;
   document.getElementById("photoInput").value = '';
   document.getElementById("photoPreview").style.display = 'none';
   const submitPhotoBtn = document.getElementById('submitPhotoBtn');
