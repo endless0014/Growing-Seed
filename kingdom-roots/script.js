@@ -1690,7 +1690,7 @@ function useAllPoints() {
     // Show success message
     const message = maxBloomReached 
       ? `Blessed! You grew ${pointsUsed} Fruits for the Kingdom! 🍎` 
-      : `Blessed! You distributed ${pointsUsed} Faith Points to the Kingdom! 🙏`;
+      : `Blessed! You distributed ${pointsUsed} Faith Points for your growth! 🙏`;
     document.getElementById("scriptureBox").textContent = message;
     document.getElementById("scriptureBox").style.color = "#4CAF50";
     document.getElementById("scriptureBox").style.fontWeight = "bold";
