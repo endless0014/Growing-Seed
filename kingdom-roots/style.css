@@ -108,8 +108,8 @@
 
 #treeStageImages.stage-seed {
   background-image:
-    radial-gradient(circle at 50% 78%, rgba(127, 84, 45, 0.38) 0 24%, transparent 38%),
-    linear-gradient(to top, #6b4f3b 0%, #85624a 36%, #b9d6e8 100%);
+    radial-gradient(circle at 50% 78%, rgba(151, 110, 70, 0.3) 0 24%, transparent 38%),
+    linear-gradient(to top, #8c6a4f 0%, #b08765 36%, #d8ecf8 100%);
 }
 
 #treeStageImages.stage-seed::before {
@@ -119,7 +119,6 @@
 
 #treeStageImages.stage-germination {
   background-image:
-    repeating-linear-gradient(102deg, rgba(255, 255, 255, 0.22) 0 2px, transparent 2px 16px),
     radial-gradient(circle at 50% 76%, rgba(95, 151, 84, 0.36) 0 22%, transparent 40%),
     linear-gradient(to top, #73563f 0%, #8d6a4b 34%, #9dc5e0 100%);
 }
@@ -130,11 +129,10 @@
 }
 
 #treeStageImages.stage-germination::after {
-  background:
-    repeating-linear-gradient(110deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 12px),
-    linear-gradient(to top, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0));
-  opacity: 0.14;
-  animation: stageRainDrift 18s linear infinite;
+  content: none;
+  background: none;
+  opacity: 0;
+  animation: none;
 }
 
 #treeStageImages.stage-seedling {
