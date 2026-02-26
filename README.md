@@ -1,7 +1,35 @@
-# GitHub Codespaces ♥️ Jupyter Notebooks
+# Growing Seed
 
-Welcome to your shiny new codespace! We've got everything fired up and running for you to explore Python and Jupyter notebooks.
+Growing Seed is a browser-based faith journey app with authentication, daily actions, progress tracking, and an admin dashboard.
 
-You've got a blank canvas to work on from a git perspective as well. There's a single initial commit with what you're seeing right now - where you go from here is up to you!
+## Live Site
 
-Everything you do here is contained within this one codespace. There is no repository on GitHub yet. If and when you’re ready you can click "Publish Branch" and we’ll create your repository and push up your project. If you were just exploring then and have no further need for this code then you can simply delete your codespace and it's gone forever.
+- Production URL: https://endless0014.github.io/Growing-Seed/
+- App page: https://endless0014.github.io/Growing-Seed/kingdom-roots/index.html
+
+## Current Frontend Status
+
+- Removed unused QR scanner dependency and related dead code paths.
+- Kept authentication, profile, admin dashboard, task actions, and tree progression flows.
+- Cache-busted frontend assets are loaded via versioned query strings in the app HTML.
+
+## MySQL Transfer Preparation (Retained)
+
+The project intentionally keeps MySQL migration prep for a later backend transfer.
+
+- Schema file retained: [database/mysql_schema.sql](database/mysql_schema.sql)
+- Existing client-side storage/cloud sync logic is still present for current runtime behavior.
+- Future backend migration should map user/session/task-completion data to the schema above.
+
+## Project Structure
+
+- App frontend: [kingdom-roots/index.html](kingdom-roots/index.html), [kingdom-roots/script.js](kingdom-roots/script.js), [kingdom-roots/style.css](kingdom-roots/style.css)
+- Database prep: [database/mysql_schema.sql](database/mysql_schema.sql)
+- Data and experiments: [data](data), [notebooks](notebooks)
+
+## Local Run
+
+From repository root:
+
+1. Start static server: `python -m http.server 8000`
+2. Open: `http://localhost:8000/kingdom-roots/index.html`
