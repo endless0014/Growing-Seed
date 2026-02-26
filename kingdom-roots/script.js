@@ -64,6 +64,7 @@ function normalizeStoredUser(user, fallbackId) {
   const safeUserId = Number.isFinite(parsedUserId)
     ? parsedUserId
     : (Number.isFinite(fallbackNumericId) ? fallbackNumericId : Date.now());
+  const parsedLastActiveAt = Number(user?.lastActiveAt ?? user?.updatedAt ?? 0);
 
   return {
     ...user,
@@ -72,8 +73,32 @@ function normalizeStoredUser(user, fallbackId) {
     role: getRoleByEmail(user?.email),
     viewMode: user?.viewMode ?? 'user',
     lastLogin: user?.lastLogin ?? '',
+    lastActiveAt: Number.isFinite(parsedLastActiveAt) && parsedLastActiveAt > 0 ? parsedLastActiveAt : '',
     taskCompletions: user?.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {}
   };
+}
+
+function formatDateTimeForDisplay(value) {
+  if (value === null || value === undefined || value === '') {
+    return 'Never';
+  }
+
+  const timestamp = Number(value);
+  if (Number.isFinite(timestamp) && timestamp > 0) {
+    return new Date(timestamp).toLocaleString();
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleString();
+  }
+
+  return 'Never';
+}
+
+function getLastActiveTimestamp(user) {
+  const candidate = Number(user?.lastActiveAt ?? user?.updatedAt ?? 0);
+  return Number.isFinite(candidate) && candidate > 0 ? candidate : 0;
 }
 
 function sanitizeUserForCloud(user) {
@@ -368,9 +393,11 @@ async function renderAdminDashboard(syncFromCloud = true) {
 
   const totalUsersEl = document.getElementById('adminTotalUsers');
   const totalAdminsEl = document.getElementById('adminTotalAdmins');
+  const taskRefreshEl = document.getElementById('adminTaskRefreshTime');
 
   if (totalUsersEl) totalUsersEl.textContent = String(totalUsers);
   if (totalAdminsEl) totalAdminsEl.textContent = String(totalAdmins);
+  if (taskRefreshEl) taskRefreshEl.textContent = `Task refresh: ${getTaskRefreshTimeLabel()}`;
 
   const tbody = document.getElementById('adminUsersTableBody');
   if (!tbody) {
@@ -378,16 +405,21 @@ async function renderAdminDashboard(syncFromCloud = true) {
   }
 
   if (safeUsers.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7">No users found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8">No users found.</td></tr>';
     return;
   }
 
-  tbody.innerHTML = safeUsers
+  const sortedUsers = [...safeUsers].sort((leftUser, rightUser) => {
+    return getLastActiveTimestamp(rightUser) - getLastActiveTimestamp(leftUser);
+  });
+
+  tbody.innerHTML = sortedUsers
     .map(user => {
       const role = getRoleByEmail(user.email);
       const normalizedEmail = normalizeEmail(user.email || '');
       const name = escapeHtml(user.name || 'N/A');
       const lastLogin = escapeHtml(user.lastLogin || 'Never');
+      const lastActive = escapeHtml(formatDateTimeForDisplay(user.lastActiveAt ?? user.updatedAt));
       const email = escapeHtml(user.email || 'N/A');
       const faithPoints = Math.floor(Number(user.faithPoints ?? 0) || 0);
       const treeProgress = Math.floor(Number(user.treeProgress ?? 0) || 0);
@@ -396,6 +428,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
         <tr>
           <td>${name}</td>
           <td>${lastLogin}</td>
+          <td>${lastActive}</td>
           <td>${email}</td>
           <td><span class="admin-role-badge ${role}">${role}</span></td>
           <td>${faithPoints}</td>
@@ -662,6 +695,7 @@ async function handleLogin(event) {
     const userIndex = users.findIndex(u => Number(u.id) === Number(user.id));
     const normalizedUser = normalizeStoredUser(user, user.id);
     normalizedUser.lastLogin = new Date().toLocaleString();
+    normalizedUser.lastActiveAt = Date.now();
     normalizedUser.viewMode = isAdminEmail(normalizedUser.email) ? 'admin' : (normalizedUser.viewMode ?? 'user');
 
     if (userIndex !== -1) {
@@ -685,6 +719,7 @@ async function handleLogin(event) {
       pointsForFruit: normalizedUser.pointsForFruit ?? 0,
       maxBloomReached: normalizedUser.maxBloomReached ?? false,
       lastLogin: normalizedUser.lastLogin ?? '',
+      lastActiveAt: normalizedUser.lastActiveAt ?? '',
       taskCompletions: normalizedUser.taskCompletions ?? {}
     };
     delete currentUser.password;
@@ -728,6 +763,7 @@ function handleRegister(event) {
     password,
     joinedDate: new Date().toLocaleDateString(),
     lastLogin: new Date().toLocaleString(),
+    lastActiveAt: Date.now(),
     faithPoints: 0,
     treeProgress: 0,
     passiveRate: 1,
@@ -1123,6 +1159,8 @@ let pointsForFruit = 0;
 let fruitCount = 0;
 let taskCompletions = {};
 const FULL_BLOOM_THRESHOLD = 1500;
+const TASK_REFRESH_HOUR = 24;
+const TASK_REFRESH_MINUTE = 0;
 
 function resetGameState() {
   faithPoints = 0;
@@ -1185,12 +1223,42 @@ function getYearWeekKey(date) {
   return `${tempDate.getFullYear()}-W${weekNumber}`;
 }
 
-function getCurrentPeriodKey(unit) {
-  const now = new Date();
-  if (unit === 'week') {
-    return getYearWeekKey(now);
+function getTaskRefreshOffsetMinutes() {
+  const totalMinutes = (Number(TASK_REFRESH_HOUR) * 60) + Number(TASK_REFRESH_MINUTE);
+
+  if (!Number.isFinite(totalMinutes)) {
+    return 0;
   }
-  return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+
+  const minutesInDay = 24 * 60;
+  return ((totalMinutes % minutesInDay) + minutesInDay) % minutesInDay;
+}
+
+function getTaskRefreshTimeLabel() {
+  const normalizedOffset = getTaskRefreshOffsetMinutes();
+  const hours = Math.floor(normalizedOffset / 60);
+  const minutes = normalizedOffset % 60;
+  const paddedHours = String(hours).padStart(2, '0');
+  const paddedMinutes = String(minutes).padStart(2, '0');
+  return `${paddedHours}:${paddedMinutes}`;
+}
+
+function getTaskPeriodReferenceNow() {
+  const offsetMinutes = getTaskRefreshOffsetMinutes();
+  return new Date(Date.now() - (offsetMinutes * 60 * 1000));
+}
+
+function getCurrentTaskDayKey() {
+  const adjusted = getTaskPeriodReferenceNow();
+  return `${adjusted.getFullYear()}-${adjusted.getMonth() + 1}-${adjusted.getDate()}`;
+}
+
+function getCurrentPeriodKey(unit) {
+  const adjustedNow = getTaskPeriodReferenceNow();
+  if (unit === 'week') {
+    return getYearWeekKey(adjustedNow);
+  }
+  return getCurrentTaskDayKey();
 }
 
 function canCompleteTask(taskKey) {
@@ -1314,6 +1382,7 @@ function saveUserData() {
       users[userIndex].maxBloomReached = maxBloomReached;
       users[userIndex].taskCompletions = taskCompletions;
       users[userIndex].viewMode = getCurrentViewMode();
+      users[userIndex].lastActiveAt = Date.now();
       
       setStoredUsers(users);
       
@@ -1326,6 +1395,7 @@ function saveUserData() {
       currentUser.maxBloomReached = maxBloomReached;
       currentUser.taskCompletions = taskCompletions;
       currentUser.viewMode = getCurrentViewMode();
+      currentUser.lastActiveAt = users[userIndex].lastActiveAt;
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
     }
   }
