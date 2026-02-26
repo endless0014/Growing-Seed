@@ -540,6 +540,7 @@ body.admin-view .container {
   border-collapse: collapse;
   min-width: 980px;
   background: #fff;
+  table-layout: auto;
 }
 
 .admin-table th,
@@ -548,13 +549,12 @@ body.admin-view .container {
   border-bottom: 1px solid #edf2f5;
   text-align: center;
   color: #31475c;
+  white-space: nowrap;
 }
 
-.admin-table th:nth-child(2),
-.admin-table td:nth-child(2),
-.admin-table th:nth-child(3),
-.admin-table td:nth-child(3) {
-  white-space: nowrap;
+.admin-table th:first-child,
+.admin-table td:first-child {
+  min-width: max-content;
 }
 
 .admin-table th {
