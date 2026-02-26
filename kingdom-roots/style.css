@@ -7,6 +7,200 @@
   margin-left: auto;
   margin-right: auto;
   display: block;
+  border-radius: 18px;
+  overflow: hidden;
+  isolation: isolate;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: background-image 0.8s ease, filter 0.8s ease;
+}
+
+#treeStageImages::before,
+#treeStageImages::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#treeStageImages::before {
+  background: radial-gradient(circle at 50% 82%, rgba(44, 86, 46, 0.16), transparent 48%);
+  opacity: 0.35;
+  transition: background 0.8s ease, opacity 0.8s ease;
+}
+
+#treeStageImages::after {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0));
+  opacity: 0.32;
+  transition: background 0.8s ease, opacity 0.8s ease;
+}
+
+@keyframes stageFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+@keyframes stagePulse {
+  0%, 100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.34;
+  }
+}
+
+@keyframes stageRainDrift {
+  0% {
+    transform: translate3d(-2px, -4px, 0);
+  }
+  100% {
+    transform: translate3d(4px, 8px, 0);
+  }
+}
+
+@keyframes stageGlowShift {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.22;
+  }
+  50% {
+    transform: translate3d(-2px, -2px, 0) scale(1.02);
+    opacity: 0.32;
+  }
+}
+
+@keyframes stageBreeze {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translate3d(4px, -2px, 0);
+    opacity: 0.3;
+  }
+}
+
+@keyframes stageTwilight {
+  0%, 100% {
+    opacity: 0.2;
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    opacity: 0.3;
+    transform: translate3d(-3px, -1px, 0);
+  }
+}
+
+#treeStageImages.stage-seed {
+  background-image:
+    radial-gradient(circle at 50% 78%, rgba(127, 84, 45, 0.38) 0 24%, transparent 38%),
+    linear-gradient(to top, #6b4f3b 0%, #85624a 36%, #b9d6e8 100%);
+}
+
+#treeStageImages.stage-seed::before {
+  background: radial-gradient(circle at 50% 84%, rgba(73, 48, 30, 0.42), transparent 55%);
+  animation: stagePulse 7.5s ease-in-out infinite;
+}
+
+#treeStageImages.stage-germination {
+  background-image:
+    repeating-linear-gradient(102deg, rgba(255, 255, 255, 0.22) 0 2px, transparent 2px 16px),
+    radial-gradient(circle at 50% 76%, rgba(95, 151, 84, 0.36) 0 22%, transparent 40%),
+    linear-gradient(to top, #73563f 0%, #8d6a4b 34%, #9dc5e0 100%);
+}
+
+#treeStageImages.stage-germination::before {
+  background: radial-gradient(circle at 50% 80%, rgba(96, 147, 86, 0.32), transparent 52%);
+  animation: stagePulse 6.5s ease-in-out infinite;
+}
+
+#treeStageImages.stage-germination::after {
+  background:
+    repeating-linear-gradient(110deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 12px),
+    linear-gradient(to top, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0));
+  opacity: 0.3;
+  animation: stageRainDrift 10s linear infinite;
+}
+
+#treeStageImages.stage-seedling {
+  background-image:
+    radial-gradient(circle at 80% 18%, rgba(255, 220, 132, 0.45) 0 10%, transparent 28%),
+    linear-gradient(to top, rgba(142, 191, 118, 0.35) 0 26%, transparent 40%),
+    linear-gradient(to top, #6f5a43 0%, #8c744e 32%, #b8ddf0 100%);
+}
+
+#treeStageImages.stage-seedling::before {
+  background: radial-gradient(circle at 80% 16%, rgba(255, 230, 160, 0.3), transparent 42%);
+  animation: stageGlowShift 8s ease-in-out infinite;
+}
+
+#treeStageImages.stage-sapling {
+  background-image:
+    radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.32) 0 11%, transparent 30%),
+    radial-gradient(circle at 80% 24%, rgba(255, 255, 255, 0.24) 0 9%, transparent 28%),
+    linear-gradient(to top, rgba(106, 176, 93, 0.56) 0 30%, transparent 44%),
+    linear-gradient(to top, #87c07a 0%, #a8d594 28%, #d3eef8 100%);
+}
+
+#treeStageImages.stage-sapling::before {
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.2), transparent 35%),
+    radial-gradient(circle at 76% 24%, rgba(255, 255, 255, 0.16), transparent 30%);
+  animation: stageFloat 11s ease-in-out infinite;
+}
+
+#treeStageImages.stage-youngTree {
+  background-image:
+    radial-gradient(circle at 22% 22%, rgba(255, 255, 255, 0.36) 0 10%, transparent 26%),
+    radial-gradient(circle at 78% 26%, rgba(255, 255, 255, 0.32) 0 9%, transparent 24%),
+    linear-gradient(to top, rgba(99, 173, 86, 0.54) 0 33%, transparent 48%),
+    linear-gradient(to top, #8acb7a 0%, #b7e0a2 26%, #dff3ff 100%);
+}
+
+#treeStageImages.stage-youngTree::before {
+  background: linear-gradient(105deg, transparent 10%, rgba(255, 255, 255, 0.2) 48%, transparent 85%);
+  animation: stageBreeze 9s ease-in-out infinite;
+}
+
+#treeStageImages.stage-matureTree {
+  background-image:
+    radial-gradient(circle at 82% 14%, rgba(255, 223, 120, 0.56) 0 11%, transparent 30%),
+    radial-gradient(circle at 28% 20%, rgba(255, 255, 255, 0.26) 0 10%, transparent 28%),
+    linear-gradient(to top, rgba(76, 151, 68, 0.6) 0 36%, transparent 52%),
+    linear-gradient(to top, #7ab668 0%, #a6d08d 24%, #d9f0ff 100%);
+}
+
+#treeStageImages.stage-matureTree::before {
+  background: radial-gradient(circle at 82% 14%, rgba(255, 230, 150, 0.34), transparent 42%);
+  animation: stageGlowShift 10s ease-in-out infinite;
+}
+
+#treeStageImages.stage-oldTree {
+  background-image:
+    radial-gradient(circle at 22% 14%, rgba(255, 177, 122, 0.4) 0 10%, transparent 28%),
+    radial-gradient(circle at 84% 20%, rgba(255, 255, 255, 0.16) 0 6%, transparent 20%),
+    radial-gradient(circle at 72% 12%, rgba(255, 255, 255, 0.12) 0 5%, transparent 18%),
+    linear-gradient(to top, rgba(88, 117, 72, 0.56) 0 38%, transparent 54%),
+    linear-gradient(to top, #617f56 0%, #89a07a 26%, #f2d2b3 58%, #b7cde5 100%);
+}
+
+#treeStageImages.stage-oldTree::before {
+  background: radial-gradient(circle at 18% 16%, rgba(255, 186, 130, 0.26), transparent 46%);
+  animation: stageTwilight 12s ease-in-out infinite;
+}
+
+#treeStageImages.stage-oldTree::after {
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.09) 0%, transparent 42%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0));
+  opacity: 0.3;
+  animation: stageFloat 13s ease-in-out infinite;
 }
 /* Tree Stage Image Animations */
 .tree-stage-img {

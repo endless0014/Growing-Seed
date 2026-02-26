@@ -1515,6 +1515,13 @@ function updateTreeGrowth() {
     currentStageNameEl.textContent = stageName;
   }
 
+  const treeStageContainer = document.getElementById('treeStageImages');
+  if (treeStageContainer) {
+    const allStageBackgroundClasses = stages.map(stage => `stage-${stage.key}`);
+    treeStageContainer.classList.remove(...allStageBackgroundClasses);
+    treeStageContainer.classList.add(`stage-${currentStage}`);
+  }
+
   // Remove 'active' class from all images
   stages.forEach(stage => {
     const el = document.getElementById(stage.id);
