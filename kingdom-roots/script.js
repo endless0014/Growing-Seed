@@ -1,6 +1,5 @@
 // Authentication System
 let currentUser = null;
-const RETAINED_TEST_EMAIL = 'endlesssh0014@gmail.com';
 const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
 const FIREBASE_CONFIG = {
   apiKey: 'AIzaSyDXPQnVHn9ux9Je5vGASWKig3AdBvnlOIk',
@@ -251,10 +250,6 @@ function enforceAdminRoleInStorage() {
       localStorage.removeItem('currentUser');
     }
   }
-}
-
-function retainOnlyTestUserDataOnce() {
-  return;
 }
 
 // Initialize app
@@ -1593,11 +1588,9 @@ function openUploadModal(action) {
   }
   const modal = document.getElementById("uploadModal");
   modal.style.display = 'flex';
-  console.log('Modal opened for:', action);
 }
 
 function closeUploadModal() {
-  console.log('Closing modal');
   const modal = document.getElementById("uploadModal");
   modal.style.display = 'none';
   const submitPhotoBtn = document.getElementById('submitPhotoBtn');
