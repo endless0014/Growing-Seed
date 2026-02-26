@@ -8,7 +8,6 @@
   <meta http-equiv="Expires" content="0" />
   <title>Growing Seed</title>
   <link rel="stylesheet" href="style.css?v=20260226-remove-germination-rain-1" />
-  <script src="https://unpkg.com/html5-qrcode@2.3.4/html5-qrcode.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
@@ -418,18 +417,6 @@
     </div>
   </div>
 
-  <!-- QR Scanner Modal -->
-  <div id="qrModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <span class="close" onclick="closeQrScanner()">&times;</span>
-      <h2>Scan Church QR Code</h2>
-      <p>Point your camera at the QR code at your church</p>
-      <div id="qr-reader" style="width: 100%; margin: 1rem 0;"></div>
-      <p id="qr-status" style="margin-top: 1rem; text-align: center; min-height: 20px;"></p>
-      <button onclick="closeQrScanner()" class="cancel-btn" style="margin-top: 1rem; width: 100%;">Close Scanner</button>
-    </div>
-  </div>
-
   <!-- Upgrade Modal -->
   <div id="upgradeModal" class="modal" style="display: none;">
     <div class="modal-content">
@@ -445,6 +432,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260226-admin-last-active-2"></script>
+  <script src="script.js?v=20260226-cleanup-1"></script>
 </body>
 </html>

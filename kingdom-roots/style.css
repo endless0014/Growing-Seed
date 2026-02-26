@@ -965,16 +965,6 @@ body.admin-view .container {
   cursor: pointer;
 }
 
-#qr-reader {
-  border: 2px solid #6abf69;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-#qr-reader > div:first-child {
-  padding: 0 !important;
-}
-
 .modal-buttons {
   margin-top: 1.5rem;
   display: flex;

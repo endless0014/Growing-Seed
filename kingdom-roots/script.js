@@ -1152,8 +1152,6 @@ let treeProgress = 0;
 let passiveRate = 1;
 let upgradeCost = 10;
 let currentAction = '';
-let html5QrcodeScanner = null;
-let isQrScannerRunning = false;
 let maxBloomReached = false;
 let pointsForFruit = 0;
 let fruitCount = 0;
@@ -1639,159 +1637,6 @@ function submitPhoto() {
   closeUploadModal();
 }
 
-async function stopQrScannerInstance() {
-  if (!html5QrcodeScanner) {
-    return;
-  }
-
-  try {
-    if (isQrScannerRunning) {
-      await html5QrcodeScanner.stop();
-    }
-  } catch (error) {
-    console.warn('QR stop warning:', error);
-  }
-
-  try {
-    await html5QrcodeScanner.clear();
-  } catch (error) {
-    console.warn('QR clear warning:', error);
-  }
-
-  html5QrcodeScanner = null;
-  isQrScannerRunning = false;
-}
-
-async function openQrScanner() {
-  const recurrenceCheck = canCompleteTask('attendService');
-  if (!recurrenceCheck.allowed) {
-    alert(recurrenceCheck.message);
-    return;
-  }
-
-  console.log('Opening QR Scanner');
-  document.getElementById("qrModal").style.display = 'flex';
-  document.getElementById("qr-status").textContent = "Initializing camera...";
-  document.getElementById("qr-status").style.color = "#333";
-
-  if (!window.isSecureContext) {
-    document.getElementById("qr-status").textContent = "Camera requires HTTPS. Please open the secure app URL.";
-    document.getElementById("qr-status").style.color = "red";
-    return;
-  }
-
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    document.getElementById("qr-status").textContent = "Camera is not supported on this browser/device.";
-    document.getElementById("qr-status").style.color = "red";
-    return;
-  }
-
-  const qrReader = document.getElementById("qr-reader");
-  if (qrReader) {
-    qrReader.innerHTML = '';
-  }
-  
-  await stopQrScannerInstance();
-  
-  // Start new scanner
-  html5QrcodeScanner = new Html5Qrcode("qr-reader");
-  const scannerConfig = {
-    fps: 10,
-    qrbox: { width: 250, height: 250 }
-  };
-
-  const setReadyStatus = () => {
-    document.getElementById("qr-status").textContent = "Camera ready. Scan church QR code.";
-    document.getElementById("qr-status").style.color = "#2e7d32";
-  };
-
-  try {
-    await html5QrcodeScanner.start(
-      { facingMode: { ideal: "environment" } },
-      scannerConfig,
-      onQrCodeSuccess,
-      onQrCodeError
-    );
-    isQrScannerRunning = true;
-    setReadyStatus();
-    return;
-  } catch (primaryError) {
-    console.warn('Primary camera start failed, trying fallback cameras:', primaryError);
-  }
-  
-  try {
-    const cameras = await Html5Qrcode.getCameras();
-    if (!cameras || cameras.length === 0) {
-      throw new Error('No cameras found on this device.');
-    }
-
-    await html5QrcodeScanner.start(
-      cameras[0].id,
-      scannerConfig,
-      onQrCodeSuccess,
-      onQrCodeError
-    );
-    isQrScannerRunning = true;
-    setReadyStatus();
-  } catch (fallbackError) {
-    console.error('Failed to start scanner:', fallbackError);
-    document.getElementById("qr-status").textContent = "Unable to start camera. Allow camera permission and retry.";
-    document.getElementById("qr-status").style.color = "red";
-  }
-}
-
-async function onQrCodeSuccess(decodedText, decodedResult) {
-  console.log('QR Code detected:', decodedText);
-  
-  // Check if QR contains church-related keywords
-  const isChurchQr = decodedText.toLowerCase().includes('church') || 
-                     decodedText.toLowerCase().includes('service') ||
-                     decodedText.toLowerCase().includes('attendance');
-  
-  if (isChurchQr) {
-    const recurrenceCheck = canCompleteTask('attendService');
-    if (!recurrenceCheck.allowed) {
-      document.getElementById("qr-status").textContent = recurrenceCheck.message;
-      document.getElementById("qr-status").style.color = "orange";
-      return;
-    }
-
-    document.getElementById("qr-status").textContent = "✓ Valid Church QR Code! Service points awarded!";
-    document.getElementById("qr-status").style.color = "green";
-    
-    const pointsToAdd = actionRewards.attendService.fp;
-    applyTreeProgress(pointsToAdd);
-
-    markTaskCompleted('attendService', recurrenceCheck.periodKey);
-    showScripture();
-    updateDisplay();
-    
-    await stopQrScannerInstance();
-
-    // Close modal after success
-    setTimeout(() => {
-      closeQrScanner();
-    }, 2000);
-  } else {
-    document.getElementById("qr-status").textContent = "⚠ Invalid QR code. Please scan a church QR code.";
-    document.getElementById("qr-status").style.color = "orange";
-  }
-}
-
-function onQrCodeError(error) {
-  // Silently ignore scanning errors
-  console.log('Scanning error:', error);
-}
-
-async function closeQrScanner() {
-  console.log('Closing QR Scanner');
-
-  await stopQrScannerInstance();
-  
-  document.getElementById("qrModal").style.display = 'none';
-  document.getElementById("qr-status").textContent = "";
-}
-
 function shareGospel() {
   const pointsToAdd = actionRewards.sharegospel.fp;
   applyTreeProgress(pointsToAdd);
@@ -1968,14 +1813,9 @@ if (photoInput) {
 // Close modal when clicking outside of it
 window.addEventListener('click', function(event) {
   const uploadModal = document.getElementById('uploadModal');
-  const qrModal = document.getElementById('qrModal');
   
   if (uploadModal && event.target === uploadModal) {
     closeUploadModal();
-  }
-  
-  if (qrModal && event.target === qrModal) {
-    closeQrScanner();
   }
 });
 
