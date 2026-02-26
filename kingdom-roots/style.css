@@ -480,7 +480,7 @@ body.admin-view .container {
 }
 
 .admin-dashboard {
-  text-align: left;
+  text-align: center;
 }
 
 .admin-dashboard h1 {
@@ -546,8 +546,15 @@ body.admin-view .container {
 .admin-table td {
   padding: 0.65rem 0.75rem;
   border-bottom: 1px solid #edf2f5;
-  text-align: left;
+  text-align: center;
   color: #31475c;
+}
+
+.admin-table th:nth-child(2),
+.admin-table td:nth-child(2),
+.admin-table th:nth-child(3),
+.admin-table td:nth-child(3) {
+  white-space: nowrap;
 }
 
 .admin-table th {
