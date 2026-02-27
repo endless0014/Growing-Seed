@@ -532,7 +532,10 @@ function adminAddPoints(userId, userEmail = '') {
   }
 
   users[userIndex].faithPoints = Math.floor(Number(users[userIndex].faithPoints ?? 0) + points);
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
   setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);
 }
