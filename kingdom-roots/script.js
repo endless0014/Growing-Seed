@@ -533,6 +533,7 @@ function adminAddPoints(userId, userEmail = '') {
 
   users[userIndex].faithPoints = Math.floor(Number(users[userIndex].faithPoints ?? 0) + points);
   setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);
 }
@@ -1804,6 +1805,27 @@ window.addEventListener('click', function(event) {
   
   if (uploadModal && event.target === uploadModal) {
     closeUploadModal();
+  }
+});
+
+// Keep faith points display in sync when admin updates a user in another tab/window
+window.addEventListener('storage', function(event) {
+  if (!currentUser || event.key !== 'users' || !event.newValue) {
+    return;
+  }
+
+  try {
+    const updatedUsers = JSON.parse(event.newValue);
+    if (!Array.isArray(updatedUsers)) {
+      return;
+    }
+
+    const updatedUser = updatedUsers.find(u => Number(u.id) === Number(currentUser.id));
+    if (updatedUser && Number(updatedUser.faithPoints) !== Number(currentUser.faithPoints)) {
+      syncCurrentSessionIfNeeded(updatedUser);
+    }
+  } catch (e) {
+    // ignore JSON parse errors
   }
 });
 
