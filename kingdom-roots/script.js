@@ -1573,8 +1573,13 @@ function openUploadModal(action) {
   const titlePrefixElement = document.getElementById("uploadTitlePrefix");
   const actionNameElement = document.getElementById("actionName");
 
-  titlePrefixElement.textContent = 'Share Your';
-  actionNameElement.textContent = reward.name;
+  if (action === 'attendService') {
+    titlePrefixElement.textContent = 'Share a';
+    actionNameElement.textContent = 'Selfie with the Pastor';
+  } else {
+    titlePrefixElement.textContent = 'Share Your';
+    actionNameElement.textContent = reward.name;
+  }
   document.getElementById("photoInput").value = '';
   document.getElementById("photoPreview").style.display = 'none';
   const submitPhotoBtn = document.getElementById('submitPhotoBtn');
