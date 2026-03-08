@@ -595,7 +595,7 @@ function ensureDailyLoginUi() {
     dailyLoginBtn.id = 'dailyLoginBtn';
     dailyLoginBtn.className = 'daily-login-btn';
     dailyLoginBtn.type = 'button';
-    dailyLoginBtn.textContent = 'Daily Login';
+    dailyLoginBtn.textContent = 'Claim Reward';
     dailyLoginBtn.addEventListener('click', openDailyLoginModal);
 
     const upgradeBtn = userMainContainer.querySelector('.upgrade-btn');
@@ -2021,6 +2021,7 @@ function updateDisplay() {
   const upgradeCostEl = document.getElementById("upgradeCost");
   const fpPillValueEl = document.getElementById('fpPillValue');
   const streakPillValueEl = document.getElementById('streakPillValue');
+  const dailyRewardStreakEl = document.getElementById('dailyRewardStreakText');
   
   if (faithPointsEl) faithPointsEl.textContent = Math.floor(faithPoints);
   if (upgradeCostEl) upgradeCostEl.textContent = upgradeCost;
@@ -2032,6 +2033,17 @@ function updateDisplay() {
       : 0;
     const streakDay = completedCount > 0 ? completedCount : 1;
     streakPillValueEl.textContent = `Day ${streakDay}`;
+  }
+
+  if (dailyRewardStreakEl) {
+    const completedCount = Array.isArray(dailyLoginState.claimedDays)
+      ? dailyLoginState.claimedDays.length
+      : 0;
+    const todayClaimed = hasClaimedDailyLoginToday();
+    const nextDay = Math.min(dailyLoginState.streakDay, DAILY_LOGIN_REWARDS.length);
+    dailyRewardStreakEl.textContent = todayClaimed
+      ? `Checked in today. Next reward: Day ${nextDay}`
+      : `Day ${nextDay} reward ready`;
   }
   
   updateTaskBadges();
