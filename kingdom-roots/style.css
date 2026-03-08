@@ -1127,7 +1127,7 @@ body.admin-view .container {
 .daily-login-track {
   display: flex;
   align-items: flex-start;
-  gap: 0.2rem;
+  gap: 0.4rem;
   min-width: 520px;
 }
 
@@ -1136,15 +1136,15 @@ body.admin-view .container {
   flex-direction: column;
   align-items: center;
   position: relative;
-  min-width: 66px;
+  min-width: 68px;
 }
 
 .daily-login-node:not(:last-child)::after {
   content: '';
   position: absolute;
-  top: 22px;
-  right: -7px;
-  width: 14px;
+  top: 24px;
+  right: -9px;
+  width: 18px;
   height: 2px;
   background: #5f6572;
 }
@@ -1154,55 +1154,53 @@ body.admin-view .container {
   background: #ebb24c;
 }
 
-.daily-login-orb {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid #5c6370;
-  background: radial-gradient(circle at 30% 28%, #3d434f 0%, #2b313c 75%);
+.daily-login-tile {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid #5b6370;
+  background: linear-gradient(180deg, #353c47 0%, #2a313b 100%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   padding: 0;
   position: relative;
   overflow: hidden;
   cursor: pointer;
 }
 
-.daily-login-orb:disabled {
+.daily-login-tile:disabled {
   cursor: not-allowed;
 }
 
-.daily-login-node.available .daily-login-orb,
-.daily-login-node.claimed .daily-login-orb {
+.daily-login-node.available .daily-login-tile,
+.daily-login-node.claimed .daily-login-tile {
   border-color: #f2c55f;
-  background: radial-gradient(circle at 30% 28%, #ffe190 0%, #e1a234 72%);
+  background: linear-gradient(180deg, #4a4024 0%, #6c5725 100%);
 }
 
-.daily-login-orb-icon {
-  width: 19px;
-  height: 19px;
+.daily-login-tile-icon {
+  width: 30px;
+  height: 30px;
   display: block;
-  opacity: 0.92;
+  opacity: 0.95;
 }
 
-.daily-login-orb-icon svg {
+.daily-login-tile-icon svg {
   width: 100%;
   height: 100%;
 }
 
-.daily-login-node.locked .daily-login-orb-icon {
+.daily-login-node.locked .daily-login-tile-icon {
   opacity: 0.35;
 }
 
-.daily-login-orb-points {
-  position: absolute;
-  bottom: 3px;
-  right: 5px;
+.daily-login-day-points {
+  margin-top: 0.08rem;
   font-size: 0.58rem;
   font-weight: 800;
-  color: #fff;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  color: #d3d8e0;
 }
 
 @media (max-width: 680px) {

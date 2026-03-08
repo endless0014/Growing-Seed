@@ -504,18 +504,18 @@ function renderDailyLoginCalendar() {
     const iconMarkup = getDailyLoginStageSvgMarkup(dayNumber);
     return `
       <div class="daily-login-node ${dayClass}">
-        <button class="daily-login-orb" data-day="${dayNumber}" ${disabled}>
-          <span class="daily-login-orb-icon">${iconMarkup}</span>
-          <span class="daily-login-orb-points">${points}</span>
+        <button class="daily-login-tile" data-day="${dayNumber}" ${disabled}>
+          <span class="daily-login-tile-icon">${iconMarkup}</span>
         </button>
         <span class="daily-login-day-label">Day${dayNumber}</span>
+        <span class="daily-login-day-points">+${points}</span>
       </div>
     `;
   }).join('');
 
   calendarEl.innerHTML = `<div class="daily-login-track">${nodeMarkup}</div>`;
 
-  Array.from(calendarEl.querySelectorAll('.daily-login-orb')).forEach(dayBtn => {
+  Array.from(calendarEl.querySelectorAll('.daily-login-tile')).forEach(dayBtn => {
     dayBtn.addEventListener('click', () => {
       const dayValue = Number(dayBtn.getAttribute('data-day'));
       claimDailyLogin(dayValue);
