@@ -267,6 +267,38 @@ function showRankingComingSoon() {
   showNotification('Ranking Coming Soon', { type: 'info' });
 }
 
+function goHomeTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function focusSeedGrowthView() {
+  const seedGrowthCard = document.querySelector('.seed-growth-card');
+  if (seedGrowthCard) {
+    seedGrowthCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+function handleUpgradeRootsClick() {
+  focusSeedGrowthView();
+  // Small delay lets users see the full seed/progress section before modal opens.
+  window.setTimeout(() => {
+    openUpgradeModal();
+  }, 220);
+}
+
+function syncProfilePillVisibilityForViewport() {
+  const profilePill = document.getElementById('profileAccessPill');
+  if (!profilePill) {
+    return;
+  }
+
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    profilePill.style.display = 'none';
+  } else {
+    profilePill.style.display = '';
+  }
+}
+
 function getReminderLogSafe() {
   try {
     const parsed = JSON.parse(localStorage.getItem(REMINDER_LOG_KEY) || '{}');
@@ -994,6 +1026,7 @@ function applyViewModeUI() {
   }
 
   removeLegacyAdminFaithPointsCard();
+  syncProfilePillVisibilityForViewport();
 
   if (isAdminView) {
     renderAdminDashboard();
@@ -2481,10 +2514,13 @@ function confirmUpgrade() {
   if (faithPoints >= upgradeCost) {
     upgrade();
     closeUpgradeModal();
+    focusSeedGrowthView();
   } else {
     document.getElementById("insufficientFpMessage").style.display = "block";
   }
 }
+
+window.addEventListener('resize', syncProfilePillVisibilityForViewport);
 
 function showScripture() {
   const verse = scriptures[Math.floor(Math.random() * scriptures.length)];

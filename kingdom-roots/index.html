@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Growing Seed</title>
-  <link rel="stylesheet" href="style.css?v=20260308-notifications-1" />
+  <link rel="stylesheet" href="style.css?v=20260308-home-upgrade-mobile-profile-1" />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
@@ -142,7 +142,7 @@
       <div class="gs-pill fp">⭐ <span id="fpPillValue">0</span> FP</div>
       <div class="gs-pill streak">🔥 <span id="streakPillValue">Day 1</span></div>
       <button type="button" class="gs-pill leaderboard" onclick="showNotification('Leaderboard coming soon.', { type: 'info' })">🏆 Leaderboard</button>
-      <button type="button" class="gs-pill profile-access" onclick="openProfileModal()">👤 Profile</button>
+      <button id="profileAccessPill" type="button" class="gs-pill profile-access" onclick="openProfileModal()">👤 Profile</button>
     </div>
 
     <div class="gs-card daily-reward-card">
@@ -157,7 +157,7 @@
     <div class="gs-card seed-growth-card">
     <div class="gs-card-head">
       <h3>🌱 Seed Growth</h3>
-      <button onclick="openUpgradeModal()" class="upgrade-btn">Upgrade Roots</button>
+      <button onclick="handleUpgradeRootsClick()" class="upgrade-btn">Upgrade Roots</button>
     </div>
     <div id="tree">
       <div id="treeStageImages" style="position: relative; width: 250px; height: 350px;">
@@ -334,7 +334,7 @@
     </div>
 
     <div class="bottom-nav" aria-label="Bottom navigation">
-      <button type="button" class="bottom-nav-item active">🌱<span>Home</span></button>
+      <button type="button" class="bottom-nav-item active" onclick="goHomeTop()">🌱<span>Home</span></button>
       <button type="button" class="bottom-nav-item" onclick="goToFaithActivities()">✅<span>Tasks</span></button>
       <button type="button" class="bottom-nav-item" onclick="showRankingComingSoon()">🏆<span>Ranking</span></button>
       <button type="button" class="bottom-nav-item" onclick="openProfileModal()">👤<span>Profile</span></button>
@@ -486,6 +486,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260308-nav-profile-admin-fixes-1"></script>
+  <script src="script.js?v=20260308-home-upgrade-mobile-profile-1"></script>
 </body>
 </html>

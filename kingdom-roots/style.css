@@ -1781,8 +1781,8 @@ button:hover {
     justify-content: center;
   }
 
-  .gs-pill.profile-access {
-    display: none;
+  #profileAccessPill.gs-pill.profile-access {
+    display: none !important;
   }
 
   .gs-card-head h3 {
