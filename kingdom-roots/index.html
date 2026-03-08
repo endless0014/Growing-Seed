@@ -436,10 +436,15 @@
 
   <!-- Daily Login Modal -->
   <div id="dailyLoginModal" class="modal" style="display: none;">
-    <div class="modal-content">
+    <div class="modal-content daily-login-panel">
       <span class="close" onclick="closeDailyLoginModal()">&times;</span>
-      <h2>📅 Daily Login Calendar</h2>
-      <p class="daily-login-subtitle">Claim once per day. Miss a day and it resets to Day 1.</p>
+      <div class="daily-login-header">
+        <h2>Daily check in</h2>
+        <button id="dailyLoginReminderToggle" type="button" class="daily-login-reminder-toggle" onclick="toggleDailyLoginReminder()" aria-pressed="true">
+          <span class="daily-login-reminder-knob"></span>
+        </button>
+      </div>
+      <p class="daily-login-subtitle">Continuous check-in for 7 days will earn surprise!</p>
       <div id="dailyLoginCalendar" class="daily-login-grid"></div>
       <div class="modal-buttons">
         <button type="button" onclick="closeDailyLoginModal()" class="auth-btn">Close</button>
@@ -447,6 +452,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260308-reminders-daily-login-3"></script>
+  <script src="script.js?v=20260308-daily-checkin-style-1"></script>
 </body>
 </html>

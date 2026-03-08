@@ -1043,84 +1043,175 @@ body.admin-view .container {
 }
 
 .daily-login-subtitle {
-  margin-top: 0;
-  color: #4d5b53;
-  font-size: 0.92rem;
+  margin: 0;
+  color: #c7ccd4;
+  font-size: 0.78rem;
+  text-align: left;
 }
 
 .daily-login-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(80px, 1fr));
-  gap: 0.7rem;
-  margin: 1rem 0 0.5rem;
-}
-
-.daily-login-day {
-  border: 1px solid #d8e6de;
-  border-radius: 10px;
-  background: #f7fbf8;
-  padding: 0.5rem;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.daily-login-day:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 14px rgba(26, 88, 52, 0.12);
-}
-
-.daily-login-day:disabled {
-  cursor: not-allowed;
-  opacity: 0.75;
-}
-
-.daily-login-day.claimed {
-  border-color: #3a9a62;
-  background: #e9f7ef;
-}
-
-.daily-login-day.available {
-  border-color: #2c8b57;
-  background: #f1fbf5;
-}
-
-.daily-login-day.locked {
-  border-color: #dae0db;
-  background: #f3f5f4;
+  margin: 0.95rem 0 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
 }
 
 .daily-login-day-label {
-  display: block;
-  font-size: 0.8rem;
+  display: inline-block;
+  margin-top: 0.28rem;
+  font-size: 0.66rem;
   font-weight: 700;
-  color: #2d4337;
+  color: #c8ced6;
 }
 
-.daily-login-day-points {
-  display: block;
-  margin-top: 0.2rem;
-  font-size: 0.76rem;
-  color: #4f6658;
+.daily-login-panel {
+  max-width: 470px;
+  background: linear-gradient(180deg, #262c34 0%, #1b1f26 100%);
+  color: #f4f6fa;
+  border: 1px solid #353d47;
 }
 
-.daily-login-day-icon {
-  width: 54px;
-  height: 54px;
-  margin: 0.35rem auto;
-  border-radius: 8px;
-  overflow: hidden;
+.daily-login-panel .close {
+  color: #b7bdc7;
+}
+
+.daily-login-panel .modal-buttons {
+  margin-top: 0.8rem;
+}
+
+.daily-login-panel .auth-btn {
+  background: #4d82f3;
+}
+
+.daily-login-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.daily-login-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.daily-login-reminder-toggle {
+  width: 38px;
+  height: 21px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #4a5060;
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+}
+
+.daily-login-reminder-toggle.on {
+  background: #4d82f3;
+}
+
+.daily-login-reminder-knob {
+  width: 15px;
+  height: 15px;
   background: #ffffff;
-  border: 1px solid #dce9df;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s ease;
 }
 
-.daily-login-day-icon svg {
+.daily-login-reminder-toggle.on .daily-login-reminder-knob {
+  transform: translateX(17px);
+}
+
+.daily-login-track {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.2rem;
+  min-width: 520px;
+}
+
+.daily-login-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  min-width: 66px;
+}
+
+.daily-login-node:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 22px;
+  right: -7px;
+  width: 14px;
+  height: 2px;
+  background: #5f6572;
+}
+
+.daily-login-node.claimed:not(:last-child)::after,
+.daily-login-node.available:not(:last-child)::after {
+  background: #ebb24c;
+}
+
+.daily-login-orb {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid #5c6370;
+  background: radial-gradient(circle at 30% 28%, #3d434f 0%, #2b313c 75%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.daily-login-orb:disabled {
+  cursor: not-allowed;
+}
+
+.daily-login-node.available .daily-login-orb,
+.daily-login-node.claimed .daily-login-orb {
+  border-color: #f2c55f;
+  background: radial-gradient(circle at 30% 28%, #ffe190 0%, #e1a234 72%);
+}
+
+.daily-login-orb-icon {
+  width: 19px;
+  height: 19px;
+  display: block;
+  opacity: 0.92;
+}
+
+.daily-login-orb-icon svg {
   width: 100%;
   height: 100%;
 }
 
+.daily-login-node.locked .daily-login-orb-icon {
+  opacity: 0.35;
+}
+
+.daily-login-orb-points {
+  position: absolute;
+  bottom: 3px;
+  right: 5px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
 @media (max-width: 680px) {
-  .daily-login-grid {
-    grid-template-columns: repeat(2, minmax(90px, 1fr));
+  .daily-login-panel {
+    max-width: 96%;
+  }
+
+  .daily-login-header h2 {
+    font-size: 1.35rem;
   }
 }
 

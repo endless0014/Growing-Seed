@@ -497,28 +497,47 @@ function renderDailyLoginCalendar() {
 
   refreshDailyLoginState();
 
-  const markup = DAILY_LOGIN_REWARDS.map((points, index) => {
+  const nodeMarkup = DAILY_LOGIN_REWARDS.map((points, index) => {
     const dayNumber = index + 1;
     const dayClass = getDailyLoginDayClass(dayNumber);
     const disabled = canClaimDailyLoginDay(dayNumber) ? '' : 'disabled';
     const iconMarkup = getDailyLoginStageSvgMarkup(dayNumber);
     return `
-      <button class="daily-login-day ${dayClass}" data-day="${dayNumber}" ${disabled}>
-        <span class="daily-login-day-label">Day ${dayNumber}</span>
-        <span class="daily-login-day-icon">${iconMarkup}</span>
-        <span class="daily-login-day-points">+${points} FP</span>
-      </button>
+      <div class="daily-login-node ${dayClass}">
+        <button class="daily-login-orb" data-day="${dayNumber}" ${disabled}>
+          <span class="daily-login-orb-icon">${iconMarkup}</span>
+          <span class="daily-login-orb-points">${points}</span>
+        </button>
+        <span class="daily-login-day-label">Day${dayNumber}</span>
+      </div>
     `;
   }).join('');
 
-  calendarEl.innerHTML = markup;
+  calendarEl.innerHTML = `<div class="daily-login-track">${nodeMarkup}</div>`;
 
-  Array.from(calendarEl.querySelectorAll('.daily-login-day')).forEach(dayBtn => {
+  Array.from(calendarEl.querySelectorAll('.daily-login-orb')).forEach(dayBtn => {
     dayBtn.addEventListener('click', () => {
       const dayValue = Number(dayBtn.getAttribute('data-day'));
       claimDailyLogin(dayValue);
     });
   });
+}
+
+function updateDailyLoginReminderToggle() {
+  const toggleBtn = document.getElementById('dailyLoginReminderToggle');
+  if (!toggleBtn) {
+    return;
+  }
+
+  const enabled = isAppNotificationEnabled();
+  toggleBtn.classList.toggle('on', enabled);
+  toggleBtn.classList.toggle('off', !enabled);
+  toggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+}
+
+async function toggleDailyLoginReminder() {
+  await enableBrowserNotificationsFromProfile();
+  updateDailyLoginReminderToggle();
 }
 
 function claimDailyLogin(dayNumber) {
@@ -580,10 +599,15 @@ function ensureDailyLoginUi() {
   if (!document.getElementById('dailyLoginModal')) {
     const modalMarkup = `
       <div id="dailyLoginModal" class="modal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content daily-login-panel">
           <span class="close" onclick="closeDailyLoginModal()">&times;</span>
-          <h2>📅 Daily Login Calendar</h2>
-          <p class="daily-login-subtitle">Claim once per day. Miss a day and it resets to Day 1.</p>
+          <div class="daily-login-header">
+            <h2>Daily check in</h2>
+            <button id="dailyLoginReminderToggle" type="button" class="daily-login-reminder-toggle" onclick="toggleDailyLoginReminder()" aria-pressed="true">
+              <span class="daily-login-reminder-knob"></span>
+            </button>
+          </div>
+          <p class="daily-login-subtitle">Continuous check-in for 7 days will earn surprise!</p>
           <div id="dailyLoginCalendar" class="daily-login-grid"></div>
           <div class="modal-buttons">
             <button type="button" onclick="closeDailyLoginModal()" class="auth-btn">Close</button>
@@ -602,6 +626,7 @@ function openDailyLoginModal() {
     return;
   }
 
+  updateDailyLoginReminderToggle();
   renderDailyLoginCalendar();
   modal.style.display = 'flex';
 }
