@@ -133,13 +133,17 @@
         <span id="viewModeIndicator" class="view-mode-indicator" style="display: none;">USER VIEW</span>
         <span class="user-greeting" id="userGreeting"></span>
         <button onclick="openProfileModal()" class="profile-btn">👤 Profile</button>
-        <button onclick="handleLogout()" class="logout-btn">Logout</button>
       </div>
     </div>
 
     <div id="userMainContainer" class="container">
     <h1>🌱 Growing Seed</h1>
     <p>Faith Points: <span id="faithPoints">0</span></p>
+    <div class="gs-stats-row">
+      <div class="gs-pill fp">⭐ <span id="fpPillValue">0</span> FP</div>
+      <div class="gs-pill streak">🔥 <span id="streakPillValue">Day 1</span></div>
+      <button type="button" class="gs-pill leaderboard" onclick="showNotification('Leaderboard coming soon.', { type: 'info' })">🏆 Leaderboard</button>
+    </div>
     <button id="dailyLoginBtn" onclick="openDailyLoginModal()" class="daily-login-btn">Daily Login</button>
     <button onclick="openUpgradeModal()" class="upgrade-btn">Upgrade Roots (Cost: <span id="upgradeCost">10</span> FP)</button>
     <div id="tree">
@@ -369,6 +373,7 @@
         <button id="enableNotificationsBtn" onclick="enableBrowserNotificationsFromProfile()" class="settings-btn">Notification Disabled</button>
         <button onclick="openChangePasswordModal()" class="settings-btn">Change Password</button>
         <button onclick="downloadUserData()" class="settings-btn">Download My Data</button>
+        <button onclick="handleLogout()" class="settings-btn">Logout</button>
         <button onclick="deleteAccountConfirm()" class="settings-btn danger-btn">Delete Account</button>
       </div>
       <div class="modal-buttons">
@@ -451,6 +456,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260308-mobile-align-2"></script>
+  <script src="script.js?v=20260308-profile-daily20-ui-1"></script>
 </body>
 </html>

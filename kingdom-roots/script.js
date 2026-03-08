@@ -18,6 +18,7 @@ const NOTIFICATION_DEFAULT_DURATION = 4200;
 let reminderIntervalId = null;
 
 const DAILY_LOGIN_REWARDS = [2, 2, 3, 4, 5, 6, 8];
+const DAILY_LOGIN_COMPLETION_BONUS = 20;
 const DAILY_LOGIN_STAGE_KEYS = [
   'seedStageImg',
   'germinationStageImg',
@@ -549,6 +550,11 @@ function claimDailyLogin(dayNumber) {
 
   const reward = DAILY_LOGIN_REWARDS[dayNumber - 1] || 0;
   faithPoints += reward;
+  const isFinalDay = dayNumber >= DAILY_LOGIN_REWARDS.length;
+
+  if (isFinalDay) {
+    faithPoints += DAILY_LOGIN_COMPLETION_BONUS;
+  }
 
   const todayKey = getTodayDateKey();
   if (!dailyLoginState.cycleStartDate) {
@@ -562,7 +568,7 @@ function claimDailyLogin(dayNumber) {
     dailyLoginState.claimedDays.sort((a, b) => a - b);
   }
 
-  if (dayNumber >= DAILY_LOGIN_REWARDS.length) {
+  if (isFinalDay) {
     dailyLoginState.streakDay = 1;
     dailyLoginState.claimedDays = [];
     dailyLoginState.cycleStartDate = '';
@@ -572,7 +578,11 @@ function claimDailyLogin(dayNumber) {
 
   updateDisplay();
   renderDailyLoginCalendar();
-  showNotification(`Daily login claimed: Day ${dayNumber} (+${reward} FP).`, {
+  const rewardMessage = isFinalDay
+    ? `Daily login claimed: Day ${dayNumber} (+${reward} FP) + completion bonus (+${DAILY_LOGIN_COMPLETION_BONUS} FP).`
+    : `Daily login claimed: Day ${dayNumber} (+${reward} FP).`;
+
+  showNotification(rewardMessage, {
     type: 'success',
     browser: true
   });
@@ -2009,9 +2019,20 @@ function updateTaskBadges() {
 function updateDisplay() {
   const faithPointsEl = document.getElementById("faithPoints");
   const upgradeCostEl = document.getElementById("upgradeCost");
+  const fpPillValueEl = document.getElementById('fpPillValue');
+  const streakPillValueEl = document.getElementById('streakPillValue');
   
   if (faithPointsEl) faithPointsEl.textContent = Math.floor(faithPoints);
   if (upgradeCostEl) upgradeCostEl.textContent = upgradeCost;
+  if (fpPillValueEl) fpPillValueEl.textContent = String(Math.floor(faithPoints));
+
+  if (streakPillValueEl) {
+    const completedCount = Array.isArray(dailyLoginState.claimedDays)
+      ? dailyLoginState.claimedDays.length
+      : 0;
+    const streakDay = completedCount > 0 ? completedCount : 1;
+    streakPillValueEl.textContent = `Day ${streakDay}`;
+  }
   
   updateTaskBadges();
   updateProgressDisplay();

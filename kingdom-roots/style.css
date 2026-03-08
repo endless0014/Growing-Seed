@@ -943,6 +943,38 @@ body.admin-view .container {
   box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
 
+.gs-stats-row {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.9rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.gs-pill {
+  border-radius: 20px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8rem;
+  border: none;
+  min-width: auto;
+  flex: 0 0 auto;
+}
+
+.gs-pill.fp {
+  background: #4caf50;
+  color: #fff;
+}
+
+.gs-pill.streak {
+  background: #fff3e0;
+  color: #6d4c1e;
+}
+
+.gs-pill.leaderboard {
+  background: #e3f2fd;
+  color: #0d47a1;
+}
+
 /* Modal Styles */
 .modal {
   position: fixed;
@@ -1505,6 +1537,8 @@ button:hover {
     text-align: center;
     gap: 0.7rem;
     padding: 0.85rem 0.9rem;
+    position: relative;
+    min-height: 122px;
   }
 
   .app-header h1 {
@@ -1519,15 +1553,17 @@ button:hover {
   }
 
   .header-right {
-    justify-content: center;
-    width: 100%;
-    gap: 0.5rem;
-    flex-wrap: wrap;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.7rem;
+    width: auto;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
   }
 
-  .user-greeting {
-    width: 100%;
-    font-size: 0.95rem;
+  .header-right .user-greeting,
+  .header-right .view-mode-indicator {
+    display: none;
   }
 
   .view-mode-indicator {
@@ -1539,6 +1575,10 @@ button:hover {
   .logout-btn {
     padding: 0.38rem 0.75rem;
     font-size: 0.8rem;
+  }
+
+  .profile-btn {
+    min-width: auto;
   }
 
   .container {
@@ -1608,7 +1648,9 @@ button:hover {
   }
 
   .header-right {
-    gap: 0.4rem;
+    gap: 0.3rem;
+    top: 0.58rem;
+    right: 0.58rem;
   }
 
   .view-mode-indicator {
@@ -1640,6 +1682,15 @@ button:hover {
   .logout-btn {
     padding: 0.34rem 0.62rem;
     font-size: 0.74rem;
+  }
+
+  .gs-stats-row {
+    gap: 0.35rem;
+  }
+
+  .gs-pill {
+    font-size: 0.72rem;
+    padding: 0.4rem 0.65rem;
   }
 
   .daily-login-panel {
