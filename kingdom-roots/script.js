@@ -585,7 +585,7 @@ function ensureDailyLoginUi() {
     dailyLoginBtn.id = 'dailyLoginBtn';
     dailyLoginBtn.className = 'daily-login-btn';
     dailyLoginBtn.type = 'button';
-    dailyLoginBtn.textContent = '📅 Daily Login Calendar';
+    dailyLoginBtn.textContent = 'Daily Login';
     dailyLoginBtn.addEventListener('click', openDailyLoginModal);
 
     const upgradeBtn = userMainContainer.querySelector('.upgrade-btn');
@@ -600,7 +600,6 @@ function ensureDailyLoginUi() {
     const modalMarkup = `
       <div id="dailyLoginModal" class="modal" style="display: none;">
         <div class="modal-content daily-login-panel">
-          <span class="close" onclick="closeDailyLoginModal()">&times;</span>
           <div class="daily-login-header">
             <h2>Daily check in</h2>
             <button id="dailyLoginReminderToggle" type="button" class="daily-login-reminder-toggle" onclick="toggleDailyLoginReminder()" aria-pressed="true">

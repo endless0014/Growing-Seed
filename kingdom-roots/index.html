@@ -140,7 +140,7 @@
     <div id="userMainContainer" class="container">
     <h1>🌱 Growing Seed</h1>
     <p>Faith Points: <span id="faithPoints">0</span></p>
-    <button id="dailyLoginBtn" onclick="openDailyLoginModal()" class="daily-login-btn">📅 Daily Login Calendar</button>
+    <button id="dailyLoginBtn" onclick="openDailyLoginModal()" class="daily-login-btn">Daily Login</button>
     <button onclick="openUpgradeModal()" class="upgrade-btn">Upgrade Roots (Cost: <span id="upgradeCost">10</span> FP)</button>
     <div id="tree">
       <div id="treeStageImages" style="position: relative; width: 250px; height: 350px;">
@@ -437,7 +437,6 @@
   <!-- Daily Login Modal -->
   <div id="dailyLoginModal" class="modal" style="display: none;">
     <div class="modal-content daily-login-panel">
-      <span class="close" onclick="closeDailyLoginModal()">&times;</span>
       <div class="daily-login-header">
         <h2>Daily check in</h2>
         <button id="dailyLoginReminderToggle" type="button" class="daily-login-reminder-toggle" onclick="toggleDailyLoginReminder()" aria-pressed="true">
@@ -452,6 +451,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260308-daily-checkin-style-3"></script>
+  <script src="script.js?v=20260308-daily-checkin-style-4"></script>
 </body>
 </html>
