@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Growing Seed</title>
-  <link rel="stylesheet" href="style.css?v=20260226-final-pass-1" />
+  <link rel="stylesheet" href="style.css?v=20260308-notifications-1" />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
@@ -365,6 +365,8 @@
       <div class="profile-section">
         <h3>⚙️ Settings</h3>
         <button id="switchAdminViewBtn" onclick="toggleAdminView()" class="settings-btn" style="display: none;">Switch to Admin View</button>
+        <button id="enableNotificationsBtn" onclick="enableBrowserNotificationsFromProfile()" class="settings-btn">Enable Browser Notifications</button>
+        <p id="notificationPermissionStatus" class="notification-status">Notification status: Checking...</p>
         <button onclick="openChangePasswordModal()" class="settings-btn">Change Password</button>
         <button onclick="downloadUserData()" class="settings-btn">Download My Data</button>
         <button onclick="deleteAccountConfirm()" class="settings-btn danger-btn">Delete Account</button>
@@ -432,6 +434,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260226-points-update-1"></script>
+  <script src="script.js?v=20260308-notifications-3"></script>
 </body>
 </html>

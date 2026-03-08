@@ -12,6 +12,234 @@ const FIREBASE_CONFIG = {
 const CLOUD_USERS_COLLECTION = 'users';
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
 let cloudDb = null;
+const NOTIFICATION_DEFAULT_DURATION = 4200;
+
+function ensureNotificationContainer() {
+  let container = document.getElementById('appNotifications');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'appNotifications';
+    container.className = 'app-notifications';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'false');
+    document.body.appendChild(container);
+  }
+
+  return container;
+}
+
+function triggerBrowserNotification(message, title = 'Growing Seed') {
+  if (!('Notification' in window) || Notification.permission !== 'granted') {
+    return;
+  }
+
+  try {
+    new Notification(title, { body: String(message || '') });
+  } catch (error) {
+    console.warn('Browser notification failed:', error);
+  }
+}
+
+function requestBrowserNotificationPermission() {
+  if (!('Notification' in window)) {
+    return Promise.resolve('unsupported');
+  }
+
+  if (Notification.permission !== 'default') {
+    return Promise.resolve(Notification.permission);
+  }
+
+  return Notification.requestPermission().catch(error => {
+    console.warn('Notification permission request failed:', error);
+    return Notification.permission || 'default';
+  });
+}
+
+function getNotificationPermissionStatusText() {
+  if (!('Notification' in window)) {
+    return 'Notification status: Not supported in this browser.';
+  }
+
+  if (Notification.permission === 'granted') {
+    return 'Notification status: Enabled.';
+  }
+
+  if (Notification.permission === 'denied') {
+    return 'Notification status: Blocked in browser settings.';
+  }
+
+  return 'Notification status: Not enabled yet.';
+}
+
+function updateProfileNotificationControls() {
+  const statusEl = document.getElementById('notificationPermissionStatus');
+  const enableBtn = document.getElementById('enableNotificationsBtn');
+
+  if (statusEl) {
+    statusEl.textContent = getNotificationPermissionStatusText();
+  }
+
+  if (!enableBtn) {
+    return;
+  }
+
+  if (!('Notification' in window)) {
+    enableBtn.textContent = 'Notifications Not Supported';
+    enableBtn.disabled = true;
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    enableBtn.textContent = 'Browser Notifications Enabled';
+    enableBtn.disabled = true;
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    enableBtn.textContent = 'Enable in Browser Settings';
+    enableBtn.disabled = true;
+    return;
+  }
+
+  enableBtn.textContent = 'Enable Browser Notifications';
+  enableBtn.disabled = false;
+}
+
+function ensureProfileNotificationControls() {
+  const hasButton = Boolean(document.getElementById('enableNotificationsBtn'));
+  const hasStatus = Boolean(document.getElementById('notificationPermissionStatus'));
+  if (hasButton && hasStatus) {
+    return;
+  }
+
+  const profileModal = document.getElementById('profileModal');
+  if (!profileModal) {
+    return;
+  }
+
+  const settingsHeading = Array.from(profileModal.querySelectorAll('h3')).find(heading => {
+    return String(heading.textContent || '').toLowerCase().includes('settings');
+  });
+
+  const settingsSection = settingsHeading ? settingsHeading.closest('.profile-section') : null;
+  if (!settingsSection) {
+    return;
+  }
+
+  if (!hasButton) {
+    const enableBtn = document.createElement('button');
+    enableBtn.id = 'enableNotificationsBtn';
+    enableBtn.className = 'settings-btn';
+    enableBtn.type = 'button';
+    enableBtn.textContent = 'Enable Browser Notifications';
+    enableBtn.addEventListener('click', enableBrowserNotificationsFromProfile);
+
+    // Insert after admin toggle when available for consistent order.
+    const switchAdminBtn = settingsSection.querySelector('#switchAdminViewBtn');
+    if (switchAdminBtn && switchAdminBtn.parentNode === settingsSection) {
+      switchAdminBtn.insertAdjacentElement('afterend', enableBtn);
+    } else {
+      settingsSection.appendChild(enableBtn);
+    }
+  }
+
+  if (!hasStatus) {
+    const statusEl = document.createElement('p');
+    statusEl.id = 'notificationPermissionStatus';
+    statusEl.className = 'notification-status';
+    statusEl.textContent = 'Notification status: Checking...';
+
+    const enableBtn = document.getElementById('enableNotificationsBtn');
+    if (enableBtn) {
+      enableBtn.insertAdjacentElement('afterend', statusEl);
+    } else {
+      settingsSection.appendChild(statusEl);
+    }
+  }
+}
+
+async function enableBrowserNotificationsFromProfile() {
+  if (!('Notification' in window)) {
+    showNotification('This browser does not support notifications.', { type: 'error' });
+    updateProfileNotificationControls();
+    return;
+  }
+
+  const permission = await requestBrowserNotificationPermission();
+  updateProfileNotificationControls();
+
+  if (permission === 'granted') {
+    showNotification('Browser notifications are now enabled.', { type: 'success', browser: true });
+    return;
+  }
+
+  if (permission === 'denied') {
+    showNotification('Notification permission was blocked. Enable it in browser settings.', { type: 'warning' });
+    return;
+  }
+
+  showNotification('Notification permission was not granted.', { type: 'info' });
+}
+
+function showNotification(message, options = {}) {
+  const {
+    type = 'info',
+    title = '',
+    duration = NOTIFICATION_DEFAULT_DURATION,
+    browser = false
+  } = options;
+
+  const container = ensureNotificationContainer();
+  const toast = document.createElement('div');
+  toast.className = `app-notification ${type}`;
+  toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'app-notification-close';
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'x';
+  closeBtn.setAttribute('aria-label', 'Dismiss notification');
+
+  const contentWrap = document.createElement('div');
+  contentWrap.className = 'app-notification-content';
+
+  if (title) {
+    const titleEl = document.createElement('div');
+    titleEl.className = 'app-notification-title';
+    titleEl.textContent = title;
+    contentWrap.appendChild(titleEl);
+  }
+
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'app-notification-message';
+  bodyEl.textContent = String(message || '');
+  contentWrap.appendChild(bodyEl);
+
+  toast.appendChild(contentWrap);
+  toast.appendChild(closeBtn);
+  container.appendChild(toast);
+
+  requestAnimationFrame(() => {
+    toast.classList.add('visible');
+  });
+
+  const dismiss = () => {
+    toast.classList.remove('visible');
+    window.setTimeout(() => {
+      toast.remove();
+    }, 220);
+  };
+
+  closeBtn.addEventListener('click', dismiss);
+
+  if (duration > 0) {
+    window.setTimeout(dismiss, duration);
+  }
+
+  if (browser) {
+    triggerBrowserNotification(message, title || 'Growing Seed');
+  }
+}
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -360,7 +588,7 @@ function toggleAdminView() {
   }
 
   if (!isAdminUser()) {
-    alert('Only admin users can switch to admin view.');
+    showNotification('Only admin users can switch to admin view.', { type: 'error' });
     return;
   }
 
@@ -445,7 +673,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
 
 function assertAdminDashboardAccess() {
   if (!isAdminUser()) {
-    alert('Admin dashboard access required.');
+    showNotification('Admin dashboard access required.', { type: 'error' });
     return false;
   }
 
@@ -515,7 +743,7 @@ function adminAddPoints(userId, userEmail = '') {
 
   const points = Number(pointsInput);
   if (!Number.isFinite(points) || points <= 0) {
-    alert('Please enter a valid positive number.');
+    showNotification('Please enter a valid positive number.', { type: 'error' });
     return;
   }
 
@@ -527,7 +755,7 @@ function adminAddPoints(userId, userEmail = '') {
   }
 
   if (userIndex === -1) {
-    alert('User not found.');
+    showNotification('User not found.', { type: 'error' });
     return;
   }
 
@@ -538,6 +766,7 @@ function adminAddPoints(userId, userEmail = '') {
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);
+  showNotification(`Added ${points} FP to ${users[userIndex].email}.`, { type: 'success' });
 }
 
 function adminResetPassword(userId) {
@@ -547,20 +776,20 @@ function adminResetPassword(userId) {
   if (newPassword === null) return;
 
   if (newPassword.length < 6) {
-    alert('Password must be at least 6 characters.');
+    showNotification('Password must be at least 6 characters.', { type: 'error' });
     return;
   }
 
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
   if (userIndex === -1) {
-    alert('User not found.');
+    showNotification('User not found.', { type: 'error' });
     return;
   }
 
   users[userIndex].password = newPassword;
   setStoredUsers(users);
-  alert(`Password reset for ${users[userIndex].email}`);
+  showNotification(`Password reset for ${users[userIndex].email}.`, { type: 'success' });
 }
 
 function adminResetProgress(userId) {
@@ -569,7 +798,7 @@ function adminResetProgress(userId) {
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
   if (userIndex === -1) {
-    alert('User not found.');
+    showNotification('User not found.', { type: 'error' });
     return;
   }
 
@@ -588,6 +817,7 @@ function adminResetProgress(userId) {
   setStoredUsers(users);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard();
+  showNotification(`Progress reset for ${targetEmail}.`, { type: 'success' });
 }
 
 function adminViewProgress(userId) {
@@ -596,7 +826,7 @@ function adminViewProgress(userId) {
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
   if (userIndex === -1) {
-    alert('User not found.');
+    showNotification('User not found.', { type: 'error' });
     return;
   }
 
@@ -610,7 +840,7 @@ function adminViewProgress(userId) {
     `Fruits: ${Math.floor(Number(user.fruitCount ?? 0) || 0)}`
   ].join('\n');
 
-  alert(progressMessage);
+  showNotification(progressMessage, { type: 'info', title: 'User Progress', duration: 7000 });
 }
 
 function adminOpenUserUi(userId) {
@@ -619,7 +849,7 @@ function adminOpenUserUi(userId) {
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
   if (userIndex === -1) {
-    alert('User not found.');
+    showNotification('User not found.', { type: 'error' });
     return;
   }
 
@@ -640,6 +870,7 @@ function adminOpenUserUi(userId) {
   showAppInterface();
   loadUserData();
   updateDisplay();
+  showNotification(`Now viewing user UI as ${selectedUser.email}.`, { type: 'info' });
 }
 
 window.adminAddPoints = adminAddPoints;
@@ -806,7 +1037,11 @@ function sendResetCode() {
   localStorage.setItem('resetRequests', JSON.stringify(resetRequests));
   
   // Simulate sending email
-  alert(`Reset code sent to ${email}:\n\nCode: ${resetCode}\n\n(In a real app, this would be sent via email)`);
+  showNotification(`Reset code sent to ${email}. Code: ${resetCode}`, {
+    type: 'info',
+    title: 'Password Reset',
+    duration: 10000
+  });
   
   document.getElementById('forgotStep1').style.display = 'none';
   document.getElementById('forgotStep2').style.display = 'block';
@@ -850,7 +1085,10 @@ function resetPasswordWithCode() {
     delete resetRequests[email];
     localStorage.setItem('resetRequests', JSON.stringify(resetRequests));
     
-    alert('Password reset successfully! Please login with your new password.');
+    showNotification('Password reset successfully! Please login with your new password.', {
+      type: 'success',
+      browser: true
+    });
     switchToLogin();
   }
 }
@@ -898,6 +1136,8 @@ function openProfileModal() {
   document.getElementById('profileName').textContent = currentUser.name;
   document.getElementById('profileEmail').textContent = currentUser.email;
   document.getElementById('profileJoined').textContent = currentUser.joinedDate;
+  ensureProfileNotificationControls();
+  updateProfileNotificationControls();
   document.getElementById('profileModal').style.display = 'flex';
 }
 
@@ -947,7 +1187,7 @@ function handleChangePassword(event) {
   users[userIndex].password = newPassword;
   setStoredUsers(users);
   
-  alert('Password changed successfully!');
+  showNotification('Password changed successfully!', { type: 'success', browser: true });
   closeChangePasswordModal();
 }
 
@@ -985,7 +1225,7 @@ function deleteAccountConfirm() {
       setStoredUsers(filteredUsers);
       deleteUserFromCloud(currentUser.email);
       
-      alert('Account deleted successfully');
+      showNotification('Account deleted successfully.', { type: 'success' });
       localStorage.removeItem('currentUser');
       currentUser = null;
       showAuthInterface();
@@ -1607,13 +1847,13 @@ function submitPhoto() {
   const photoInputElement = document.getElementById('photoInput');
   const selectedFile = photoInputElement?.files?.[0];
   if (!selectedFile) {
-    alert('Please attach an image before submitting.');
+    showNotification('Please attach an image before submitting.', { type: 'warning' });
     return;
   }
 
   const recurrenceCheck = canCompleteTask(currentAction);
   if (!recurrenceCheck.allowed) {
-    alert(recurrenceCheck.message);
+    showNotification(recurrenceCheck.message, { type: 'warning' });
     closeUploadModal();
     return;
   }
@@ -1631,6 +1871,10 @@ function submitPhoto() {
   showScripture();
   updateDisplay();
   closeUploadModal();
+  showNotification(`Great job! ${pointsToAdd} FP added for ${reward.name}.`, {
+    type: 'success',
+    browser: true
+  });
 }
 
 function shareGospel() {
@@ -1712,7 +1956,7 @@ function useAllPoints() {
       document.getElementById("scriptureBox").style.fontWeight = "normal";
     }, 3000);
   } else {
-    alert('Points must be divisible by 10 to use!');
+    showNotification('Points must be divisible by 10 to use!', { type: 'warning' });
   }
 }
 
