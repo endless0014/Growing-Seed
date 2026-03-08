@@ -1781,6 +1781,10 @@ button:hover {
     justify-content: center;
   }
 
+  .gs-pill.profile-access {
+    display: none;
+  }
+
   .gs-card-head h3 {
     font-size: 1.95rem;
   }

@@ -198,20 +198,6 @@ function showNotification(message, options = {}) {
     duration = NOTIFICATION_DEFAULT_DURATION,
     browser = false
   } = options;
-
-
-function goToFaithActivities() {
-  const faithActivitiesSection = document.getElementById('faithActivitiesSection');
-  if (!faithActivitiesSection) {
-    return;
-  }
-
-  faithActivitiesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function showRankingComingSoon() {
-  showNotification('Ranking Coming Soon', { type: 'info' });
-}
   const container = ensureNotificationContainer();
   const toast = document.createElement('div');
   toast.className = `app-notification ${type}`;
@@ -262,6 +248,23 @@ function showRankingComingSoon() {
   if (browser) {
     triggerBrowserNotification(message, title || 'Growing Seed');
   }
+}
+
+function goToFaithActivities() {
+  const faithActivitiesSection = document.getElementById('faithActivitiesSection');
+  if (!faithActivitiesSection) {
+    return;
+  }
+
+  faithActivitiesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Extra safeguard for some mobile browsers that ignore smooth scroll in fixed-layout pages.
+  window.setTimeout(() => {
+    faithActivitiesSection.scrollIntoView({ behavior: 'auto', block: 'start' });
+  }, 180);
+}
+
+function showRankingComingSoon() {
+  showNotification('Ranking Coming Soon', { type: 'info' });
 }
 
 function getReminderLogSafe() {
