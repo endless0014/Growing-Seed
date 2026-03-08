@@ -975,6 +975,11 @@ body.admin-view .container {
   color: #0d47a1;
 }
 
+.gs-pill.profile-access {
+  background: #eceff1;
+  color: #2f3e48;
+}
+
 .main-title,
 .main-fp {
   display: none;

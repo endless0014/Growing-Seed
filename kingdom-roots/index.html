@@ -132,7 +132,6 @@
       <div class="header-right">
         <span id="viewModeIndicator" class="view-mode-indicator" style="display: none;">USER VIEW</span>
         <span class="user-greeting" id="userGreeting"></span>
-        <button onclick="openProfileModal()" class="profile-btn">👤 Profile</button>
       </div>
     </div>
 
@@ -143,6 +142,7 @@
       <div class="gs-pill fp">⭐ <span id="fpPillValue">0</span> FP</div>
       <div class="gs-pill streak">🔥 <span id="streakPillValue">Day 1</span></div>
       <button type="button" class="gs-pill leaderboard" onclick="showNotification('Leaderboard coming soon.', { type: 'info' })">🏆 Leaderboard</button>
+      <button type="button" class="gs-pill profile-access" onclick="openProfileModal()">👤 Profile</button>
     </div>
 
     <div class="gs-card daily-reward-card">
@@ -157,7 +157,7 @@
     <div class="gs-card seed-growth-card">
     <div class="gs-card-head">
       <h3>🌱 Seed Growth</h3>
-      <button onclick="openUpgradeModal()" class="upgrade-btn">Upgrade Roots (Cost: <span id="upgradeCost">10</span> FP)</button>
+      <button onclick="openUpgradeModal()" class="upgrade-btn">Upgrade Roots</button>
     </div>
     <div id="tree">
       <div id="treeStageImages" style="position: relative; width: 250px; height: 350px;">
@@ -307,7 +307,7 @@
     </div>
     </div>
 
-    <div class="gs-card activities-card">
+    <div id="faithActivitiesSection" class="gs-card activities-card">
     <div class="gs-card-head">
       <h3>Faith Activities</h3>
       <span class="earn-pill">+ Earn FP</span>
@@ -335,9 +335,11 @@
 
     <div class="bottom-nav" aria-label="Bottom navigation">
       <button type="button" class="bottom-nav-item active">🌱<span>Home</span></button>
-      <button type="button" class="bottom-nav-item">✅<span>Tasks</span></button>
-      <button type="button" class="bottom-nav-item">🏆<span>Ranking</span></button>
+      <button type="button" class="bottom-nav-item" onclick="goToFaithActivities()">✅<span>Tasks</span></button>
+      <button type="button" class="bottom-nav-item" onclick="showRankingComingSoon()">🏆<span>Ranking</span></button>
       <button type="button" class="bottom-nav-item" onclick="openProfileModal()">👤<span>Profile</span></button>
+    </div>
+
     </div>
 
     <div id="adminDashboard" class="container admin-dashboard" style="display: none;">
@@ -483,6 +485,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260308-profile-daily20-ui-2"></script>
+  <script src="script.js?v=20260308-profile-access-web-mobile-1"></script>
 </body>
 </html>

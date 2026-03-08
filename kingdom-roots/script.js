@@ -199,6 +199,19 @@ function showNotification(message, options = {}) {
     browser = false
   } = options;
 
+
+function goToFaithActivities() {
+  const faithActivitiesSection = document.getElementById('faithActivitiesSection');
+  if (!faithActivitiesSection) {
+    return;
+  }
+
+  faithActivitiesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function showRankingComingSoon() {
+  showNotification('Ranking Coming Soon', { type: 'info' });
+}
   const container = ensureNotificationContainer();
   const toast = document.createElement('div');
   toast.className = `app-notification ${type}`;
