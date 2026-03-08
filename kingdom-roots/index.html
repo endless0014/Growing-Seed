@@ -140,6 +140,7 @@
     <div id="userMainContainer" class="container">
     <h1>🌱 Growing Seed</h1>
     <p>Faith Points: <span id="faithPoints">0</span></p>
+    <button onclick="openDailyLoginModal()" class="daily-login-btn">📅 Daily Login Calendar</button>
     <button onclick="openUpgradeModal()" class="upgrade-btn">Upgrade Roots (Cost: <span id="upgradeCost">10</span> FP)</button>
     <div id="tree">
       <div id="treeStageImages" style="position: relative; width: 250px; height: 350px;">
@@ -365,8 +366,7 @@
       <div class="profile-section">
         <h3>⚙️ Settings</h3>
         <button id="switchAdminViewBtn" onclick="toggleAdminView()" class="settings-btn" style="display: none;">Switch to Admin View</button>
-        <button id="enableNotificationsBtn" onclick="enableBrowserNotificationsFromProfile()" class="settings-btn">Enable Browser Notifications</button>
-        <p id="notificationPermissionStatus" class="notification-status">Notification status: Checking...</p>
+        <button id="enableNotificationsBtn" onclick="enableBrowserNotificationsFromProfile()" class="settings-btn">Notification Disabled</button>
         <button onclick="openChangePasswordModal()" class="settings-btn">Change Password</button>
         <button onclick="downloadUserData()" class="settings-btn">Download My Data</button>
         <button onclick="deleteAccountConfirm()" class="settings-btn danger-btn">Delete Account</button>
@@ -434,6 +434,19 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260308-notifications-3"></script>
+  <!-- Daily Login Modal -->
+  <div id="dailyLoginModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeDailyLoginModal()">&times;</span>
+      <h2>📅 Daily Login Calendar</h2>
+      <p class="daily-login-subtitle">Claim once per day. Miss a day and it resets to Day 1.</p>
+      <div id="dailyLoginCalendar" class="daily-login-grid"></div>
+      <div class="modal-buttons">
+        <button type="button" onclick="closeDailyLoginModal()" class="auth-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js?v=20260308-reminders-daily-login-1"></script>
 </body>
 </html>

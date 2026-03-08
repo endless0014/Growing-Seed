@@ -1018,19 +1018,110 @@ body.admin-view .container {
   box-shadow: none;
 }
 
-.notification-status {
-  margin: 0.2rem 0 0.7rem;
-  text-align: left;
-  font-size: 0.88rem;
-  color: #4a4a4a;
-}
-
 .settings-btn.danger-btn {
   background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
 }
 
 .settings-btn.danger-btn:hover {
   box-shadow: 0 6px 12px rgba(231, 76, 60, 0.3);
+}
+
+.daily-login-btn {
+  display: inline-block;
+  margin-bottom: 0.6rem;
+  padding: 0.8rem 1.1rem;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #2c8b57 0%, #3ea86b 100%);
+  cursor: pointer;
+}
+
+.daily-login-btn:hover {
+  filter: brightness(1.03);
+}
+
+.daily-login-subtitle {
+  margin-top: 0;
+  color: #4d5b53;
+  font-size: 0.92rem;
+}
+
+.daily-login-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(80px, 1fr));
+  gap: 0.7rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.daily-login-day {
+  border: 1px solid #d8e6de;
+  border-radius: 10px;
+  background: #f7fbf8;
+  padding: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.daily-login-day:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(26, 88, 52, 0.12);
+}
+
+.daily-login-day:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.daily-login-day.claimed {
+  border-color: #3a9a62;
+  background: #e9f7ef;
+}
+
+.daily-login-day.available {
+  border-color: #2c8b57;
+  background: #f1fbf5;
+}
+
+.daily-login-day.locked {
+  border-color: #dae0db;
+  background: #f3f5f4;
+}
+
+.daily-login-day-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #2d4337;
+}
+
+.daily-login-day-points {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.76rem;
+  color: #4f6658;
+}
+
+.daily-login-day-icon {
+  width: 54px;
+  height: 54px;
+  margin: 0.35rem auto;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #dce9df;
+}
+
+.daily-login-day-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 680px) {
+  .daily-login-grid {
+    grid-template-columns: repeat(2, minmax(90px, 1fr));
+  }
 }
 
 .close {

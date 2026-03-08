@@ -11,8 +11,28 @@ const FIREBASE_CONFIG = {
 };
 const CLOUD_USERS_COLLECTION = 'users';
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
+const NOTIFICATION_PREFERENCE_KEY = 'growingSeedNotificationsEnabled';
+const REMINDER_LOG_KEY = 'growingSeedReminderLogV1';
 let cloudDb = null;
 const NOTIFICATION_DEFAULT_DURATION = 4200;
+let reminderIntervalId = null;
+
+const DAILY_LOGIN_REWARDS = [2, 2, 3, 4, 5, 6, 8];
+const DAILY_LOGIN_STAGE_KEYS = [
+  'seedStageImg',
+  'germinationStageImg',
+  'seedlingStageImg',
+  'saplingStageImg',
+  'youngTreeStageImg',
+  'matureTreeStageImg',
+  'oldTreeStageImg'
+];
+let dailyLoginState = {
+  streakDay: 1,
+  lastClaimDate: '',
+  cycleStartDate: '',
+  claimedDays: []
+};
 
 function ensureNotificationContainer() {
   let container = document.getElementById('appNotifications');
@@ -29,6 +49,10 @@ function ensureNotificationContainer() {
 }
 
 function triggerBrowserNotification(message, title = 'Growing Seed') {
+  if (!isAppNotificationEnabled()) {
+    return;
+  }
+
   if (!('Notification' in window) || Notification.permission !== 'granted') {
     return;
   }
@@ -55,60 +79,40 @@ function requestBrowserNotificationPermission() {
   });
 }
 
-function getNotificationPermissionStatusText() {
-  if (!('Notification' in window)) {
-    return 'Notification status: Not supported in this browser.';
+function isAppNotificationEnabled() {
+  const storedPreference = localStorage.getItem(NOTIFICATION_PREFERENCE_KEY);
+  if (storedPreference === 'enabled') {
+    return true;
   }
 
-  if (Notification.permission === 'granted') {
-    return 'Notification status: Enabled.';
+  if (storedPreference === 'disabled') {
+    return false;
   }
 
-  if (Notification.permission === 'denied') {
-    return 'Notification status: Blocked in browser settings.';
-  }
+  return true;
+}
 
-  return 'Notification status: Not enabled yet.';
+function setAppNotificationEnabled(enabled) {
+  localStorage.setItem(NOTIFICATION_PREFERENCE_KEY, enabled ? 'enabled' : 'disabled');
+}
+
+function getNotificationToggleText() {
+  return isAppNotificationEnabled() ? 'Notification Enabled' : 'Notification Disabled';
 }
 
 function updateProfileNotificationControls() {
-  const statusEl = document.getElementById('notificationPermissionStatus');
   const enableBtn = document.getElementById('enableNotificationsBtn');
-
-  if (statusEl) {
-    statusEl.textContent = getNotificationPermissionStatusText();
-  }
-
   if (!enableBtn) {
     return;
   }
 
-  if (!('Notification' in window)) {
-    enableBtn.textContent = 'Notifications Not Supported';
-    enableBtn.disabled = true;
-    return;
-  }
-
-  if (Notification.permission === 'granted') {
-    enableBtn.textContent = 'Browser Notifications Enabled';
-    enableBtn.disabled = true;
-    return;
-  }
-
-  if (Notification.permission === 'denied') {
-    enableBtn.textContent = 'Enable in Browser Settings';
-    enableBtn.disabled = true;
-    return;
-  }
-
-  enableBtn.textContent = 'Enable Browser Notifications';
+  enableBtn.textContent = getNotificationToggleText();
   enableBtn.disabled = false;
 }
 
 function ensureProfileNotificationControls() {
   const hasButton = Boolean(document.getElementById('enableNotificationsBtn'));
-  const hasStatus = Boolean(document.getElementById('notificationPermissionStatus'));
-  if (hasButton && hasStatus) {
+  if (hasButton) {
     return;
   }
 
@@ -131,7 +135,7 @@ function ensureProfileNotificationControls() {
     enableBtn.id = 'enableNotificationsBtn';
     enableBtn.className = 'settings-btn';
     enableBtn.type = 'button';
-    enableBtn.textContent = 'Enable Browser Notifications';
+    enableBtn.textContent = getNotificationToggleText();
     enableBtn.addEventListener('click', enableBrowserNotificationsFromProfile);
 
     // Insert after admin toggle when available for consistent order.
@@ -143,42 +147,47 @@ function ensureProfileNotificationControls() {
     }
   }
 
-  if (!hasStatus) {
-    const statusEl = document.createElement('p');
-    statusEl.id = 'notificationPermissionStatus';
-    statusEl.className = 'notification-status';
-    statusEl.textContent = 'Notification status: Checking...';
-
-    const enableBtn = document.getElementById('enableNotificationsBtn');
-    if (enableBtn) {
-      enableBtn.insertAdjacentElement('afterend', statusEl);
-    } else {
-      settingsSection.appendChild(statusEl);
-    }
+  const statusEl = document.getElementById('notificationPermissionStatus');
+  if (statusEl) {
+    statusEl.remove();
   }
 }
 
 async function enableBrowserNotificationsFromProfile() {
-  if (!('Notification' in window)) {
-    showNotification('This browser does not support notifications.', { type: 'error' });
+  const willEnable = !isAppNotificationEnabled();
+
+  if (willEnable) {
+    if (!('Notification' in window)) {
+      setAppNotificationEnabled(true);
+      updateProfileNotificationControls();
+      showNotification('Notification Enabled.', { type: 'success' });
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      setAppNotificationEnabled(false);
+      updateProfileNotificationControls();
+      showNotification('Browser blocked notifications. Enable permission in browser settings first.', { type: 'warning' });
+      return;
+    }
+
+    const permission = await requestBrowserNotificationPermission();
+    if (permission !== 'granted') {
+      setAppNotificationEnabled(false);
+      updateProfileNotificationControls();
+      showNotification('Notification Disabled.', { type: 'info' });
+      return;
+    }
+
+    setAppNotificationEnabled(true);
     updateProfileNotificationControls();
+    showNotification('Notification Enabled.', { type: 'success', browser: true });
     return;
   }
 
-  const permission = await requestBrowserNotificationPermission();
+  setAppNotificationEnabled(false);
   updateProfileNotificationControls();
-
-  if (permission === 'granted') {
-    showNotification('Browser notifications are now enabled.', { type: 'success', browser: true });
-    return;
-  }
-
-  if (permission === 'denied') {
-    showNotification('Notification permission was blocked. Enable it in browser settings.', { type: 'warning' });
-    return;
-  }
-
-  showNotification('Notification permission was not granted.', { type: 'info' });
+  showNotification('Notification Disabled.', { type: 'info' });
 }
 
 function showNotification(message, options = {}) {
@@ -238,6 +247,332 @@ function showNotification(message, options = {}) {
 
   if (browser) {
     triggerBrowserNotification(message, title || 'Growing Seed');
+  }
+}
+
+function getReminderLogSafe() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REMINDER_LOG_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function getReminderUserPrefix() {
+  const userId = Number(currentUser?.id);
+  if (Number.isFinite(userId)) {
+    return `u${userId}`;
+  }
+  return `e${normalizeEmail(currentUser?.email || 'guest')}`;
+}
+
+function markReminderSent(reminderId, periodKey) {
+  const log = getReminderLogSafe();
+  log[`${getReminderUserPrefix()}::${reminderId}::${periodKey}`] = Date.now();
+  localStorage.setItem(REMINDER_LOG_KEY, JSON.stringify(log));
+}
+
+function hasReminderBeenSent(reminderId, periodKey) {
+  const log = getReminderLogSafe();
+  return Boolean(log[`${getReminderUserPrefix()}::${reminderId}::${periodKey}`]);
+}
+
+function getDateKeyFromDate(date) {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+function getSundayWeekKey(date) {
+  const copy = new Date(date.getTime());
+  copy.setHours(0, 0, 0, 0);
+  copy.setDate(copy.getDate() - copy.getDay());
+  return getDateKeyFromDate(copy);
+}
+
+function checkAndSendScheduledReminders() {
+  if (!currentUser) {
+    return;
+  }
+
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  if (minute !== 0) {
+    return;
+  }
+
+  const dayOfWeek = now.getDay();
+  const dayKey = getDateKeyFromDate(now);
+  const weekKey = getSundayWeekKey(now);
+  const pendingDailyTasks = ['pray', 'bible', 'devotion'].filter(taskKey => !isTaskDoneForCurrentPeriod(taskKey));
+  const pendingWeeklySundayTasks = ['smallgroup', 'attendService'].filter(taskKey => !isTaskDoneForCurrentPeriod(taskKey));
+
+  const dailyMessage = pendingDailyTasks.length > 0
+    ? `${pendingDailyTasks.map(taskKey => taskDisplayNames[taskKey]).join(', ')} still pending today.`
+    : '';
+  const sundayMessage = pendingWeeklySundayTasks.length > 0
+    ? `${pendingWeeklySundayTasks.map(taskKey => taskDisplayNames[taskKey]).join(' and ')} still pending this week.`
+    : '';
+
+  const reminders = [
+    {
+      id: 'daily-0500',
+      hour: 5,
+      minute: 0,
+      periodKey: dayKey,
+      shouldNotify: () => pendingDailyTasks.length > 0,
+      message: `5:00 AM reminder: ${dailyMessage}`
+    },
+    {
+      id: 'daily-1300',
+      hour: 13,
+      minute: 0,
+      periodKey: dayKey,
+      shouldNotify: () => pendingDailyTasks.length > 0,
+      message: `1:00 PM reminder: ${dailyMessage}`
+    },
+    {
+      id: 'daily-1900',
+      hour: 19,
+      minute: 0,
+      periodKey: dayKey,
+      shouldNotify: () => pendingDailyTasks.length > 0,
+      message: `7:00 PM reminder: ${dailyMessage}`
+    },
+    {
+      id: 'weekly-sun-1100',
+      hour: 11,
+      minute: 0,
+      weekday: 0,
+      periodKey: weekKey,
+      shouldNotify: () => pendingWeeklySundayTasks.length > 0,
+      message: `Sunday 11:00 AM reminder: ${sundayMessage}`
+    }
+  ];
+
+  reminders.forEach(reminder => {
+    if (hour !== reminder.hour || minute !== reminder.minute) {
+      return;
+    }
+
+    if (typeof reminder.weekday === 'number' && reminder.weekday !== dayOfWeek) {
+      return;
+    }
+
+    if (typeof reminder.shouldNotify === 'function' && !reminder.shouldNotify()) {
+      return;
+    }
+
+    if (hasReminderBeenSent(reminder.id, reminder.periodKey)) {
+      return;
+    }
+
+    showNotification(reminder.message, {
+      type: 'info',
+      title: 'Task Reminder',
+      duration: 8000,
+      browser: true
+    });
+    markReminderSent(reminder.id, reminder.periodKey);
+  });
+}
+
+function isSundayTaskWindowNow() {
+  const adjustedNow = getTaskPeriodReferenceNow();
+  return adjustedNow.getDay() === 0;
+}
+
+function startScheduledReminders() {
+  if (reminderIntervalId) {
+    clearInterval(reminderIntervalId);
+  }
+
+  checkAndSendScheduledReminders();
+  reminderIntervalId = window.setInterval(checkAndSendScheduledReminders, 30000);
+}
+
+function stopScheduledReminders() {
+  if (reminderIntervalId) {
+    clearInterval(reminderIntervalId);
+    reminderIntervalId = null;
+  }
+}
+
+function getDaysBetween(startDate, endDate) {
+  const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+  return Math.floor((end.getTime() - start.getTime()) / 86400000);
+}
+
+function getTodayDateKey() {
+  return getDateKeyFromDate(new Date());
+}
+
+function normalizeDailyLoginState(sourceState) {
+  const input = sourceState && typeof sourceState === 'object' ? sourceState : {};
+  const streakDay = Number(input.streakDay);
+  const safeStreakDay = Number.isFinite(streakDay) && streakDay >= 1 && streakDay <= DAILY_LOGIN_REWARDS.length
+    ? Math.floor(streakDay)
+    : 1;
+
+  const claimedDays = Array.isArray(input.claimedDays)
+    ? input.claimedDays
+        .map(day => Number(day))
+        .filter(day => Number.isFinite(day) && day >= 1 && day <= DAILY_LOGIN_REWARDS.length)
+    : [];
+
+  return {
+    streakDay: safeStreakDay,
+    lastClaimDate: typeof input.lastClaimDate === 'string' ? input.lastClaimDate : '',
+    cycleStartDate: typeof input.cycleStartDate === 'string' ? input.cycleStartDate : '',
+    claimedDays: Array.from(new Set(claimedDays)).sort((a, b) => a - b)
+  };
+}
+
+function refreshDailyLoginState() {
+  dailyLoginState = normalizeDailyLoginState(dailyLoginState);
+
+  if (!dailyLoginState.lastClaimDate) {
+    return;
+  }
+
+  const today = new Date();
+  const lastClaimDate = new Date(dailyLoginState.lastClaimDate);
+  if (Number.isNaN(lastClaimDate.getTime())) {
+    dailyLoginState = normalizeDailyLoginState({});
+    return;
+  }
+
+  const daysDiff = getDaysBetween(lastClaimDate, today);
+
+  if (daysDiff <= 1) {
+    return;
+  }
+
+  dailyLoginState = {
+    streakDay: 1,
+    lastClaimDate: '',
+    cycleStartDate: '',
+    claimedDays: []
+  };
+}
+
+function hasClaimedDailyLoginToday() {
+  return dailyLoginState.lastClaimDate === getTodayDateKey();
+}
+
+function getDailyLoginStageSvgMarkup(dayNumber) {
+  const stageKey = DAILY_LOGIN_STAGE_KEYS[Math.max(0, Math.min(dayNumber - 1, DAILY_LOGIN_STAGE_KEYS.length - 1))];
+  const stageElement = document.getElementById(stageKey);
+  const svg = stageElement?.querySelector('svg');
+  return svg ? svg.outerHTML : '';
+}
+
+function getDailyLoginDayClass(dayNumber) {
+  const todayClaimed = hasClaimedDailyLoginToday();
+  const isClaimedInCycle = dailyLoginState.claimedDays.includes(dayNumber);
+  const isActiveDay = dayNumber === dailyLoginState.streakDay;
+
+  if (isClaimedInCycle && !(isActiveDay && !todayClaimed)) {
+    return 'claimed';
+  }
+
+  if (isActiveDay && !todayClaimed) {
+    return 'available';
+  }
+
+  return 'locked';
+}
+
+function canClaimDailyLoginDay(dayNumber) {
+  const todayClaimed = hasClaimedDailyLoginToday();
+  return dayNumber === dailyLoginState.streakDay && !todayClaimed;
+}
+
+function renderDailyLoginCalendar() {
+  const calendarEl = document.getElementById('dailyLoginCalendar');
+  if (!calendarEl) {
+    return;
+  }
+
+  refreshDailyLoginState();
+
+  const markup = DAILY_LOGIN_REWARDS.map((points, index) => {
+    const dayNumber = index + 1;
+    const dayClass = getDailyLoginDayClass(dayNumber);
+    const disabled = canClaimDailyLoginDay(dayNumber) ? '' : 'disabled';
+    const iconMarkup = getDailyLoginStageSvgMarkup(dayNumber);
+    return `
+      <button class="daily-login-day ${dayClass}" data-day="${dayNumber}" ${disabled}>
+        <span class="daily-login-day-label">Day ${dayNumber}</span>
+        <span class="daily-login-day-icon">${iconMarkup}</span>
+        <span class="daily-login-day-points">+${points} FP</span>
+      </button>
+    `;
+  }).join('');
+
+  calendarEl.innerHTML = markup;
+
+  Array.from(calendarEl.querySelectorAll('.daily-login-day')).forEach(dayBtn => {
+    dayBtn.addEventListener('click', () => {
+      const dayValue = Number(dayBtn.getAttribute('data-day'));
+      claimDailyLogin(dayValue);
+    });
+  });
+}
+
+function claimDailyLogin(dayNumber) {
+  refreshDailyLoginState();
+
+  if (!canClaimDailyLoginDay(dayNumber)) {
+    return;
+  }
+
+  const reward = DAILY_LOGIN_REWARDS[dayNumber - 1] || 0;
+  faithPoints += reward;
+
+  const todayKey = getTodayDateKey();
+  if (!dailyLoginState.cycleStartDate) {
+    dailyLoginState.cycleStartDate = todayKey;
+  }
+
+  dailyLoginState.lastClaimDate = todayKey;
+
+  if (!dailyLoginState.claimedDays.includes(dayNumber)) {
+    dailyLoginState.claimedDays.push(dayNumber);
+    dailyLoginState.claimedDays.sort((a, b) => a - b);
+  }
+
+  if (dayNumber >= DAILY_LOGIN_REWARDS.length) {
+    dailyLoginState.streakDay = 1;
+    dailyLoginState.claimedDays = [];
+    dailyLoginState.cycleStartDate = '';
+  } else {
+    dailyLoginState.streakDay = dayNumber + 1;
+  }
+
+  updateDisplay();
+  renderDailyLoginCalendar();
+  showNotification(`Daily login claimed: Day ${dayNumber} (+${reward} FP).`, {
+    type: 'success',
+    browser: true
+  });
+}
+
+function openDailyLoginModal() {
+  const modal = document.getElementById('dailyLoginModal');
+  if (!modal) {
+    return;
+  }
+
+  renderDailyLoginCalendar();
+  modal.style.display = 'flex';
+}
+
+function closeDailyLoginModal() {
+  const modal = document.getElementById('dailyLoginModal');
+  if (modal) {
+    modal.style.display = 'none';
   }
 }
 
@@ -301,7 +636,8 @@ function normalizeStoredUser(user, fallbackId) {
     viewMode: user?.viewMode ?? 'user',
     lastLogin: user?.lastLogin ?? '',
     lastActiveAt: Number.isFinite(parsedLastActiveAt) && parsedLastActiveAt > 0 ? parsedLastActiveAt : '',
-    taskCompletions: user?.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {}
+    taskCompletions: user?.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {},
+    dailyLoginState: normalizeDailyLoginState(user?.dailyLoginState)
   };
 }
 
@@ -486,6 +822,9 @@ async function initializeApp() {
   await migrateLocalUsersToCloudOnce();
   await syncUsersFromCloudToLocal();
   enforceAdminRoleInStorage();
+  if (!localStorage.getItem(NOTIFICATION_PREFERENCE_KEY)) {
+    setAppNotificationEnabled(true);
+  }
   currentUser = localStorage.getItem('currentUser');
   
   if (currentUser) {
@@ -493,9 +832,11 @@ async function initializeApp() {
     showAppInterface();
     loadUserData();
     updateDisplay();
+    startScheduledReminders();
   } else {
     resetGameState();
     showAuthInterface();
+    stopScheduledReminders();
   }
 }
 
@@ -813,6 +1154,7 @@ function adminResetProgress(userId) {
   users[userIndex].pointsForFruit = 0;
   users[userIndex].maxBloomReached = false;
   users[userIndex].taskCompletions = {};
+  users[userIndex].dailyLoginState = normalizeDailyLoginState({});
 
   setStoredUsers(users);
   syncCurrentSessionIfNeeded(users[userIndex]);
@@ -949,7 +1291,8 @@ async function handleLogin(event) {
       maxBloomReached: normalizedUser.maxBloomReached ?? false,
       lastLogin: normalizedUser.lastLogin ?? '',
       lastActiveAt: normalizedUser.lastActiveAt ?? '',
-      taskCompletions: normalizedUser.taskCompletions ?? {}
+      taskCompletions: normalizedUser.taskCompletions ?? {},
+      dailyLoginState: normalizeDailyLoginState(normalizedUser.dailyLoginState)
     };
     delete currentUser.password;
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -957,6 +1300,7 @@ async function handleLogin(event) {
     showAppInterface();
     loadUserData();
     updateDisplay();
+    startScheduledReminders();
   } else {
     document.getElementById('loginError').textContent = 'Invalid email or password';
   }
@@ -999,7 +1343,8 @@ function handleRegister(event) {
     fruitCount: 0,
     pointsForFruit: 0,
     maxBloomReached: false,
-    taskCompletions: {}
+    taskCompletions: {},
+    dailyLoginState: normalizeDailyLoginState({})
   };
   
   users.push(newUser);
@@ -1014,6 +1359,7 @@ function handleRegister(event) {
   showAppInterface();
   resetGameState();
   updateDisplay();
+  startScheduledReminders();
 }
 
 function sendResetCode() {
@@ -1111,6 +1457,7 @@ function handleLogout() {
     document.getElementById('registerForm').reset();
     showAuthInterface();
     switchToLogin();
+    stopScheduledReminders();
   }
 }
 
@@ -1408,6 +1755,7 @@ function resetGameState() {
   pointsForFruit = 0;
   fruitCount = 0;
   taskCompletions = {};
+  dailyLoginState = normalizeDailyLoginState({});
 }
 
 const scriptures = [
@@ -1498,6 +1846,13 @@ function getCurrentPeriodKey(unit) {
 }
 
 function canCompleteTask(taskKey) {
+  if (taskKey === 'attendService' && !isSundayTaskWindowNow()) {
+    return {
+      allowed: false,
+      message: 'Worship Attendance can only be completed on Sundays.'
+    };
+  }
+
   const rule = taskRecurrenceRules[taskKey];
   if (!rule) {
     return { allowed: true };
@@ -1605,6 +1960,7 @@ function updateDisplay() {
 
 function saveUserData() {
   if (currentUser) {
+    refreshDailyLoginState();
     // Update user data in localStorage
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     const userIndex = users.findIndex(u => u.id === currentUser.id);
@@ -1617,6 +1973,7 @@ function saveUserData() {
       users[userIndex].pointsForFruit = pointsForFruit;
       users[userIndex].maxBloomReached = maxBloomReached;
       users[userIndex].taskCompletions = taskCompletions;
+      users[userIndex].dailyLoginState = normalizeDailyLoginState(dailyLoginState);
       users[userIndex].viewMode = getCurrentViewMode();
       users[userIndex].lastActiveAt = Date.now();
       
@@ -1630,6 +1987,7 @@ function saveUserData() {
       currentUser.pointsForFruit = pointsForFruit;
       currentUser.maxBloomReached = maxBloomReached;
       currentUser.taskCompletions = taskCompletions;
+      currentUser.dailyLoginState = normalizeDailyLoginState(dailyLoginState);
       currentUser.viewMode = getCurrentViewMode();
       currentUser.lastActiveAt = users[userIndex].lastActiveAt;
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -1652,6 +2010,7 @@ function loadUserData() {
   taskCompletions = currentUser.taskCompletions && typeof currentUser.taskCompletions === 'object'
     ? currentUser.taskCompletions
     : {};
+  dailyLoginState = normalizeDailyLoginState(currentUser.dailyLoginState);
   currentUser.viewMode = currentUser.viewMode ?? (isAdminUser() ? 'admin' : 'user');
 
   if (!Number.isFinite(faithPoints)) faithPoints = 0;
@@ -1659,6 +2018,7 @@ function loadUserData() {
   if (!Number.isFinite(passiveRate) || passiveRate < 1) passiveRate = 1;
   if (!Number.isFinite(fruitCount) || fruitCount < 0) fruitCount = 0;
   if (!Number.isFinite(pointsForFruit) || pointsForFruit < 0) pointsForFruit = 0;
+  refreshDailyLoginState();
   normalizeFruitProgressState();
   applyViewModeUI();
 }
@@ -2053,9 +2413,14 @@ if (photoInput) {
 // Close modal when clicking outside of it
 window.addEventListener('click', function(event) {
   const uploadModal = document.getElementById('uploadModal');
+  const dailyLoginModal = document.getElementById('dailyLoginModal');
   
   if (uploadModal && event.target === uploadModal) {
     closeUploadModal();
+  }
+
+  if (dailyLoginModal && event.target === dailyLoginModal) {
+    closeDailyLoginModal();
   }
 });
 
