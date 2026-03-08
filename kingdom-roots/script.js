@@ -559,7 +559,44 @@ function claimDailyLogin(dayNumber) {
   });
 }
 
+function ensureDailyLoginUi() {
+  const userMainContainer = document.getElementById('userMainContainer');
+  if (userMainContainer && !document.getElementById('dailyLoginBtn')) {
+    const dailyLoginBtn = document.createElement('button');
+    dailyLoginBtn.id = 'dailyLoginBtn';
+    dailyLoginBtn.className = 'daily-login-btn';
+    dailyLoginBtn.type = 'button';
+    dailyLoginBtn.textContent = '📅 Daily Login Calendar';
+    dailyLoginBtn.addEventListener('click', openDailyLoginModal);
+
+    const upgradeBtn = userMainContainer.querySelector('.upgrade-btn');
+    if (upgradeBtn) {
+      upgradeBtn.insertAdjacentElement('beforebegin', dailyLoginBtn);
+    } else {
+      userMainContainer.appendChild(dailyLoginBtn);
+    }
+  }
+
+  if (!document.getElementById('dailyLoginModal')) {
+    const modalMarkup = `
+      <div id="dailyLoginModal" class="modal" style="display: none;">
+        <div class="modal-content">
+          <span class="close" onclick="closeDailyLoginModal()">&times;</span>
+          <h2>📅 Daily Login Calendar</h2>
+          <p class="daily-login-subtitle">Claim once per day. Miss a day and it resets to Day 1.</p>
+          <div id="dailyLoginCalendar" class="daily-login-grid"></div>
+          <div class="modal-buttons">
+            <button type="button" onclick="closeDailyLoginModal()" class="auth-btn">Close</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalMarkup);
+  }
+}
+
 function openDailyLoginModal() {
+  ensureDailyLoginUi();
   const modal = document.getElementById('dailyLoginModal');
   if (!modal) {
     return;
@@ -849,6 +886,7 @@ function showAppInterface() {
   document.getElementById('authContainer').style.display = 'none';
   document.getElementById('appContainer').style.display = 'block';
   document.getElementById('userGreeting').textContent = `Welcome, ${currentUser.name}!`;
+  ensureDailyLoginUi();
   applyViewModeUI();
 }
 
@@ -2449,6 +2487,7 @@ window.addEventListener('storage', function(event) {
 window.addEventListener('DOMContentLoaded', function() {
   ensureLogosInjected();
   resolveLogoSources();
+  ensureDailyLoginUi();
   removeLegacyAdminFaithPointsCard();
   initializeApp();
 });
