@@ -1066,6 +1066,8 @@ body.admin-view .container {
 
 .daily-login-panel {
   max-width: 470px;
+  width: 100%;
+  margin: 0 auto;
   background: linear-gradient(180deg, #262c34 0%, #1b1f26 100%);
   color: #f4f6fa;
   border: 1px solid #353d47;
@@ -1207,8 +1209,15 @@ body.admin-view .container {
   }
 
   .daily-login-track {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    row-gap: 0.45rem;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem 0.45rem;
+  }
+
+  .daily-login-node {
+    width: 22%;
+    min-width: 56px;
   }
 }
 
@@ -1473,6 +1482,11 @@ button:hover {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  .modal {
+    padding: 0.75rem;
+    box-sizing: border-box;
+  }
+
   .auth-mobile-logos {
     top: 0.6rem;
     right: 0.75rem;
@@ -1541,8 +1555,10 @@ button:hover {
     box-sizing: border-box;
   }
 
-  .container {
-    padding: 1.5rem;
+  .daily-login-panel {
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 1rem 0.85rem;
   }
 
   .button-group {
@@ -1628,5 +1644,16 @@ button:hover {
 
   .daily-login-panel {
     border-radius: 12px;
+    max-width: 100%;
+    padding: 0.95rem 0.75rem;
+  }
+
+  .daily-login-track {
+    gap: 0.32rem;
+  }
+
+  .daily-login-node {
+    width: 23%;
+    min-width: 52px;
   }
 }
