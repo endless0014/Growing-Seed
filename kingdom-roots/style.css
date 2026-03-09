@@ -530,8 +530,15 @@ body {
   width: 100%;
 }
 
+.gs-brand-title {
+  font-family: 'Segoe UI', 'Trebuchet MS', 'Gill Sans', sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+
 .auth-card h1 {
-  color: #333;
+  color: #1f2e24;
   margin: 0 0 0.5rem 0;
   font-size: 2.5rem;
 }
@@ -998,6 +1005,8 @@ body.admin-view .container {
 
 .app-header h1 {
   color: #1f2e24;
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .user-greeting {
