@@ -1045,9 +1045,10 @@ async function initializeApp() {
   
   if (currentUser) {
     currentUser = JSON.parse(currentUser);
+    hydrateCurrentUserFromStoredUsers();
     showAppInterface();
     loadUserData();
-    updateDisplay();
+    updateDisplay({ persist: false });
     startCurrentUserCloudSync();
     startScheduledReminders();
   } else {
@@ -1281,10 +1282,58 @@ function findUserIndexById(users, userId) {
   return users.findIndex(user => Number(user.id) === numericUserId);
 }
 
+function findUserIndexForSession(users, sessionUser) {
+  if (!Array.isArray(users) || !sessionUser) {
+    return -1;
+  }
+
+  const byIdIndex = findUserIndexById(users, sessionUser.id);
+  if (byIdIndex !== -1) {
+    return byIdIndex;
+  }
+
+  const normalizedSessionEmail = normalizeEmail(sessionUser.email);
+  if (!normalizedSessionEmail) {
+    return -1;
+  }
+
+  return users.findIndex(user => normalizeEmail(user.email) === normalizedSessionEmail);
+}
+
+function hydrateCurrentUserFromStoredUsers() {
+  if (!currentUser) {
+    return false;
+  }
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexForSession(users, currentUser);
+  if (userIndex === -1) {
+    return false;
+  }
+
+  const mergedUser = {
+    ...users[userIndex],
+    role: getRoleByEmail(users[userIndex].email),
+    viewMode: currentUser.viewMode ?? users[userIndex].viewMode ?? 'user'
+  };
+
+  delete mergedUser.password;
+  currentUser = mergedUser;
+  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  return true;
+}
+
 function syncCurrentSessionIfNeeded(updatedUser, options = {}) {
   const { persist = true } = options;
 
-  if (currentUser && Number(currentUser.id) === Number(updatedUser.id)) {
+  if (!currentUser || !updatedUser) {
+    return;
+  }
+
+  const sameId = Number(currentUser.id) === Number(updatedUser.id);
+  const sameEmail = normalizeEmail(currentUser.email) !== '' && normalizeEmail(currentUser.email) === normalizeEmail(updatedUser.email);
+
+  if (sameId || sameEmail) {
     currentUser = {
       ...currentUser,
       ...updatedUser,
@@ -2713,7 +2762,8 @@ window.addEventListener('storage', function(event) {
       return;
     }
 
-    const updatedUser = updatedUsers.find(u => Number(u.id) === Number(currentUser.id));
+    const updatedUserIndex = findUserIndexForSession(updatedUsers, currentUser);
+    const updatedUser = updatedUserIndex !== -1 ? updatedUsers[updatedUserIndex] : null;
     if (updatedUser && haveCloudUserStateDifferences(currentUser, updatedUser)) {
       syncCurrentSessionIfNeeded(updatedUser, { persist: false });
     }
