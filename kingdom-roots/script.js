@@ -13,6 +13,7 @@ const CLOUD_USERS_COLLECTION = 'users';
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
 const NOTIFICATION_PREFERENCE_KEY = 'growingSeedNotificationsEnabled';
 const REMINDER_LOG_KEY = 'growingSeedReminderLogV1';
+const FP_DEBUG_MODE_KEY = 'growingSeedFpDebugModeV1';
 let cloudDb = null;
 const NOTIFICATION_DEFAULT_DURATION = 4200;
 let reminderIntervalId = null;
@@ -102,14 +103,129 @@ function getNotificationToggleText() {
   return isAppNotificationEnabled() ? 'Notification Enabled' : 'Notification Disabled';
 }
 
+function isFpDebugEnabled() {
+  const fromQuery = new URLSearchParams(window.location.search).get('fpDebug');
+  if (fromQuery === '1' || fromQuery === 'true') {
+    return true;
+  }
+
+  return localStorage.getItem(FP_DEBUG_MODE_KEY) === 'enabled';
+}
+
+function setFpDebugEnabled(enabled) {
+  localStorage.setItem(FP_DEBUG_MODE_KEY, enabled ? 'enabled' : 'disabled');
+}
+
+function getFpDebugToggleText() {
+  return isFpDebugEnabled() ? 'FP Debug: ON' : 'FP Debug: OFF';
+}
+
+function debugFpLog(eventName, details = {}) {
+  if (!isFpDebugEnabled()) {
+    return;
+  }
+
+  const safeEmail = currentUser?.email || 'unknown';
+  const payload = {
+    event: eventName,
+    email: safeEmail,
+    faithPoints: Math.floor(Number(faithPoints ?? 0) || 0),
+    treeProgress: Math.floor(Number(treeProgress ?? 0) || 0),
+    localUpdatedAt: Number(currentUser?.updatedAt ?? 0) || 0,
+    timestamp: new Date().toISOString(),
+    ...details
+  };
+
+  console.log('[FP DEBUG]', payload);
+}
+
+function updateProfileDebugControls() {
+  const debugBtn = document.getElementById('toggleFpDebugBtn');
+  if (debugBtn) {
+    debugBtn.textContent = getFpDebugToggleText();
+  }
+}
+
+function toggleFpDebugMode() {
+  const nextEnabled = !isFpDebugEnabled();
+  setFpDebugEnabled(nextEnabled);
+  updateProfileDebugControls();
+  showNotification(nextEnabled ? 'FP debug mode enabled.' : 'FP debug mode disabled.', { type: 'info' });
+}
+
+async function runFpDiagnostics() {
+  if (!currentUser?.email) {
+    showNotification('No active user session to inspect.', { type: 'warning' });
+    return;
+  }
+
+  const normalizedEmail = normalizeEmail(currentUser.email);
+  const users = getStoredUsersSafe();
+  const storedUser = users.find(user => normalizeEmail(user.email) === normalizedEmail) || null;
+
+  let cloudUser = null;
+  const usersCollection = getCloudUsersCollection();
+  if (usersCollection) {
+    try {
+      const snapshot = await usersCollection.doc(normalizedEmail).get();
+      if (snapshot.exists) {
+        cloudUser = normalizeStoredUser(snapshot.data(), currentUser.id);
+      }
+    } catch (error) {
+      debugFpLog('diagnostics-cloud-read-error', { error: String(error?.message || error) });
+    }
+  }
+
+  const localSessionFp = Math.floor(Number(faithPoints ?? 0) || 0);
+  const currentUserFp = Math.floor(Number(currentUser.faithPoints ?? 0) || 0);
+  const storedFp = Math.floor(Number(storedUser?.faithPoints ?? 0) || 0);
+  const cloudFp = Math.floor(Number(cloudUser?.faithPoints ?? 0) || 0);
+
+  const summary = {
+    email: normalizedEmail,
+    sessionFaithPoints: localSessionFp,
+    currentUserFaithPoints: currentUserFp,
+    localStorageFaithPoints: storedFp,
+    cloudFaithPoints: cloudUser ? cloudFp : 'n/a',
+    currentUserUpdatedAt: Number(currentUser.updatedAt ?? currentUser.lastActiveAt ?? 0) || 0,
+    localStorageUpdatedAt: Number(storedUser?.updatedAt ?? storedUser?.lastActiveAt ?? 0) || 0,
+    cloudUpdatedAt: cloudUser ? (Number(cloudUser.updatedAt ?? cloudUser.lastActiveAt ?? 0) || 0) : 'n/a'
+  };
+
+  console.table(summary);
+  debugFpLog('diagnostics-run', summary);
+
+  const values = [
+    localSessionFp,
+    currentUserFp,
+    storedFp,
+    cloudUser ? cloudFp : localSessionFp
+  ];
+  const maxFp = Math.max(...values);
+  const minFp = Math.min(...values);
+
+  if (maxFp !== minFp) {
+    showNotification(`FP mismatch detected. Session:${localSessionFp}, Local:${storedFp}, Cloud:${cloudUser ? cloudFp : 'n/a'}.`, {
+      type: 'warning',
+      duration: 7000
+    });
+  } else {
+    showNotification(`FP diagnostics OK. All sources report ${localSessionFp} FP.`, {
+      type: 'success'
+    });
+  }
+}
+
 function updateProfileNotificationControls() {
   const enableBtn = document.getElementById('enableNotificationsBtn');
   if (!enableBtn) {
+    updateProfileDebugControls();
     return;
   }
 
   enableBtn.textContent = getNotificationToggleText();
   enableBtn.disabled = false;
+  updateProfileDebugControls();
 }
 
 function ensureProfileNotificationControls() {
@@ -598,6 +714,7 @@ function claimDailyLogin(dayNumber) {
   }
 
   const reward = DAILY_LOGIN_REWARDS[dayNumber - 1] || 0;
+  const previousFp = Math.floor(Number(faithPoints ?? 0) || 0);
   faithPoints += reward;
   const isFinalDay = dayNumber >= DAILY_LOGIN_REWARDS.length;
 
@@ -634,6 +751,13 @@ function claimDailyLogin(dayNumber) {
   showNotification(rewardMessage, {
     type: 'success',
     browser: true
+  });
+  debugFpLog('daily-login-claimed', {
+    dayNumber,
+    reward,
+    finalDay: isFinalDay,
+    fpBefore: previousFp,
+    fpAfter: Math.floor(Number(faithPoints ?? 0) || 0)
   });
 }
 
@@ -806,9 +930,35 @@ function startCurrentUserCloudSync() {
       return;
     }
 
+    // Ignore stale snapshots so recent local progress (like FP gains) is not rolled back.
+    const localUpdatedAt = Number(currentUser.updatedAt ?? currentUser.lastActiveAt ?? 0);
+    const cloudUpdatedAt = Number(cloudUser.updatedAt ?? cloudUser.lastActiveAt ?? 0);
+    if (
+      Number.isFinite(localUpdatedAt) &&
+      localUpdatedAt > 0 &&
+      Number.isFinite(cloudUpdatedAt) &&
+      cloudUpdatedAt > 0 &&
+      cloudUpdatedAt < localUpdatedAt
+    ) {
+      debugFpLog('cloud-snapshot-ignored-stale', {
+        localUpdatedAt,
+        cloudUpdatedAt,
+        localFaithPoints: Math.floor(Number(currentUser.faithPoints ?? faithPoints ?? 0) || 0),
+        cloudFaithPoints: Math.floor(Number(cloudUser.faithPoints ?? 0) || 0)
+      });
+      return;
+    }
+
     if (!haveCloudUserStateDifferences(currentUser, cloudUser)) {
       return;
     }
+
+    debugFpLog('cloud-snapshot-applied', {
+      localUpdatedAt,
+      cloudUpdatedAt,
+      previousFaithPoints: Math.floor(Number(currentUser.faithPoints ?? faithPoints ?? 0) || 0),
+      incomingFaithPoints: Math.floor(Number(cloudUser.faithPoints ?? 0) || 0)
+    });
 
     const users = getStoredUsersSafe();
     const userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedEmail);
@@ -1729,6 +1879,10 @@ function goBackToForgot() {
 function handleLogout() {
   if (confirm('Are you sure you want to logout?')) {
     stopCurrentUserCloudSync();
+    // Ensure modal overlays do not persist when returning to auth screens.
+    document.querySelectorAll('.modal').forEach(modalEl => {
+      modalEl.style.display = 'none';
+    });
     localStorage.removeItem('currentUser');
     currentUser = null;
     clearAuthErrors();
@@ -1764,6 +1918,7 @@ function openProfileModal() {
   document.getElementById('profileJoined').textContent = currentUser.joinedDate;
   ensureProfileNotificationControls();
   updateProfileNotificationControls();
+  updateProfileDebugControls();
   document.getElementById('profileModal').style.display = 'flex';
 }
 
@@ -2314,6 +2469,11 @@ function saveUserData() {
       currentUser.lastActiveAt = users[userIndex].lastActiveAt;
       currentUser.updatedAt = users[userIndex].updatedAt;
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      debugFpLog('save-user-data', {
+        savedFaithPoints: users[userIndex].faithPoints,
+        savedUpdatedAt: users[userIndex].updatedAt,
+        savedTreeProgress: users[userIndex].treeProgress
+      });
     }
   }
 }
@@ -2548,6 +2708,7 @@ function submitPhoto() {
   }
 
   const pointsToAdd = reward.fp;
+  const previousFp = Math.floor(Number(faithPoints ?? 0) || 0);
   faithPoints += pointsToAdd;
 
   markTaskCompleted(currentAction, recurrenceCheck.periodKey);
@@ -2558,13 +2719,25 @@ function submitPhoto() {
     type: 'success',
     browser: true
   });
+  debugFpLog('task-photo-submitted', {
+    action: currentAction,
+    pointsToAdd,
+    fpBefore: previousFp,
+    fpAfter: Math.floor(Number(faithPoints ?? 0) || 0)
+  });
 }
 
 function shareGospel() {
   const pointsToAdd = actionRewards.sharegospel.fp;
+  const previousFp = Math.floor(Number(faithPoints ?? 0) || 0);
   applyTreeProgress(pointsToAdd);
   showScripture();
   updateDisplay();
+  debugFpLog('share-gospel', {
+    pointsToAdd,
+    fpBefore: previousFp,
+    fpAfter: Math.floor(Number(faithPoints ?? 0) || 0)
+  });
 }
 
 function addFruitIfNeeded(pointsAdded) {
@@ -2632,6 +2805,11 @@ function useAllPoints() {
     
     updateDisplay();
     closeUpgradeModal();
+    debugFpLog('use-all-points', {
+      pointsUsed,
+      fpAfter: Math.floor(Number(faithPoints ?? 0) || 0),
+      treeProgressAfter: Math.floor(Number(treeProgress ?? 0) || 0)
+    });
     
     // Reset message color after 3 seconds
     setTimeout(() => {
@@ -2646,12 +2824,20 @@ function useAllPoints() {
 function upgrade() {
   if (faithPoints >= upgradeCost) {
     const pointsToAdd = upgradeCost;
+    const previousFp = Math.floor(Number(faithPoints ?? 0) || 0);
     faithPoints -= upgradeCost;
     passiveRate += 1;
     applyTreeProgress(pointsToAdd, { addFaithPoints: false });
     
     // upgradeCost stays at 10 - do not increment
     updateDisplay();
+    debugFpLog('upgrade', {
+      pointsToAdd,
+      upgradeCost,
+      fpBefore: previousFp,
+      fpAfter: Math.floor(Number(faithPoints ?? 0) || 0),
+      passiveRate
+    });
     
     // Trigger bloom animation
     const flowers = document.getElementById("flowers");

@@ -401,6 +401,8 @@
         <h3>⚙️ Settings</h3>
         <button id="switchAdminViewBtn" onclick="toggleAdminView()" class="settings-btn" style="display: none;">Switch to Admin View</button>
         <button id="enableNotificationsBtn" onclick="enableBrowserNotificationsFromProfile()" class="settings-btn">Notification Disabled</button>
+        <button id="toggleFpDebugBtn" onclick="toggleFpDebugMode()" class="settings-btn">FP Debug: OFF</button>
+        <button onclick="runFpDiagnostics()" class="settings-btn">Run FP Diagnostics</button>
         <button onclick="openChangePasswordModal()" class="settings-btn">Change Password</button>
         <button onclick="downloadUserData()" class="settings-btn">Download My Data</button>
         <button onclick="handleLogout()" class="settings-btn">Logout</button>
@@ -486,6 +488,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260308-home-upgrade-mobile-profile-1"></script>
+  <script src="script.js?v=20260309-logout-modal-close-fix-1"></script>
 </body>
 </html>
