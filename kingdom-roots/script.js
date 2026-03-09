@@ -2220,8 +2220,20 @@ function saveUserData() {
   if (currentUser) {
     refreshDailyLoginState();
     // Update user data in localStorage
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const userIndex = users.findIndex(u => u.id === currentUser.id);
+    const users = getStoredUsersSafe();
+    const currentUserId = Number(currentUser.id);
+    const normalizedCurrentEmail = normalizeEmail(currentUser.email);
+    let userIndex = users.findIndex(u => Number(u.id) === currentUserId);
+
+    // Cross-device sessions can carry stale ids; fall back to email to keep sync reliable.
+    if (userIndex === -1 && normalizedCurrentEmail) {
+      userIndex = users.findIndex(u => normalizeEmail(u.email) === normalizedCurrentEmail);
+    }
+
+    if (userIndex === -1) {
+      users.push(normalizeStoredUser(currentUser, Date.now()));
+      userIndex = users.length - 1;
+    }
     
     if (userIndex !== -1) {
       users[userIndex].faithPoints = Math.floor(faithPoints);
@@ -2234,8 +2246,10 @@ function saveUserData() {
       users[userIndex].dailyLoginState = normalizeDailyLoginState(dailyLoginState);
       users[userIndex].viewMode = getCurrentViewMode();
       users[userIndex].lastActiveAt = Date.now();
+      users[userIndex].updatedAt = Date.now();
       
       setStoredUsers(users);
+      upsertUserInCloud(users[userIndex]);
       
       // Also update current user session with all game data
       currentUser.faithPoints = Math.floor(faithPoints);
@@ -2247,7 +2261,9 @@ function saveUserData() {
       currentUser.taskCompletions = taskCompletions;
       currentUser.dailyLoginState = normalizeDailyLoginState(dailyLoginState);
       currentUser.viewMode = getCurrentViewMode();
+      currentUser.id = users[userIndex].id;
       currentUser.lastActiveAt = users[userIndex].lastActiveAt;
+      currentUser.updatedAt = users[userIndex].updatedAt;
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
     }
   }
