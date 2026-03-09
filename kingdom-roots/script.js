@@ -666,12 +666,15 @@ function renderDailyLoginCalendar() {
   const nodeMarkup = DAILY_LOGIN_REWARDS.map((points, index) => {
     const dayNumber = index + 1;
     const dayClass = getDailyLoginDayClass(dayNumber);
+    const isClaimed = dayClass === 'claimed';
     const disabled = canClaimDailyLoginDay(dayNumber) ? '' : 'disabled';
     const iconMarkup = getDailyLoginStageSvgMarkup(dayNumber);
+    const checkMarkMarkup = isClaimed ? '<span class="daily-login-check" aria-hidden="true">✓</span>' : '';
     return `
       <div class="daily-login-node ${dayClass}">
-        <button class="daily-login-tile" data-day="${dayNumber}" ${disabled}>
+        <button class="daily-login-tile" data-day="${dayNumber}" ${disabled} aria-label="Day ${dayNumber}${isClaimed ? ' claimed' : ''}">
           <span class="daily-login-tile-icon">${iconMarkup}</span>
+          ${checkMarkMarkup}
         </button>
         <span class="daily-login-day-label">Day${dayNumber}</span>
         <span class="daily-login-day-points">+${points}</span>
