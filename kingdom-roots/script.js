@@ -16,6 +16,7 @@ const REMINDER_LOG_KEY = 'growingSeedReminderLogV1';
 let cloudDb = null;
 const NOTIFICATION_DEFAULT_DURATION = 4200;
 let reminderIntervalId = null;
+let currentUserCloudUnsubscribe = null;
 
 const DAILY_LOGIN_REWARDS = [2, 2, 3, 4, 5, 6, 8];
 const DAILY_LOGIN_COMPLETION_BONUS = 20;
@@ -739,6 +740,102 @@ function getCloudUsersCollection() {
   return cloudDb ? cloudDb.collection(CLOUD_USERS_COLLECTION) : null;
 }
 
+function stopCurrentUserCloudSync() {
+  if (typeof currentUserCloudUnsubscribe === 'function') {
+    currentUserCloudUnsubscribe();
+  }
+  currentUserCloudUnsubscribe = null;
+}
+
+function haveCloudUserStateDifferences(baseUser, incomingUser) {
+  if (!baseUser || !incomingUser) {
+    return false;
+  }
+
+  const trackedNumberFields = [
+    'faithPoints',
+    'treeProgress',
+    'passiveRate',
+    'fruitCount',
+    'pointsForFruit'
+  ];
+
+  const hasNumericDiff = trackedNumberFields.some(field => {
+    return Number(baseUser[field] ?? 0) !== Number(incomingUser[field] ?? 0);
+  });
+
+  if (hasNumericDiff) {
+    return true;
+  }
+
+  if (Boolean(baseUser.maxBloomReached) !== Boolean(incomingUser.maxBloomReached)) {
+    return true;
+  }
+
+  const baseTaskCompletions = JSON.stringify(baseUser.taskCompletions || {});
+  const incomingTaskCompletions = JSON.stringify(incomingUser.taskCompletions || {});
+  if (baseTaskCompletions !== incomingTaskCompletions) {
+    return true;
+  }
+
+  const baseDailyLoginState = JSON.stringify(normalizeDailyLoginState(baseUser.dailyLoginState));
+  const incomingDailyLoginState = JSON.stringify(normalizeDailyLoginState(incomingUser.dailyLoginState));
+  return baseDailyLoginState !== incomingDailyLoginState;
+}
+
+function startCurrentUserCloudSync() {
+  stopCurrentUserCloudSync();
+
+  if (!currentUser?.email) {
+    return;
+  }
+
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection) {
+    return;
+  }
+
+  const normalizedEmail = normalizeEmail(currentUser.email);
+  currentUserCloudUnsubscribe = usersCollection.doc(normalizedEmail).onSnapshot(snapshot => {
+    if (!snapshot.exists || !currentUser) {
+      return;
+    }
+
+    const cloudUser = normalizeStoredUser(snapshot.data(), currentUser.id);
+    if (!cloudUser?.email || normalizeEmail(cloudUser.email) !== normalizeEmail(currentUser.email)) {
+      return;
+    }
+
+    if (!haveCloudUserStateDifferences(currentUser, cloudUser)) {
+      return;
+    }
+
+    const users = getStoredUsersSafe();
+    const userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedEmail);
+    if (userIndex !== -1) {
+      users[userIndex] = {
+        ...users[userIndex],
+        ...cloudUser,
+        role: getRoleByEmail(cloudUser.email)
+      };
+      localStorage.setItem('users', JSON.stringify(users));
+    }
+
+    currentUser = {
+      ...currentUser,
+      ...cloudUser,
+      role: getRoleByEmail(cloudUser.email),
+      viewMode: currentUser.viewMode ?? cloudUser.viewMode ?? 'user'
+    };
+    delete currentUser.password;
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    loadUserData();
+    updateDisplay({ persist: false });
+  }, error => {
+    console.warn('Current user cloud sync failed:', error);
+  });
+}
+
 function normalizeStoredUser(user, fallbackId) {
   const fallbackNumericId = Number(fallbackId ?? Date.now());
   const parsedUserId = Number(user?.id);
@@ -951,8 +1048,10 @@ async function initializeApp() {
     showAppInterface();
     loadUserData();
     updateDisplay();
+    startCurrentUserCloudSync();
     startScheduledReminders();
   } else {
+    stopCurrentUserCloudSync();
     resetGameState();
     showAuthInterface();
     stopScheduledReminders();
@@ -1182,7 +1281,9 @@ function findUserIndexById(users, userId) {
   return users.findIndex(user => Number(user.id) === numericUserId);
 }
 
-function syncCurrentSessionIfNeeded(updatedUser) {
+function syncCurrentSessionIfNeeded(updatedUser, options = {}) {
+  const { persist = true } = options;
+
   if (currentUser && Number(currentUser.id) === Number(updatedUser.id)) {
     currentUser = {
       ...currentUser,
@@ -1193,7 +1294,7 @@ function syncCurrentSessionIfNeeded(updatedUser) {
     delete currentUser.password;
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
     loadUserData();
-    updateDisplay();
+    updateDisplay({ persist });
   }
 }
 
@@ -1326,6 +1427,7 @@ function adminOpenUserUi(userId) {
     viewMode: 'user'
   };
 
+  stopCurrentUserCloudSync();
   delete nextSessionUser.password;
   currentUser = nextSessionUser;
   localStorage.setItem('currentUser', JSON.stringify(nextSessionUser));
@@ -1333,6 +1435,7 @@ function adminOpenUserUi(userId) {
   showAppInterface();
   loadUserData();
   updateDisplay();
+  startCurrentUserCloudSync();
   showNotification(`Now viewing user UI as ${selectedUser.email}.`, { type: 'info' });
 }
 
@@ -1384,6 +1487,8 @@ async function handleLogin(event) {
   );
   
   if (user) {
+    stopCurrentUserCloudSync();
+
     const userIndex = users.findIndex(u => Number(u.id) === Number(user.id));
     const normalizedUser = normalizeStoredUser(user, user.id);
     normalizedUser.lastLogin = new Date().toLocaleString();
@@ -1421,6 +1526,7 @@ async function handleLogin(event) {
     showAppInterface();
     loadUserData();
     updateDisplay();
+    startCurrentUserCloudSync();
     startScheduledReminders();
   } else {
     document.getElementById('loginError').textContent = 'Invalid email or password';
@@ -1470,6 +1576,7 @@ function handleRegister(event) {
   
   users.push(newUser);
   setStoredUsers(users);
+  stopCurrentUserCloudSync();
   
   currentUser = { ...newUser };
   delete currentUser.password;
@@ -1480,6 +1587,7 @@ function handleRegister(event) {
   showAppInterface();
   resetGameState();
   updateDisplay();
+  startCurrentUserCloudSync();
   startScheduledReminders();
 }
 
@@ -1571,6 +1679,7 @@ function goBackToForgot() {
 
 function handleLogout() {
   if (confirm('Are you sure you want to logout?')) {
+    stopCurrentUserCloudSync();
     localStorage.removeItem('currentUser');
     currentUser = null;
     clearAuthErrors();
@@ -1694,6 +1803,7 @@ function deleteAccountConfirm() {
       deleteUserFromCloud(currentUser.email);
       
       showNotification('Account deleted successfully.', { type: 'success' });
+      stopCurrentUserCloudSync();
       localStorage.removeItem('currentUser');
       currentUser = null;
       showAuthInterface();
@@ -2065,7 +2175,9 @@ function updateTaskBadges() {
   });
 }
 
-function updateDisplay() {
+function updateDisplay(options = {}) {
+  const { persist = true } = options;
+
   const faithPointsEl = document.getElementById("faithPoints");
   const upgradeCostEl = document.getElementById("upgradeCost");
   const fpPillValueEl = document.getElementById('fpPillValue');
@@ -2099,7 +2211,9 @@ function updateDisplay() {
   updateProgressDisplay();
   updateTreeGrowth();
   updateFruitVisuals();
-  saveUserData();
+  if (persist) {
+    saveUserData();
+  }
 }
 
 function saveUserData() {
@@ -2584,8 +2698,8 @@ window.addEventListener('storage', function(event) {
     }
 
     const updatedUser = updatedUsers.find(u => Number(u.id) === Number(currentUser.id));
-    if (updatedUser && Number(updatedUser.faithPoints) !== Number(currentUser.faithPoints)) {
-      syncCurrentSessionIfNeeded(updatedUser);
+    if (updatedUser && haveCloudUserStateDifferences(currentUser, updatedUser)) {
+      syncCurrentSessionIfNeeded(updatedUser, { persist: false });
     }
   } catch (e) {
     // ignore JSON parse errors
