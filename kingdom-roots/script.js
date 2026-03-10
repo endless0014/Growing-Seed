@@ -40,6 +40,7 @@ let dailyLoginState = {
   cycleStartDate: '',
   claimedDays: []
 };
+const NON_USER_ROLES_FOR_PUBLIC_BOARDS = new Set(['admin', 'moderator']);
 
 function ensureNotificationContainer() {
   let container = document.getElementById('appNotifications');
@@ -55,8 +56,51 @@ function ensureNotificationContainer() {
   return container;
 }
 
+function getCapacitorLocalNotificationsPlugin() {
+  const capacitor = window.Capacitor;
+  if (!capacitor || typeof capacitor.isNativePlatform !== 'function' || !capacitor.isNativePlatform()) {
+    return null;
+  }
+
+  return capacitor.Plugins?.LocalNotifications || null;
+}
+
+async function triggerNativeLocalNotification(message, title = 'Growing Seed') {
+  const localNotifications = getCapacitorLocalNotificationsPlugin();
+  if (!localNotifications || !isAppNotificationEnabled()) {
+    return;
+  }
+
+  try {
+    const permissionStatus = await localNotifications.checkPermissions();
+    if (permissionStatus?.display !== 'granted') {
+      return;
+    }
+
+    const notificationId = Math.floor(Date.now() % 2147483000);
+    await localNotifications.schedule({
+      notifications: [
+        {
+          id: notificationId,
+          title,
+          body: String(message || ''),
+          schedule: { at: new Date(Date.now() + 250) }
+        }
+      ]
+    });
+  } catch (error) {
+    console.warn('Native notification failed:', error);
+  }
+}
+
 function triggerBrowserNotification(message, title = 'Growing Seed') {
   if (!isAppNotificationEnabled()) {
+    return;
+  }
+
+  const localNotifications = getCapacitorLocalNotificationsPlugin();
+  if (localNotifications) {
+    void triggerNativeLocalNotification(message, title);
     return;
   }
 
@@ -72,6 +116,23 @@ function triggerBrowserNotification(message, title = 'Growing Seed') {
 }
 
 function requestBrowserNotificationPermission() {
+  const localNotifications = getCapacitorLocalNotificationsPlugin();
+  if (localNotifications) {
+    return localNotifications
+      .checkPermissions()
+      .then(status => {
+        if (status?.display === 'granted') {
+          return 'granted';
+        }
+
+        return localNotifications.requestPermissions().then(requestStatus => requestStatus?.display || 'default');
+      })
+      .catch(error => {
+        console.warn('Native notification permission request failed:', error);
+        return 'default';
+      });
+  }
+
   if (!('Notification' in window)) {
     return Promise.resolve('unsupported');
   }
@@ -277,19 +338,20 @@ function ensureProfileNotificationControls() {
 
 async function enableBrowserNotificationsFromProfile() {
   const willEnable = !isAppNotificationEnabled();
+  const localNotifications = getCapacitorLocalNotificationsPlugin();
 
   if (willEnable) {
-    if (!('Notification' in window)) {
+    if (!localNotifications && !('Notification' in window)) {
       setAppNotificationEnabled(true);
       updateProfileNotificationControls();
-      showNotification('Notification Enabled.', { type: 'success' });
+      showNotification('Notifications enabled.', { type: 'success' });
       return;
     }
 
-    if (Notification.permission === 'denied') {
+    if (!localNotifications && Notification.permission === 'denied') {
       setAppNotificationEnabled(false);
       updateProfileNotificationControls();
-      showNotification('Browser blocked notifications. Enable permission in browser settings first.', { type: 'warning' });
+      showNotification('Notifications are blocked. Enable permission in browser or phone settings first.', { type: 'warning' });
       return;
     }
 
@@ -297,19 +359,19 @@ async function enableBrowserNotificationsFromProfile() {
     if (permission !== 'granted') {
       setAppNotificationEnabled(false);
       updateProfileNotificationControls();
-      showNotification('Notification Disabled.', { type: 'info' });
+      showNotification('Notifications disabled.', { type: 'info' });
       return;
     }
 
     setAppNotificationEnabled(true);
     updateProfileNotificationControls();
-    showNotification('Notification Enabled.', { type: 'success', browser: true });
+    showNotification('Notifications enabled.', { type: 'success', browser: true });
     return;
   }
 
   setAppNotificationEnabled(false);
   updateProfileNotificationControls();
-  showNotification('Notification Disabled.', { type: 'info' });
+  showNotification('Notifications disabled.', { type: 'info' });
 }
 
 function showNotification(message, options = {}) {
@@ -385,7 +447,157 @@ function goToFaithActivities() {
 }
 
 function showRankingComingSoon() {
-  showNotification('Ranking Coming Soon', { type: 'info' });
+  openLeaderboardModal('ranking');
+}
+
+function parseDateKeyToDate(dateKey) {
+  const normalized = String(dateKey || '').trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const parsed = new Date(year, monthIndex, day);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getUserCurrentLoginStreak(user) {
+  const parsed = Math.floor(Number(user?.loginStreakCurrent ?? 0));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function getUserLongestLoginStreak(user) {
+  const parsed = Math.floor(Number(user?.loginStreakLongest ?? 0));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function updateConsecutiveLoginStats(user, referenceDate = new Date()) {
+  if (!user || typeof user !== 'object') {
+    return;
+  }
+
+  const today = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  const todayKey = getDateKeyFromDate(today);
+  const lastLoginDate = parseDateKeyToDate(user.lastLoginDateKey);
+
+  let currentStreak = getUserCurrentLoginStreak(user);
+  let longestStreak = getUserLongestLoginStreak(user);
+
+  if (!lastLoginDate) {
+    currentStreak = 1;
+  } else {
+    const dayGap = getDaysBetween(lastLoginDate, today);
+    if (dayGap === 0) {
+      user.loginStreakCurrent = currentStreak;
+      user.loginStreakLongest = Math.max(longestStreak, currentStreak);
+      user.lastLoginDateKey = todayKey;
+      return;
+    }
+
+    if (dayGap === 1) {
+      currentStreak += 1;
+    } else {
+      currentStreak = 1;
+    }
+  }
+
+  longestStreak = Math.max(longestStreak, currentStreak);
+  user.loginStreakCurrent = currentStreak;
+  user.loginStreakLongest = longestStreak;
+  user.lastLoginDateKey = todayKey;
+}
+
+function isPublicBoardUser(user) {
+  const role = getRoleByEmail(user?.email, user?.role);
+  return !NON_USER_ROLES_FOR_PUBLIC_BOARDS.has(role);
+}
+
+function getPublicBoardUsers() {
+  return getStoredUsersSafe().filter(isPublicBoardUser);
+}
+
+function renderPublicBoardList(boardType = 'leaderboard') {
+  const boardBody = document.getElementById('publicBoardBody');
+  const boardTitle = document.getElementById('publicBoardTitle');
+  const boardSubtitle = document.getElementById('publicBoardSubtitle');
+  if (!boardBody || !boardTitle || !boardSubtitle) {
+    return;
+  }
+
+  const users = getPublicBoardUsers();
+  const isRanking = boardType === 'ranking';
+
+  boardTitle.textContent = isRanking ? 'Ranking' : 'Leaderboard';
+  boardSubtitle.textContent = isRanking
+    ? 'Sorted by total tree progress points'
+    : 'Sorted by longest consecutive login streak';
+
+  const sortedUsers = [...users].sort((leftUser, rightUser) => {
+    if (isRanking) {
+      const leftValue = Math.floor(Number(leftUser?.treeProgress ?? 0) || 0);
+      const rightValue = Math.floor(Number(rightUser?.treeProgress ?? 0) || 0);
+      if (rightValue !== leftValue) {
+        return rightValue - leftValue;
+      }
+      return String(leftUser?.name || '').localeCompare(String(rightUser?.name || ''));
+    }
+
+    const leftValue = getUserLongestLoginStreak(leftUser);
+    const rightValue = getUserLongestLoginStreak(rightUser);
+    if (rightValue !== leftValue) {
+      return rightValue - leftValue;
+    }
+    return String(leftUser?.name || '').localeCompare(String(rightUser?.name || ''));
+  });
+
+  if (sortedUsers.length === 0) {
+    boardBody.innerHTML = '<li class="public-board-empty">No users available for this board yet.</li>';
+    return;
+  }
+
+  boardBody.innerHTML = sortedUsers
+    .slice(0, 20)
+    .map((user, index) => {
+      const score = isRanking
+        ? Math.floor(Number(user?.treeProgress ?? 0) || 0)
+        : getUserLongestLoginStreak(user);
+      const scoreLabel = isRanking ? `${score} FP` : `${score} day${score === 1 ? '' : 's'}`;
+      const name = escapeHtml(String(user?.name || user?.email || 'Unknown'));
+      return `
+        <li class="public-board-item">
+          <span class="public-board-rank">#${index + 1}</span>
+          <span class="public-board-name">${name}</span>
+          <span class="public-board-score">${scoreLabel}</span>
+        </li>
+      `;
+    })
+    .join('');
+}
+
+function openLeaderboardModal(boardType = 'leaderboard') {
+  const modal = document.getElementById('leaderboardModal');
+  if (!modal) {
+    return;
+  }
+
+  renderPublicBoardList(boardType);
+  modal.style.display = 'flex';
+}
+
+function closeLeaderboardModal() {
+  const modal = document.getElementById('leaderboardModal');
+  if (!modal) {
+    return;
+  }
+
+  modal.style.display = 'none';
 }
 
 function goHomeTop() {
@@ -942,7 +1154,9 @@ function haveCloudUserStateDifferences(baseUser, incomingUser) {
     'treeProgress',
     'passiveRate',
     'fruitCount',
-    'pointsForFruit'
+    'pointsForFruit',
+    'loginStreakCurrent',
+    'loginStreakLongest'
   ];
 
   const hasNumericDiff = trackedNumberFields.some(field => {
@@ -965,7 +1179,11 @@ function haveCloudUserStateDifferences(baseUser, incomingUser) {
 
   const baseDailyLoginState = JSON.stringify(normalizeDailyLoginState(baseUser.dailyLoginState));
   const incomingDailyLoginState = JSON.stringify(normalizeDailyLoginState(incomingUser.dailyLoginState));
-  return baseDailyLoginState !== incomingDailyLoginState;
+  if (baseDailyLoginState !== incomingDailyLoginState) {
+    return true;
+  }
+
+  return String(baseUser.lastLoginDateKey || '') !== String(incomingUser.lastLoginDateKey || '');
 }
 
 function startCurrentUserCloudSync() {
@@ -1055,6 +1273,8 @@ function normalizeStoredUser(user, fallbackId) {
     : (Number.isFinite(fallbackNumericId) ? fallbackNumericId : Date.now());
   const parsedLastActiveAt = Number(user?.lastActiveAt ?? user?.updatedAt ?? 0);
   const parsedRoleUpdatedAt = Number(user?.roleUpdatedAt ?? 0);
+  const parsedLoginStreakCurrent = Number(user?.loginStreakCurrent ?? 0);
+  const parsedLoginStreakLongest = Number(user?.loginStreakLongest ?? 0);
 
   return {
     ...user,
@@ -1062,6 +1282,13 @@ function normalizeStoredUser(user, fallbackId) {
     email: getCorrectedEmail(user?.email),
     role: getRoleByEmail(user?.email, user?.role),
     roleUpdatedAt: Number.isFinite(parsedRoleUpdatedAt) && parsedRoleUpdatedAt > 0 ? parsedRoleUpdatedAt : 0,
+    loginStreakCurrent: Number.isFinite(parsedLoginStreakCurrent) && parsedLoginStreakCurrent > 0
+      ? Math.floor(parsedLoginStreakCurrent)
+      : 0,
+    loginStreakLongest: Number.isFinite(parsedLoginStreakLongest) && parsedLoginStreakLongest > 0
+      ? Math.floor(parsedLoginStreakLongest)
+      : 0,
+    lastLoginDateKey: typeof user?.lastLoginDateKey === 'string' ? user.lastLoginDateKey : '',
     viewMode: user?.viewMode ?? 'user',
     lastLogin: user?.lastLogin ?? '',
     lastActiveAt: Number.isFinite(parsedLastActiveAt) && parsedLastActiveAt > 0 ? parsedLastActiveAt : '',
@@ -1356,6 +1583,20 @@ async function initializeApp() {
   if (currentUser) {
     currentUser = JSON.parse(currentUser);
     hydrateCurrentUserFromStoredUsers();
+    const users = getStoredUsersSafe();
+    const currentIndex = findUserIndexForSession(users, currentUser);
+    if (currentIndex !== -1) {
+      updateConsecutiveLoginStats(users[currentIndex]);
+      users[currentIndex].lastActiveAt = Date.now();
+      users[currentIndex].updatedAt = Date.now();
+      setStoredUsers(users);
+      currentUser = {
+        ...currentUser,
+        ...users[currentIndex]
+      };
+      delete currentUser.password;
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    }
     showAppInterface();
     loadUserData();
     updateDisplay({ persist: false });
@@ -2164,6 +2405,7 @@ async function handleLogin(event) {
 
     const userIndex = users.findIndex(u => Number(u.id) === Number(user.id));
     const normalizedUser = normalizeStoredUser(user, user.id);
+    updateConsecutiveLoginStats(normalizedUser);
     normalizedUser.lastLogin = new Date().toLocaleString();
     normalizedUser.lastActiveAt = Date.now();
     normalizedUser.viewMode = normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role);
@@ -2236,6 +2478,9 @@ function handleRegister(event) {
     password,
     joinedDate: new Date().toLocaleDateString(),
     lastLogin: new Date().toLocaleString(),
+    lastLoginDateKey: getTodayDateKey(),
+    loginStreakCurrent: 1,
+    loginStreakLongest: 1,
     lastActiveAt: Date.now(),
     faithPoints: 0,
     treeProgress: 0,
@@ -2867,11 +3112,8 @@ function updateDisplay(options = {}) {
   if (fpPillValueEl) fpPillValueEl.textContent = String(Math.floor(faithPoints));
 
   if (streakPillValueEl) {
-    const completedCount = Array.isArray(dailyLoginState.claimedDays)
-      ? dailyLoginState.claimedDays.length
-      : 0;
-    const streakDay = completedCount > 0 ? completedCount : 1;
-    streakPillValueEl.textContent = `Day ${streakDay}`;
+    const streakDay = getUserCurrentLoginStreak(currentUser);
+    streakPillValueEl.textContent = `Day ${Math.max(streakDay, 1)}`;
   }
 
   if (dailyRewardStreakEl) {
@@ -3389,6 +3631,7 @@ if (photoInput) {
 window.addEventListener('click', function(event) {
   const uploadModal = document.getElementById('uploadModal');
   const dailyLoginModal = document.getElementById('dailyLoginModal');
+  const leaderboardModal = document.getElementById('leaderboardModal');
   
   if (uploadModal && event.target === uploadModal) {
     closeUploadModal();
@@ -3396,6 +3639,10 @@ window.addEventListener('click', function(event) {
 
   if (dailyLoginModal && event.target === dailyLoginModal) {
     closeDailyLoginModal();
+  }
+
+  if (leaderboardModal && event.target === leaderboardModal) {
+    closeLeaderboardModal();
   }
 });
 

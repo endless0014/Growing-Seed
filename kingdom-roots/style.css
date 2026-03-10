@@ -1573,6 +1573,51 @@ body.admin-view .container {
   width: 100%;
 }
 
+.public-board-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.public-board-item {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: #f3f7ff;
+}
+
+.public-board-rank {
+  font-weight: 800;
+  color: #3459a7;
+}
+
+.public-board-name {
+  font-weight: 600;
+  color: #1f2b40;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-board-score {
+  font-weight: 700;
+  color: #2c7b49;
+}
+
+.public-board-empty {
+  padding: 0.85rem;
+  border-radius: 10px;
+  background: #f8f9fb;
+  color: #5a6577;
+  text-align: center;
+}
+
 .daily-login-node {
   display: flex;
   flex-direction: column;

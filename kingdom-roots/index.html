@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Growing Seed</title>
-  <link rel="stylesheet" href="style.css?v=20260309-growing-seed-brand-title-1" />
+  <link rel="stylesheet" href="style.css?v=20260310-board-popup-1" />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
@@ -141,7 +141,7 @@
     <div class="gs-stats-row">
       <div class="gs-pill fp">⭐ <span id="fpPillValue">0</span> FP</div>
       <div class="gs-pill streak">🔥 <span id="streakPillValue">Day 1</span></div>
-      <button type="button" class="gs-pill leaderboard" onclick="showNotification('Leaderboard coming soon.', { type: 'info' })">🏆 Leaderboard</button>
+      <button type="button" class="gs-pill leaderboard" onclick="openLeaderboardModal('leaderboard')">🏆 Leaderboard</button>
       <button id="profileAccessPill" type="button" class="gs-pill profile-access" onclick="openProfileModal()">👤 Profile</button>
     </div>
 
@@ -336,7 +336,7 @@
     <div class="bottom-nav" aria-label="Bottom navigation">
       <button type="button" class="bottom-nav-item active" onclick="goHomeTop()">🌱<span>Home</span></button>
       <button type="button" class="bottom-nav-item" onclick="goToFaithActivities()">✅<span>Tasks</span></button>
-      <button type="button" class="bottom-nav-item" onclick="showRankingComingSoon()">🏆<span>Ranking</span></button>
+      <button type="button" class="bottom-nav-item" onclick="openLeaderboardModal('ranking')">🏆<span>Ranking</span></button>
       <button type="button" class="bottom-nav-item" onclick="openProfileModal()">👤<span>Profile</span></button>
     </div>
 
@@ -540,6 +540,19 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260309-logout-modal-close-fix-1"></script>
+  <!-- Public Leaderboard / Ranking Modal -->
+  <div id="leaderboardModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeLeaderboardModal()">&times;</span>
+      <h2 id="publicBoardTitle">Leaderboard</h2>
+      <p id="publicBoardSubtitle">Sorted by longest consecutive login streak</p>
+      <ul id="publicBoardBody" class="public-board-list"></ul>
+      <div class="modal-buttons">
+        <button type="button" onclick="closeLeaderboardModal()" class="auth-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js?v=20260310-board-popup-1"></script>
 </body>
 </html>
