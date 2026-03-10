@@ -1487,6 +1487,9 @@ async function renderAdminDashboard(syncFromCloud = true) {
 
   const safeUsers = getStoredUsersSafe();
   const roleOfCurrentUser = getCurrentUserRole();
+  const usersVisibleToCurrentUser = roleOfCurrentUser === 'moderator'
+    ? safeUsers.filter(user => getRoleByEmail(user.email, user.role) !== 'admin')
+    : safeUsers;
 
   const totalUsers = safeUsers.length;
   const totalAdmins = safeUsers.filter(user => getRoleByEmail(user.email, user.role) === 'admin').length;
@@ -1606,14 +1609,14 @@ async function renderAdminDashboard(syncFromCloud = true) {
     return;
   }
 
-  if (safeUsers.length === 0) {
+  if (usersVisibleToCurrentUser.length === 0) {
     tbody.innerHTML = '<tr><td colspan="14">No users found.</td></tr>';
     return;
   }
 
   const sortSelect = document.getElementById('adminSortSelect');
   const sortValue = sortSelect ? sortSelect.value : 'lastActiveDesc';
-  const sortedUsers = [...safeUsers].sort((leftUser, rightUser) => {
+  const sortedUsers = [...usersVisibleToCurrentUser].sort((leftUser, rightUser) => {
     const leftName = String(leftUser.name || '').toLowerCase();
     const rightName = String(rightUser.name || '').toLowerCase();
     const leftRole = getRoleByEmail(leftUser.email, leftUser.role);
