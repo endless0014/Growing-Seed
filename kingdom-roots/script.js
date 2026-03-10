@@ -1,6 +1,7 @@
 // Authentication System
 let currentUser = null;
 const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
+const ALLOWED_ROLES = ['admin', 'moderator', 'user'];
 const FIREBASE_CONFIG = {
   apiKey: 'AIzaSyDXPQnVHn9ux9Je5vGASWKig3AdBvnlOIk',
   authDomain: 'growing-seed-fc973.firebaseapp.com',
@@ -832,8 +833,57 @@ function isAdminEmail(email) {
   return ADMIN_EMAILS.some(adminEmail => normalizeEmail(adminEmail) === normalizedEmail);
 }
 
-function getRoleByEmail(email) {
-  return isAdminEmail(email) ? 'admin' : 'user';
+function normalizeRole(role) {
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  return ALLOWED_ROLES.includes(normalizedRole) ? normalizedRole : 'user';
+}
+
+function getRoleByEmail(email, preferredRole = 'user') {
+  if (isAdminEmail(email)) {
+    return 'admin';
+  }
+
+  return normalizeRole(preferredRole);
+}
+
+function getCurrentUserRole() {
+  if (!currentUser) {
+    return 'user';
+  }
+
+  return getRoleByEmail(currentUser.email, currentUser.role);
+}
+
+function hasManagementAccess() {
+  const role = getCurrentUserRole();
+  return role === 'admin' || role === 'moderator';
+}
+
+function canManageAction(actionKey) {
+  const role = getCurrentUserRole();
+  if (role === 'admin') {
+    return true;
+  }
+
+  if (role === 'moderator') {
+    return actionKey !== 'resetProgress' && actionKey !== 'openUi' && actionKey !== 'changeRole';
+  }
+
+  return false;
+}
+
+function getDefaultViewModeForRole(role) {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'admin' || normalizedRole === 'moderator' ? 'admin' : 'user';
+}
+
+function ensureActionPermission(actionKey, deniedMessage) {
+  if (canManageAction(actionKey)) {
+    return true;
+  }
+
+  showNotification(deniedMessage || 'You do not have permission for this action.', { type: 'error' });
+  return false;
 }
 
 function isFirebaseConfigured() {
@@ -969,7 +1019,7 @@ function startCurrentUserCloudSync() {
       users[userIndex] = {
         ...users[userIndex],
         ...cloudUser,
-        role: getRoleByEmail(cloudUser.email)
+        role: getRoleByEmail(cloudUser.email, cloudUser.role)
       };
       localStorage.setItem('users', JSON.stringify(users));
     }
@@ -977,7 +1027,7 @@ function startCurrentUserCloudSync() {
     currentUser = {
       ...currentUser,
       ...cloudUser,
-      role: getRoleByEmail(cloudUser.email),
+      role: getRoleByEmail(cloudUser.email, cloudUser.role),
       viewMode: currentUser.viewMode ?? cloudUser.viewMode ?? 'user'
     };
     delete currentUser.password;
@@ -1001,7 +1051,7 @@ function normalizeStoredUser(user, fallbackId) {
     ...user,
     id: safeUserId,
     email: normalizeEmail(user?.email),
-    role: getRoleByEmail(user?.email),
+    role: getRoleByEmail(user?.email, user?.role),
     viewMode: user?.viewMode ?? 'user',
     lastLogin: user?.lastLogin ?? '',
     lastActiveAt: Number.isFinite(parsedLastActiveAt) && parsedLastActiveAt > 0 ? parsedLastActiveAt : '',
@@ -1158,7 +1208,7 @@ function enforceAdminRoleInStorage() {
   let usersChanged = false;
 
   const normalizedUsers = safeUsers.map(user => {
-    const expectedRole = getRoleByEmail(user.email);
+    const expectedRole = getRoleByEmail(user.email, user.role);
     if (user.role !== expectedRole) {
       usersChanged = true;
       return { ...user, role: expectedRole };
@@ -1174,7 +1224,7 @@ function enforceAdminRoleInStorage() {
   if (currentUserRaw) {
     try {
       const parsedCurrentUser = JSON.parse(currentUserRaw);
-      const expectedRole = getRoleByEmail(parsedCurrentUser.email);
+      const expectedRole = getRoleByEmail(parsedCurrentUser.email, parsedCurrentUser.role);
       if (parsedCurrentUser.role !== expectedRole) {
         parsedCurrentUser.role = expectedRole;
         localStorage.setItem('currentUser', JSON.stringify(parsedCurrentUser));
@@ -1226,7 +1276,7 @@ function showAppInterface() {
 }
 
 function isAdminUser() {
-  return currentUser?.role === 'admin' || getRoleByEmail(currentUser?.email) === 'admin';
+  return getCurrentUserRole() === 'admin';
 }
 
 function getCurrentViewMode() {
@@ -1234,7 +1284,7 @@ function getCurrentViewMode() {
     return 'user';
   }
 
-  if (!isAdminUser()) {
+  if (!hasManagementAccess()) {
     return 'user';
   }
 
@@ -1242,12 +1292,13 @@ function getCurrentViewMode() {
 }
 
 function applyViewModeUI() {
-  const isAdmin = isAdminUser();
+  const hasManagement = hasManagementAccess();
   const mode = getCurrentViewMode();
-  const isAdminView = isAdmin && mode === 'admin';
+  const isAdminView = hasManagement && mode === 'admin';
+  const currentRole = getCurrentUserRole();
 
-  if (isAdmin && currentUser && currentUser.role !== 'admin') {
-    currentUser.role = 'admin';
+  if (hasManagement && currentUser && currentUser.role !== currentRole) {
+    currentUser.role = currentRole;
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
   }
 
@@ -1264,9 +1315,9 @@ function applyViewModeUI() {
 
   const toggleBtn = document.getElementById('switchAdminViewBtn');
   if (toggleBtn) {
-    if (isAdmin) {
+    if (hasManagement) {
       toggleBtn.style.display = 'block';
-      toggleBtn.textContent = isAdminView ? 'Switch to User View' : 'Switch to Admin View';
+      toggleBtn.textContent = isAdminView ? 'Switch to User View' : 'Switch to Management View';
     } else {
       toggleBtn.style.display = 'none';
     }
@@ -1274,8 +1325,8 @@ function applyViewModeUI() {
 
   const modeIndicator = document.getElementById('viewModeIndicator');
   if (modeIndicator) {
-    modeIndicator.style.display = isAdmin ? 'inline-block' : 'none';
-    modeIndicator.textContent = isAdminView ? 'ADMIN VIEW' : 'USER VIEW';
+    modeIndicator.style.display = hasManagement ? 'inline-block' : 'none';
+    modeIndicator.textContent = isAdminView ? 'MANAGEMENT VIEW' : 'USER VIEW';
   }
 
   removeLegacyAdminFaithPointsCard();
@@ -1284,6 +1335,25 @@ function applyViewModeUI() {
   if (isAdminView) {
     renderAdminDashboard();
   }
+}
+
+function switchToUserHome() {
+  if (!currentUser) {
+    return;
+  }
+
+  currentUser.viewMode = 'user';
+  applyViewModeUI();
+  saveUserData();
+}
+
+function scrollAdminSection(sectionId) {
+  const target = document.getElementById(sectionId);
+  if (!target) {
+    return;
+  }
+
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function removeLegacyAdminFaithPointsCard() {
@@ -1298,12 +1368,13 @@ function removeLegacyAdminFaithPointsCard() {
 }
 
 function toggleAdminView() {
-  if (getRoleByEmail(currentUser?.email) === 'admin' && currentUser?.role !== 'admin') {
-    currentUser.role = 'admin';
+  const roleFromEmail = getRoleByEmail(currentUser?.email, currentUser?.role);
+  if (roleFromEmail !== currentUser?.role) {
+    currentUser.role = roleFromEmail;
   }
 
-  if (!isAdminUser()) {
-    showNotification('Only admin users can switch to admin view.', { type: 'error' });
+  if (!hasManagementAccess()) {
+    showNotification('Only admin or moderator users can switch to management view.', { type: 'error' });
     return;
   }
 
@@ -1313,7 +1384,7 @@ function toggleAdminView() {
 }
 
 async function renderAdminDashboard(syncFromCloud = true) {
-  if (!isAdminUser() || getCurrentViewMode() !== 'admin') {
+  if (!hasManagementAccess() || getCurrentViewMode() !== 'admin') {
     return;
   }
 
@@ -1323,19 +1394,98 @@ async function renderAdminDashboard(syncFromCloud = true) {
 
   removeLegacyAdminFaithPointsCard();
 
-  const users = JSON.parse(localStorage.getItem('users') || '[]');
-  const safeUsers = Array.isArray(users) ? users : [];
+  const safeUsers = getStoredUsersSafe();
+  const roleOfCurrentUser = getCurrentUserRole();
 
   const totalUsers = safeUsers.length;
-  const totalAdmins = safeUsers.filter(user => getRoleByEmail(user.email) === 'admin').length;
+  const totalAdmins = safeUsers.filter(user => getRoleByEmail(user.email, user.role) === 'admin').length;
+  const totalModerators = safeUsers.filter(user => getRoleByEmail(user.email, user.role) === 'moderator').length;
+
+  const now = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const activeUsers = safeUsers.filter(user => {
+    const lastActive = getLastActiveTimestamp(user);
+    return lastActive > 0 && (now - lastActive) <= oneDayMs;
+  }).length;
+  const inactiveUsers = Math.max(totalUsers - activeUsers, 0);
+
+  const taskKeys = Object.keys(taskRecurrenceRules);
+  const completedTaskCount = safeUsers.reduce((sum, user) => {
+    const userTaskCompletions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
+    return sum + taskKeys.filter(taskKey => {
+      const rule = taskRecurrenceRules[taskKey];
+      if (!rule) {
+        return false;
+      }
+
+      return userTaskCompletions[taskKey] === getCurrentPeriodKey(rule.unit);
+    }).length;
+  }, 0);
+  const totalTaskSlots = Math.max(totalUsers * taskKeys.length, 1);
+  const taskCompletionRate = Math.round((completedTaskCount / totalTaskSlots) * 100);
+
+  const trendDays = 7;
+  const trendCounts = [];
+  for (let dayOffset = trendDays - 1; dayOffset >= 0; dayOffset--) {
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    dayStart.setDate(dayStart.getDate() - dayOffset);
+    const dayEnd = new Date(dayStart.getTime() + oneDayMs);
+
+    const count = safeUsers.filter(user => {
+      const candidate = Number(new Date(user.lastLogin || '').getTime()) || Number(user.lastActiveAt || 0);
+      return candidate >= dayStart.getTime() && candidate < dayEnd.getTime();
+    }).length;
+
+    trendCounts.push({
+      label: dayStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      value: count
+    });
+  }
 
   const totalUsersEl = document.getElementById('adminTotalUsers');
   const totalAdminsEl = document.getElementById('adminTotalAdmins');
+  const totalModeratorsEl = document.getElementById('adminTotalModerators');
+  const activeUsersEl = document.getElementById('adminActiveUsers');
+  const inactiveUsersEl = document.getElementById('adminInactiveUsers');
+  const taskCompletionRateEl = document.getElementById('adminTaskCompletionRate');
   const taskRefreshEl = document.getElementById('adminTaskRefreshTime');
+  const dailyTrendEl = document.getElementById('adminDailyLoginTrend');
+  const taskSummaryEl = document.getElementById('adminTaskStatusSummary');
 
   if (totalUsersEl) totalUsersEl.textContent = String(totalUsers);
   if (totalAdminsEl) totalAdminsEl.textContent = String(totalAdmins);
+  if (totalModeratorsEl) totalModeratorsEl.textContent = String(totalModerators);
+  if (activeUsersEl) activeUsersEl.textContent = String(activeUsers);
+  if (inactiveUsersEl) inactiveUsersEl.textContent = String(inactiveUsers);
+  if (taskCompletionRateEl) taskCompletionRateEl.textContent = `${taskCompletionRate}%`;
   if (taskRefreshEl) taskRefreshEl.textContent = `Task refresh: ${getTaskRefreshTimeLabel()}`;
+
+  if (dailyTrendEl) {
+    dailyTrendEl.innerHTML = trendCounts
+      .map(entry => `<div class="admin-trend-item"><span>${escapeHtml(entry.label)}</span><strong>${entry.value}</strong></div>`)
+      .join('');
+  }
+
+  if (taskSummaryEl) {
+    const taskRows = taskKeys.map(taskKey => {
+      const doneCount = safeUsers.filter(user => {
+        const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
+        const rule = taskRecurrenceRules[taskKey];
+        return completions[taskKey] === getCurrentPeriodKey(rule.unit);
+      }).length;
+
+      return {
+        taskName: taskDisplayNames[taskKey] || taskKey,
+        doneCount,
+        rate: totalUsers > 0 ? Math.round((doneCount / totalUsers) * 100) : 0
+      };
+    });
+
+    taskSummaryEl.innerHTML = taskRows
+      .map(row => `<div class="admin-trend-item"><span>${escapeHtml(row.taskName)}</span><strong>${row.doneCount}/${totalUsers} (${row.rate}%)</strong></div>`)
+      .join('');
+  }
 
   const tbody = document.getElementById('adminUsersTableBody');
   if (!tbody) {
@@ -1343,17 +1493,39 @@ async function renderAdminDashboard(syncFromCloud = true) {
   }
 
   if (safeUsers.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8">No users found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14">No users found.</td></tr>';
     return;
   }
 
+  const sortSelect = document.getElementById('adminSortSelect');
+  const sortValue = sortSelect ? sortSelect.value : 'lastActiveDesc';
   const sortedUsers = [...safeUsers].sort((leftUser, rightUser) => {
-    return getLastActiveTimestamp(rightUser) - getLastActiveTimestamp(leftUser);
+    const leftName = String(leftUser.name || '').toLowerCase();
+    const rightName = String(rightUser.name || '').toLowerCase();
+    const leftRole = getRoleByEmail(leftUser.email, leftUser.role);
+    const rightRole = getRoleByEmail(rightUser.email, rightUser.role);
+    const leftFp = Math.floor(Number(leftUser.faithPoints ?? 0) || 0);
+    const rightFp = Math.floor(Number(rightUser.faithPoints ?? 0) || 0);
+    const leftStreak = Math.max(0, Number((leftUser.dailyLoginState && leftUser.dailyLoginState.claimedDays && leftUser.dailyLoginState.claimedDays.length) || 0));
+    const rightStreak = Math.max(0, Number((rightUser.dailyLoginState && rightUser.dailyLoginState.claimedDays && rightUser.dailyLoginState.claimedDays.length) || 0));
+    const leftLastActive = getLastActiveTimestamp(leftUser);
+    const rightLastActive = getLastActiveTimestamp(rightUser);
+
+    if (sortValue === 'nameAsc') return leftName.localeCompare(rightName);
+    if (sortValue === 'nameDesc') return rightName.localeCompare(leftName);
+    if (sortValue === 'faithPointsAsc') return leftFp - rightFp;
+    if (sortValue === 'faithPointsDesc') return rightFp - leftFp;
+    if (sortValue === 'streakAsc') return leftStreak - rightStreak;
+    if (sortValue === 'streakDesc') return rightStreak - leftStreak;
+    if (sortValue === 'lastActiveAsc') return leftLastActive - rightLastActive;
+    if (sortValue === 'roleAsc') return leftRole.localeCompare(rightRole);
+
+    return rightLastActive - leftLastActive;
   });
 
   tbody.innerHTML = sortedUsers
     .map(user => {
-      const role = getRoleByEmail(user.email);
+      const role = getRoleByEmail(user.email, user.role);
       const normalizedEmail = normalizeEmail(user.email || '');
       const name = escapeHtml(user.name || 'N/A');
       const lastLogin = escapeHtml(user.lastLogin || 'Never');
@@ -1361,23 +1533,45 @@ async function renderAdminDashboard(syncFromCloud = true) {
       const email = escapeHtml(user.email || 'N/A');
       const faithPoints = Math.floor(Number(user.faithPoints ?? 0) || 0);
       const treeProgress = Math.floor(Number(user.treeProgress ?? 0) || 0);
+      const streak = Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0));
+      const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
       const userId = Number.isFinite(Number(user.id)) ? Number(user.id) : Date.now();
+      const taskCheckbox = taskKey => {
+        const rule = taskRecurrenceRules[taskKey];
+        const checked = rule && completions[taskKey] === getCurrentPeriodKey(rule.unit);
+        return `<input type="checkbox" disabled ${checked ? 'checked' : ''} aria-label="${taskDisplayNames[taskKey]} completion">`;
+      };
+      const roleControl = roleOfCurrentUser === 'admin'
+        ? `<select class="admin-role-select" onchange="window.adminChangeUserRole(${userId}, this.value)">
+            <option value="user" ${role === 'user' ? 'selected' : ''}>user</option>
+            <option value="moderator" ${role === 'moderator' ? 'selected' : ''}>moderator</option>
+            <option value="admin" ${role === 'admin' ? 'selected' : ''}>admin</option>
+          </select>`
+        : `<span class="admin-role-badge ${role}">${role}</span>`;
+      const disableResetProgress = !canManageAction('resetProgress') ? 'disabled' : '';
+      const disableOpenUi = !canManageAction('openUi') ? 'disabled' : '';
       return `
         <tr>
-          <td>${name}</td>
+          <td class="admin-cell-name">${name}</td>
+          <td>${streak} day${streak === 1 ? '' : 's'}</td>
           <td>${lastLogin}</td>
           <td>${lastActive}</td>
           <td>${email}</td>
-          <td><span class="admin-role-badge ${role}">${role}</span></td>
+          <td>${roleControl}</td>
           <td>${faithPoints}</td>
           <td>${treeProgress}</td>
+          <td>${taskCheckbox('pray')}</td>
+          <td>${taskCheckbox('bible')}</td>
+          <td>${taskCheckbox('devotion')}</td>
+          <td>${taskCheckbox('smallgroup')}</td>
+          <td>${taskCheckbox('attendService')}</td>
           <td>
             <div class="admin-actions">
               <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
               <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
-              <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})">Reset Progress</button>
+              <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})" ${disableResetProgress}>Reset Progress</button>
               <button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>
-              <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})">Open UI</button>
+              <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})" ${disableOpenUi}>Open UI</button>
             </div>
           </td>
         </tr>
@@ -1387,8 +1581,8 @@ async function renderAdminDashboard(syncFromCloud = true) {
 }
 
 function assertAdminDashboardAccess() {
-  if (!isAdminUser()) {
-    showNotification('Admin dashboard access required.', { type: 'error' });
+  if (!hasManagementAccess()) {
+    showNotification('Management dashboard access required.', { type: 'error' });
     return false;
   }
 
@@ -1466,7 +1660,7 @@ function hydrateCurrentUserFromStoredUsers() {
 
   const mergedUser = {
     ...users[userIndex],
-    role: getRoleByEmail(users[userIndex].email),
+    role: getRoleByEmail(users[userIndex].email, users[userIndex].role),
     viewMode: currentUser.viewMode ?? users[userIndex].viewMode ?? 'user'
   };
 
@@ -1490,7 +1684,7 @@ function syncCurrentSessionIfNeeded(updatedUser, options = {}) {
     currentUser = {
       ...currentUser,
       ...updatedUser,
-      role: getRoleByEmail(updatedUser.email),
+      role: getRoleByEmail(updatedUser.email, updatedUser.role),
       viewMode: currentUser.viewMode ?? updatedUser.viewMode ?? 'user'
     };
     delete currentUser.password;
@@ -1502,6 +1696,7 @@ function syncCurrentSessionIfNeeded(updatedUser, options = {}) {
 
 function adminAddPoints(userId, userEmail = '') {
   if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('addPoints', 'You do not have permission to add points.')) return;
 
   const pointsInput = prompt('Enter points to add:', '10');
   if (pointsInput === null) return;
@@ -1536,6 +1731,7 @@ function adminAddPoints(userId, userEmail = '') {
 
 function adminResetPassword(userId) {
   if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('resetPassword', 'You do not have permission to reset passwords.')) return;
 
   const newPassword = prompt('Enter new password (min 6 characters):', 'password123');
   if (newPassword === null) return;
@@ -1559,6 +1755,7 @@ function adminResetPassword(userId) {
 
 function adminResetProgress(userId) {
   if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('resetProgress', 'Moderator cannot reset progress.')) return;
 
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
@@ -1588,6 +1785,7 @@ function adminResetProgress(userId) {
 
 function adminViewProgress(userId) {
   if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('viewProgress', 'You do not have permission to view progress.')) return;
 
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
@@ -1600,7 +1798,7 @@ function adminViewProgress(userId) {
   const progressMessage = [
     `Name: ${user.name || 'N/A'}`,
     `Email: ${user.email || 'N/A'}`,
-    `Role: ${getRoleByEmail(user.email)}`,
+    `Role: ${getRoleByEmail(user.email, user.role)}`,
     `Faith Points: ${Math.floor(Number(user.faithPoints ?? 0) || 0)}`,
     `Tree Progress: ${Math.floor(Number(user.treeProgress ?? 0) || 0)}`,
     `Fruits: ${Math.floor(Number(user.fruitCount ?? 0) || 0)}`
@@ -1611,6 +1809,7 @@ function adminViewProgress(userId) {
 
 function adminOpenUserUi(userId) {
   if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('openUi', 'Moderator cannot open user UI.')) return;
 
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
@@ -1625,7 +1824,7 @@ function adminOpenUserUi(userId) {
 
   const nextSessionUser = {
     ...selectedUser,
-    role: getRoleByEmail(selectedUser.email),
+    role: getRoleByEmail(selectedUser.email, selectedUser.role),
     viewMode: 'user'
   };
 
@@ -1646,6 +1845,47 @@ window.adminResetPassword = adminResetPassword;
 window.adminResetProgress = adminResetProgress;
 window.adminViewProgress = adminViewProgress;
 window.adminOpenUserUi = adminOpenUserUi;
+
+function adminChangeUserRole(userId, nextRole) {
+  if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('changeRole', 'Only admin can change user roles.')) return;
+
+  const normalizedNextRole = normalizeRole(nextRole);
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    showNotification('User not found.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const targetUser = users[userIndex];
+  const lockedToAdmin = isAdminEmail(targetUser.email);
+  const finalRole = lockedToAdmin ? 'admin' : normalizedNextRole;
+  const currentRole = getRoleByEmail(targetUser.email, targetUser.role);
+
+  if (currentRole === finalRole) {
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const confirmed = confirm(`Change role for ${targetUser.email} from ${currentRole} to ${finalRole}?`);
+  if (!confirmed) {
+    renderAdminDashboard(false);
+    return;
+  }
+
+  users[userIndex].role = finalRole;
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+  showNotification(`Role updated to ${finalRole} for ${targetUser.email}.`, { type: 'success' });
+}
+
+window.adminChangeUserRole = adminChangeUserRole;
 
 function escapeHtml(value) {
   return String(value)
@@ -1695,7 +1935,7 @@ async function handleLogin(event) {
     const normalizedUser = normalizeStoredUser(user, user.id);
     normalizedUser.lastLogin = new Date().toLocaleString();
     normalizedUser.lastActiveAt = Date.now();
-    normalizedUser.viewMode = isAdminEmail(normalizedUser.email) ? 'admin' : (normalizedUser.viewMode ?? 'user');
+    normalizedUser.viewMode = normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role);
 
     if (userIndex !== -1) {
       users[userIndex] = normalizedUser;
@@ -1709,8 +1949,8 @@ async function handleLogin(event) {
 
     currentUser = {
       ...normalizedUser,
-      role: getRoleByEmail(normalizedUser.email),
-      viewMode: isAdminEmail(normalizedUser.email) ? 'admin' : (normalizedUser.viewMode ?? 'user'),
+      role: getRoleByEmail(normalizedUser.email, normalizedUser.role),
+      viewMode: normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role),
       faithPoints: normalizedUser.faithPoints ?? 0,
       treeProgress: normalizedUser.treeProgress ?? 0,
       passiveRate: normalizedUser.passiveRate ?? 1,
@@ -1760,7 +2000,7 @@ function handleRegister(event) {
     id: Date.now(),
     name,
     email,
-    role: getRoleByEmail(email),
+    role: getRoleByEmail(email, 'user'),
     viewMode: 'user',
     password,
     joinedDate: new Date().toLocaleDateString(),
@@ -1898,10 +2138,8 @@ function handleLogout() {
 }
 
 function openProfileModal() {
-  if (isAdminEmail(currentUser?.email)) {
-    if (currentUser.role !== 'admin') {
-      currentUser.role = 'admin';
-    }
+  if (currentUser) {
+    currentUser.role = getRoleByEmail(currentUser.email, currentUser.role);
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
   }
 
@@ -1909,10 +2147,10 @@ function openProfileModal() {
 
   const toggleBtn = document.getElementById('switchAdminViewBtn');
   if (toggleBtn) {
-    const isAdmin = isAdminEmail(currentUser?.email);
-    toggleBtn.style.display = isAdmin ? 'block' : 'none';
-    if (isAdmin) {
-      toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Admin View';
+    const managementEnabled = hasManagementAccess();
+    toggleBtn.style.display = managementEnabled ? 'block' : 'none';
+    if (managementEnabled) {
+      toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Management View';
     }
   }
 

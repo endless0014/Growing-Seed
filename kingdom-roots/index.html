@@ -344,11 +344,16 @@
 
     <div id="adminDashboard" class="container admin-dashboard" style="display: none;">
       <h1>🛡️ Admin Dashboard</h1>
-      <p>Admin-only overview and user insights.</p>
-      <button type="button" class="settings-btn" onclick="openProfileModal()">Open Profile</button>
+      <p>Management overview and user insights.</p>
+      <div class="admin-nav-buttons" aria-label="Admin navigation">
+        <button type="button" class="admin-nav-btn" onclick="switchToUserHome()">Home</button>
+        <button type="button" class="admin-nav-btn" onclick="scrollAdminSection('adminOverviewSection')">Dashboard</button>
+        <button type="button" class="admin-nav-btn" onclick="scrollAdminSection('adminUsersSection')">Registered User</button>
+        <button type="button" class="admin-nav-btn" onclick="openProfileModal()">Profile</button>
+      </div>
       <p id="adminTaskRefreshTime">Task refresh: 24:00</p>
 
-      <div class="admin-stats-grid">
+      <div id="adminOverviewSection" class="admin-stats-grid">
         <div class="admin-stat-card">
           <div class="admin-stat-label">Total Users</div>
           <div id="adminTotalUsers" class="admin-stat-value">0</div>
@@ -357,24 +362,71 @@
           <div class="admin-stat-label">Admins</div>
           <div id="adminTotalAdmins" class="admin-stat-value">0</div>
         </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Moderators</div>
+          <div id="adminTotalModerators" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Active Users (24h)</div>
+          <div id="adminActiveUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Inactive Users (24h)</div>
+          <div id="adminInactiveUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Task Completion</div>
+          <div id="adminTaskCompletionRate" class="admin-stat-value">0%</div>
+        </div>
       </div>
 
-      <div class="admin-users-section">
+      <div class="admin-analytics-grid">
+        <div class="admin-analytics-card">
+          <h3>Daily Login Trend (7 days)</h3>
+          <div id="adminDailyLoginTrend" class="admin-trend-list"></div>
+        </div>
+        <div class="admin-analytics-card">
+          <h3>Task Status Completion</h3>
+          <div id="adminTaskStatusSummary" class="admin-trend-list"></div>
+        </div>
+      </div>
+
+      <div id="adminUsersSection" class="admin-users-section">
         <div class="admin-users-header">
           <h3>Registered Users</h3>
-          <button onclick="renderAdminDashboard()" class="settings-btn">Refresh</button>
+          <div class="admin-users-controls">
+            <label for="adminSortSelect">Sort by</label>
+            <select id="adminSortSelect" onchange="renderAdminDashboard(false)">
+              <option value="lastActiveDesc">Last Active (Newest)</option>
+              <option value="lastActiveAsc">Last Active (Oldest)</option>
+              <option value="nameAsc">Name (A-Z)</option>
+              <option value="nameDesc">Name (Z-A)</option>
+              <option value="faithPointsDesc">Faith Points (High-Low)</option>
+              <option value="faithPointsAsc">Faith Points (Low-High)</option>
+              <option value="streakDesc">Streak (High-Low)</option>
+              <option value="streakAsc">Streak (Low-High)</option>
+              <option value="roleAsc">Role</option>
+            </select>
+            <button onclick="renderAdminDashboard()" class="settings-btn">Refresh</button>
+          </div>
         </div>
         <div class="admin-table-wrap">
           <table class="admin-table">
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Streak</th>
                 <th>Last Login</th>
                 <th>Last Active</th>
                 <th>Email</th>
                 <th>Role</th>
                 <th>Faith Points</th>
                 <th>Tree Progress</th>
+                <th><span class="task-head-logo" title="Prayer Time">🙏</span></th>
+                <th><span class="task-head-logo" title="Bible Reading">📘</span></th>
+                <th><span class="task-head-logo" title="Daily Devotion">🕊️</span></th>
+                <th><span class="task-head-logo" title="Small Group">🧑‍🤝‍🧑</span></th>
+                <th><span class="task-head-logo" title="Worship Attendance">🏠</span></th>
                 <th>Actions</th>
               </tr>
             </thead>
