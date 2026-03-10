@@ -1054,12 +1054,14 @@ function normalizeStoredUser(user, fallbackId) {
     ? parsedUserId
     : (Number.isFinite(fallbackNumericId) ? fallbackNumericId : Date.now());
   const parsedLastActiveAt = Number(user?.lastActiveAt ?? user?.updatedAt ?? 0);
+  const parsedRoleUpdatedAt = Number(user?.roleUpdatedAt ?? 0);
 
   return {
     ...user,
     id: safeUserId,
     email: getCorrectedEmail(user?.email),
     role: getRoleByEmail(user?.email, user?.role),
+    roleUpdatedAt: Number.isFinite(parsedRoleUpdatedAt) && parsedRoleUpdatedAt > 0 ? parsedRoleUpdatedAt : 0,
     viewMode: user?.viewMode ?? 'user',
     lastLogin: user?.lastLogin ?? '',
     lastActiveAt: Number.isFinite(parsedLastActiveAt) && parsedLastActiveAt > 0 ? parsedLastActiveAt : '',
@@ -1163,9 +1165,23 @@ function mergeUsersByLatestTimestamp(localUsers, cloudUsers) {
 
       const localUpdatedAt = Number(localUser.updatedAt ?? 0);
       const cloudUpdatedAt = Number(cloudUser.updatedAt ?? 0);
-      if (Number.isFinite(cloudUpdatedAt) && cloudUpdatedAt > localUpdatedAt) {
-        mergedByEmail.set(cloudUser.email, cloudUser);
-      }
+      const latestUser = Number.isFinite(cloudUpdatedAt) && cloudUpdatedAt > localUpdatedAt
+        ? cloudUser
+        : localUser;
+
+      // Resolve role independently from activity timestamps so progress saves do not overwrite role changes.
+      const localRoleUpdatedAt = Number(localUser.roleUpdatedAt ?? 0);
+      const cloudRoleUpdatedAt = Number(cloudUser.roleUpdatedAt ?? 0);
+      const roleSource = cloudRoleUpdatedAt > localRoleUpdatedAt ? cloudUser : localUser;
+
+      mergedByEmail.set(cloudUser.email, {
+        ...latestUser,
+        role: getRoleByEmail(latestUser.email, roleSource.role),
+        roleUpdatedAt: Math.max(
+          Number.isFinite(localRoleUpdatedAt) ? localRoleUpdatedAt : 0,
+          Number.isFinite(cloudRoleUpdatedAt) ? cloudRoleUpdatedAt : 0
+        )
+      });
     });
 
   return Array.from(mergedByEmail.values());
@@ -2002,6 +2018,7 @@ function adminChangeUserRole(userId, nextRole) {
   }
 
   users[userIndex].role = finalRole;
+  users[userIndex].roleUpdatedAt = Date.now();
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
   setStoredUsers(users);
