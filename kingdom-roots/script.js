@@ -866,7 +866,7 @@ function canManageAction(actionKey) {
   }
 
   if (role === 'moderator') {
-    return actionKey !== 'resetProgress' && actionKey !== 'openUi' && actionKey !== 'changeRole';
+    return actionKey !== 'resetProgress' && actionKey !== 'openUi' && actionKey !== 'changeRole' && actionKey !== 'viewProgress';
   }
 
   return false;
@@ -1572,6 +1572,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
           </select>`
         : `<span class="admin-role-badge ${role}">${role}</span>`;
       const disableResetProgress = !canManageAction('resetProgress') ? 'disabled' : '';
+      const canViewProgress = canManageAction('viewProgress');
       const disableOpenUi = !canManageAction('openUi') ? 'disabled' : '';
       return `
         <tr>
@@ -1593,7 +1594,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
               <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
               <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
               <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})" ${disableResetProgress}>Reset Progress</button>
-              <button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>
+              ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
               <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})" ${disableOpenUi}>Open UI</button>
             </div>
           </td>
