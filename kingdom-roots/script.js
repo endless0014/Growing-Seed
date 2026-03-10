@@ -11,6 +11,9 @@ const FIREBASE_CONFIG = {
   appId: '1:154122860320:web:90f610016b49ad25ef0945'
 };
 const CLOUD_USERS_COLLECTION = 'users';
+const EMAIL_CORRECTIONS = {
+  'nicolenavarrosa27@gmailc.com': 'nicolenavarrosa27@gmail.com'
+};
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
 const NOTIFICATION_PREFERENCE_KEY = 'growingSeedNotificationsEnabled';
 const REMINDER_LOG_KEY = 'growingSeedReminderLogV1';
@@ -828,6 +831,11 @@ function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+function getCorrectedEmail(email) {
+  const normalized = normalizeEmail(email);
+  return EMAIL_CORRECTIONS[normalized] || normalized;
+}
+
 function isAdminEmail(email) {
   const normalizedEmail = normalizeEmail(email);
   return ADMIN_EMAILS.some(adminEmail => normalizeEmail(adminEmail) === normalizedEmail);
@@ -1050,7 +1058,7 @@ function normalizeStoredUser(user, fallbackId) {
   return {
     ...user,
     id: safeUserId,
-    email: normalizeEmail(user?.email),
+    email: getCorrectedEmail(user?.email),
     role: getRoleByEmail(user?.email, user?.role),
     viewMode: user?.viewMode ?? 'user',
     lastLogin: user?.lastLogin ?? '',
@@ -1203,6 +1211,88 @@ async function migrateLocalUsersToCloudOnce() {
   localStorage.setItem(CLOUD_MIGRATION_KEY, 'done');
 }
 
+async function applyEmailCorrections() {
+  const corrections = Object.entries(EMAIL_CORRECTIONS);
+  if (corrections.length === 0) {
+    return;
+  }
+
+  const users = getStoredUsersSafe();
+  let usersChanged = false;
+
+  corrections.forEach(([fromEmailRaw, toEmailRaw]) => {
+    const fromEmail = normalizeEmail(fromEmailRaw);
+    const toEmail = normalizeEmail(toEmailRaw);
+    if (!fromEmail || !toEmail || fromEmail === toEmail) {
+      return;
+    }
+
+    const fromIndex = users.findIndex(user => normalizeEmail(user.email) === fromEmail);
+    if (fromIndex === -1) {
+      return;
+    }
+
+    const existingTargetIndex = users.findIndex(user => normalizeEmail(user.email) === toEmail);
+    const sourceUser = { ...users[fromIndex], email: toEmail, updatedAt: Date.now() };
+
+    if (existingTargetIndex !== -1 && existingTargetIndex !== fromIndex) {
+      const targetUser = users[existingTargetIndex];
+      const sourceUpdatedAt = Number(sourceUser.updatedAt ?? sourceUser.lastActiveAt ?? 0);
+      const targetUpdatedAt = Number(targetUser.updatedAt ?? targetUser.lastActiveAt ?? 0);
+      users[existingTargetIndex] = sourceUpdatedAt >= targetUpdatedAt ? sourceUser : targetUser;
+      users.splice(fromIndex, 1);
+    } else {
+      users[fromIndex] = sourceUser;
+    }
+
+    usersChanged = true;
+  });
+
+  if (usersChanged) {
+    setStoredUsers(users);
+  }
+
+  if (currentUser?.email) {
+    const correctedCurrentEmail = getCorrectedEmail(currentUser.email);
+    if (correctedCurrentEmail !== normalizeEmail(currentUser.email)) {
+      currentUser.email = correctedCurrentEmail;
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    }
+  }
+
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection) {
+    return;
+  }
+
+  for (const [fromEmailRaw, toEmailRaw] of corrections) {
+    const fromEmail = normalizeEmail(fromEmailRaw);
+    const toEmail = normalizeEmail(toEmailRaw);
+    if (!fromEmail || !toEmail || fromEmail === toEmail) {
+      continue;
+    }
+
+    try {
+      const fromDocRef = usersCollection.doc(fromEmail);
+      const fromSnapshot = await fromDocRef.get();
+      if (!fromSnapshot.exists) {
+        continue;
+      }
+
+      const correctedCloudUser = {
+        ...normalizeStoredUser(fromSnapshot.data(), Date.now()),
+        email: toEmail,
+        updatedAt: Date.now()
+      };
+
+      await usersCollection.doc(toEmail).set(correctedCloudUser, { merge: true });
+      await fromDocRef.delete();
+    } catch (error) {
+      console.warn('Email correction sync failed:', error);
+    }
+  }
+}
+
 function enforceAdminRoleInStorage() {
   const safeUsers = getStoredUsersSafe();
   let usersChanged = false;
@@ -1238,6 +1328,7 @@ function enforceAdminRoleInStorage() {
 // Initialize app
 async function initializeApp() {
   initializeCloudDatabase();
+  await applyEmailCorrections();
   await migrateLocalUsersToCloudOnce();
   await syncUsersFromCloudToLocal();
   enforceAdminRoleInStorage();
