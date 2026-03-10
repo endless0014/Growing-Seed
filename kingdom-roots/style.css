@@ -1582,6 +1582,35 @@ body.admin-view .container {
   gap: 0.5rem;
 }
 
+.public-board-panel {
+  max-width: 560px;
+  border: 1px solid #d9e6ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.public-board-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.public-board-tab {
+  border: 1px solid #d4def3;
+  background: #ffffff;
+  color: #3f4f70;
+  border-radius: 10px;
+  font-weight: 700;
+  padding: 0.62rem 0.75rem;
+  cursor: pointer;
+}
+
+.public-board-tab.active {
+  border-color: #4d82f3;
+  background: #eaf1ff;
+  color: #2e5fbf;
+}
+
 .public-board-item {
   display: grid;
   grid-template-columns: 52px 1fr auto;
@@ -1590,11 +1619,28 @@ body.admin-view .container {
   padding: 0.65rem 0.75rem;
   border-radius: 10px;
   background: #f3f7ff;
+  border: 1px solid #e3ecff;
+}
+
+.public-board-item.top-1 {
+  background: linear-gradient(90deg, #fff7df 0%, #fff2c0 100%);
+  border-color: #f0d77a;
+}
+
+.public-board-item.top-2 {
+  background: linear-gradient(90deg, #f4f8ff 0%, #e9f0ff 100%);
+  border-color: #ccd9f5;
+}
+
+.public-board-item.top-3 {
+  background: linear-gradient(90deg, #fff2e7 0%, #ffe8d2 100%);
+  border-color: #f0caa3;
 }
 
 .public-board-rank {
   font-weight: 800;
   color: #3459a7;
+  text-align: center;
 }
 
 .public-board-name {

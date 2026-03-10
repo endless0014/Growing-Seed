@@ -542,9 +542,13 @@
 
   <!-- Public Leaderboard / Ranking Modal -->
   <div id="leaderboardModal" class="modal" style="display: none;">
-    <div class="modal-content">
+    <div class="modal-content public-board-panel">
       <span class="close" onclick="closeLeaderboardModal()">&times;</span>
       <h2 id="publicBoardTitle">Leaderboard</h2>
+      <div class="public-board-switch" role="tablist" aria-label="Board type">
+        <button id="publicBoardLeaderboardTab" type="button" class="public-board-tab" onclick="switchPublicBoardType('leaderboard')" role="tab" aria-controls="publicBoardBody" aria-selected="true">🏆 Leaderboard</button>
+        <button id="publicBoardRankingTab" type="button" class="public-board-tab" onclick="switchPublicBoardType('ranking')" role="tab" aria-controls="publicBoardBody" aria-selected="false">📈 Ranking</button>
+      </div>
       <p id="publicBoardSubtitle">Sorted by longest consecutive login streak</p>
       <ul id="publicBoardBody" class="public-board-list"></ul>
       <div class="modal-buttons">

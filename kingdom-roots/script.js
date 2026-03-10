@@ -470,12 +470,30 @@ function parseDateKeyToDate(dateKey) {
 
 function getUserCurrentLoginStreak(user) {
   const parsed = Math.floor(Number(user?.loginStreakCurrent ?? 0));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  const legacyStreak = getLegacyDailyLoginStreak(user?.dailyLoginState);
+  return legacyStreak;
 }
 
 function getUserLongestLoginStreak(user) {
   const parsed = Math.floor(Number(user?.loginStreakLongest ?? 0));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  const parsedCurrent = Math.floor(Number(user?.loginStreakCurrent ?? 0));
+  const legacyStreak = getLegacyDailyLoginStreak(user?.dailyLoginState);
+  return Math.max(
+    Number.isFinite(parsed) && parsed > 0 ? parsed : 0,
+    Number.isFinite(parsedCurrent) && parsedCurrent > 0 ? parsedCurrent : 0,
+    legacyStreak
+  );
+}
+
+function getLegacyDailyLoginStreak(dailyState) {
+  const normalized = normalizeDailyLoginState(dailyState);
+  const claimedCount = Array.isArray(normalized.claimedDays) ? normalized.claimedDays.length : 0;
+  const impliedFromNextDay = Math.max(0, Math.floor(Number(normalized.streakDay ?? 1) - 1));
+  return Math.max(claimedCount, impliedFromNextDay);
 }
 
 function updateConsecutiveLoginStats(user, referenceDate = new Date()) {
@@ -523,6 +541,27 @@ function getPublicBoardUsers() {
   return getStoredUsersSafe().filter(isPublicBoardUser);
 }
 
+let currentPublicBoardType = 'leaderboard';
+
+function updatePublicBoardTabs(boardType) {
+  const leaderboardTab = document.getElementById('publicBoardLeaderboardTab');
+  const rankingTab = document.getElementById('publicBoardRankingTab');
+  if (!leaderboardTab || !rankingTab) {
+    return;
+  }
+
+  const isLeaderboard = boardType !== 'ranking';
+  leaderboardTab.classList.toggle('active', isLeaderboard);
+  rankingTab.classList.toggle('active', !isLeaderboard);
+  leaderboardTab.setAttribute('aria-selected', isLeaderboard ? 'true' : 'false');
+  rankingTab.setAttribute('aria-selected', !isLeaderboard ? 'true' : 'false');
+}
+
+function switchPublicBoardType(boardType = 'leaderboard') {
+  currentPublicBoardType = boardType === 'ranking' ? 'ranking' : 'leaderboard';
+  renderPublicBoardList(currentPublicBoardType);
+}
+
 function renderPublicBoardList(boardType = 'leaderboard') {
   const boardBody = document.getElementById('publicBoardBody');
   const boardTitle = document.getElementById('publicBoardTitle');
@@ -533,6 +572,8 @@ function renderPublicBoardList(boardType = 'leaderboard') {
 
   const users = getPublicBoardUsers();
   const isRanking = boardType === 'ranking';
+
+  updatePublicBoardTabs(boardType);
 
   boardTitle.textContent = isRanking ? 'Ranking' : 'Leaderboard';
   boardSubtitle.textContent = isRanking
@@ -570,9 +611,11 @@ function renderPublicBoardList(boardType = 'leaderboard') {
         : getUserLongestLoginStreak(user);
       const scoreLabel = isRanking ? `${score} FP` : `${score} day${score === 1 ? '' : 's'}`;
       const name = escapeHtml(String(user?.name || user?.email || 'Unknown'));
+      const rankClass = index < 3 ? `top-${index + 1}` : '';
+      const rankBadge = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
       return `
-        <li class="public-board-item">
-          <span class="public-board-rank">#${index + 1}</span>
+        <li class="public-board-item ${rankClass}">
+          <span class="public-board-rank">${rankBadge}</span>
           <span class="public-board-name">${name}</span>
           <span class="public-board-score">${scoreLabel}</span>
         </li>
@@ -587,7 +630,8 @@ function openLeaderboardModal(boardType = 'leaderboard') {
     return;
   }
 
-  renderPublicBoardList(boardType);
+  currentPublicBoardType = boardType === 'ranking' ? 'ranking' : 'leaderboard';
+  renderPublicBoardList(currentPublicBoardType);
   modal.style.display = 'flex';
 }
 
