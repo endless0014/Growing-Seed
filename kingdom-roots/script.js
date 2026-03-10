@@ -1653,10 +1653,18 @@ async function renderAdminDashboard(syncFromCloud = true) {
       const streak = Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0));
       const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
       const userId = Number.isFinite(Number(user.id)) ? Number(user.id) : Date.now();
+      const canEditTaskAndStreak = roleOfCurrentUser === 'admin';
+      const streakControl = canEditTaskAndStreak
+        ? `<input type="number" min="0" max="${DAILY_LOGIN_REWARDS.length}" value="${streak}" onchange="window.adminSetStreakDays(${userId}, this.value)" aria-label="Streak days for ${name}">`
+        : `${streak} day${streak === 1 ? '' : 's'}`;
       const taskCheckbox = taskKey => {
         const rule = taskRecurrenceRules[taskKey];
         const checked = rule && completions[taskKey] === getCurrentPeriodKey(rule.unit);
-        return `<input type="checkbox" disabled ${checked ? 'checked' : ''} aria-label="${taskDisplayNames[taskKey]} completion">`;
+        if (!canEditTaskAndStreak) {
+          return `<input type="checkbox" disabled ${checked ? 'checked' : ''} aria-label="${taskDisplayNames[taskKey]} completion">`;
+        }
+
+        return `<input type="checkbox" ${checked ? 'checked' : ''} onchange="window.adminSetTaskCompletion(${userId}, '${taskKey}', this.checked)" aria-label="${taskDisplayNames[taskKey]} completion">`;
       };
       const roleControl = roleOfCurrentUser === 'admin'
         ? `<select class="admin-role-select" onchange="window.adminChangeUserRole(${userId}, this.value)">
@@ -1671,7 +1679,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
       return `
         <tr>
           <td class="admin-cell-name">${name}</td>
-          <td>${streak} day${streak === 1 ? '' : 's'}</td>
+          <td>${streakControl}</td>
           <td>${lastLogin}</td>
           <td>${lastActive}</td>
           <td>${email}</td>
@@ -2004,6 +2012,94 @@ function adminChangeUserRole(userId, nextRole) {
 }
 
 window.adminChangeUserRole = adminChangeUserRole;
+
+function adminSetTaskCompletion(userId, taskKey, isCompleted) {
+  if (!assertAdminDashboardAccess()) return;
+  if (getCurrentUserRole() !== 'admin') {
+    showNotification('Only admin can edit task completion.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const rule = taskRecurrenceRules[taskKey];
+  if (!rule) {
+    showNotification('Unknown task key.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    showNotification('User not found.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const currentCompletions = users[userIndex].taskCompletions && typeof users[userIndex].taskCompletions === 'object'
+    ? { ...users[userIndex].taskCompletions }
+    : {};
+
+  if (isCompleted) {
+    currentCompletions[taskKey] = getCurrentPeriodKey(rule.unit);
+  } else {
+    delete currentCompletions[taskKey];
+  }
+
+  users[userIndex].taskCompletions = currentCompletions;
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+}
+
+function adminSetStreakDays(userId, streakInput) {
+  if (!assertAdminDashboardAccess()) return;
+  if (getCurrentUserRole() !== 'admin') {
+    showNotification('Only admin can edit streak days.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const parsedStreak = Math.floor(Number(streakInput));
+  if (!Number.isFinite(parsedStreak) || parsedStreak < 0 || parsedStreak > DAILY_LOGIN_REWARDS.length) {
+    showNotification(`Streak days must be between 0 and ${DAILY_LOGIN_REWARDS.length}.`, { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    showNotification('User not found.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  if (parsedStreak === 0) {
+    users[userIndex].dailyLoginState = normalizeDailyLoginState({});
+  } else {
+    const claimedDays = Array.from({ length: parsedStreak }, (_, dayIndex) => dayIndex + 1);
+    users[userIndex].dailyLoginState = normalizeDailyLoginState({
+      streakDay: parsedStreak >= DAILY_LOGIN_REWARDS.length ? 1 : parsedStreak + 1,
+      lastClaimDate: '',
+      cycleStartDate: getTodayDateKey(),
+      claimedDays
+    });
+  }
+
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+}
+
+window.adminSetTaskCompletion = adminSetTaskCompletion;
+window.adminSetStreakDays = adminSetStreakDays;
 
 function escapeHtml(value) {
   return String(value)
