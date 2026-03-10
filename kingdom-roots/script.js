@@ -3164,8 +3164,10 @@ function updateDisplay(options = {}) {
   if (fpPillValueEl) fpPillValueEl.textContent = String(Math.floor(faithPoints));
 
   if (streakPillValueEl) {
-    const streakDay = getUserCurrentLoginStreak(currentUser);
-    streakPillValueEl.textContent = `Day ${Math.max(streakDay, 1)}`;
+    const sessionStreak = getUserCurrentLoginStreak(currentUser);
+    const dailyClaimedStreak = getLegacyDailyLoginStreak(dailyLoginState);
+    const displayStreak = Math.max(sessionStreak, dailyClaimedStreak, 1);
+    streakPillValueEl.textContent = `Day ${displayStreak}`;
   }
 
   if (dailyRewardStreakEl) {
