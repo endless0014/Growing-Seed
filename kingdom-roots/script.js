@@ -1462,8 +1462,20 @@ async function renderAdminDashboard(syncFromCloud = true) {
   if (taskRefreshEl) taskRefreshEl.textContent = `Task refresh: ${getTaskRefreshTimeLabel()}`;
 
   if (dailyTrendEl) {
+    const maxTrendValue = Math.max(...trendCounts.map(entry => entry.value), 1);
     dailyTrendEl.innerHTML = trendCounts
-      .map(entry => `<div class="admin-trend-item"><span>${escapeHtml(entry.label)}</span><strong>${entry.value}</strong></div>`)
+      .map(entry => {
+        const widthPct = Math.max(6, Math.round((entry.value / maxTrendValue) * 100));
+        return `
+          <div class="admin-bar-row">
+            <span class="admin-bar-label">${escapeHtml(entry.label)}</span>
+            <div class="admin-bar-track">
+              <div class="admin-bar-fill" style="width: ${widthPct}%;"></div>
+            </div>
+            <strong class="admin-bar-value">${entry.value}</strong>
+          </div>
+        `;
+      })
       .join('');
   }
 
@@ -1483,7 +1495,18 @@ async function renderAdminDashboard(syncFromCloud = true) {
     });
 
     taskSummaryEl.innerHTML = taskRows
-      .map(row => `<div class="admin-trend-item"><span>${escapeHtml(row.taskName)}</span><strong>${row.doneCount}/${totalUsers} (${row.rate}%)</strong></div>`)
+      .map(row => {
+        const widthPct = Math.max(6, row.rate);
+        return `
+          <div class="admin-bar-row">
+            <span class="admin-bar-label">${escapeHtml(row.taskName)}</span>
+            <div class="admin-bar-track">
+              <div class="admin-bar-fill task" style="width: ${widthPct}%;"></div>
+            </div>
+            <strong class="admin-bar-value">${row.doneCount}/${totalUsers} (${row.rate}%)</strong>
+          </div>
+        `;
+      })
       .join('');
   }
 

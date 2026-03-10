@@ -768,7 +768,10 @@ body {
 }
 
 body.admin-view .app-header {
-  background: linear-gradient(135deg, #2c3e50 0%, #1c2833 100%);
+  background: linear-gradient(135deg, #edf5ef 0%, #e9f3ec 100%);
+  color: #1e2a23;
+  box-shadow: none;
+  border-bottom: 1px solid #dce7df;
 }
 
 body.admin-view .container {
@@ -854,6 +857,42 @@ body.admin-view .container {
 
 .admin-trend-item strong {
   color: #1a3a56;
+}
+
+.admin-bar-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.2rem;
+}
+
+.admin-bar-label {
+  color: #355367;
+  font-size: 0.76rem;
+}
+
+.admin-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: #ecf4fa;
+  overflow: hidden;
+  border: 1px solid #ddeaf3;
+}
+
+.admin-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3a8ed8 0%, #69b3ea 100%);
+}
+
+.admin-bar-fill.task {
+  background: linear-gradient(90deg, #2ea07d 0%, #56c09e 100%);
+}
+
+.admin-bar-value {
+  color: #173b5d;
+  font-size: 0.78rem;
 }
 
 .admin-stat-card {
