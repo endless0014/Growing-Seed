@@ -533,8 +533,16 @@ function updateConsecutiveLoginStats(user, referenceDate = new Date()) {
 }
 
 function isPublicBoardUser(user) {
-  const role = getRoleByEmail(user?.email, user?.role);
-  return !NON_USER_ROLES_FOR_PUBLIC_BOARDS.has(role);
+  if (!user) {
+    return false;
+  }
+
+  const resolvedRole = String(getRoleByEmail(user?.email, user?.role) || '').trim().toLowerCase();
+  const storedRole = String(user?.role || '').trim().toLowerCase();
+  const privilegedByRole = NON_USER_ROLES_FOR_PUBLIC_BOARDS.has(resolvedRole) || NON_USER_ROLES_FOR_PUBLIC_BOARDS.has(storedRole);
+  const privilegedByEmail = isAdminEmail(user?.email);
+
+  return !privilegedByRole && !privilegedByEmail;
 }
 
 function getPublicBoardUsers() {
@@ -570,7 +578,7 @@ function renderPublicBoardList(boardType = 'leaderboard') {
     return;
   }
 
-  const users = getPublicBoardUsers();
+  const users = getPublicBoardUsers().filter(isPublicBoardUser);
   const isRanking = boardType === 'ranking';
 
   updatePublicBoardTabs(boardType);
