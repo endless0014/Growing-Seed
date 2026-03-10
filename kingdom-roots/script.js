@@ -2810,6 +2810,8 @@ function applyTreeProgress(pointsToAdd, options = {}) {
   if (maxBloomReached && fruitEligiblePoints > 0) {
     addFruitIfNeeded(fruitEligiblePoints);
   }
+
+  showScripture();
 }
 
 function normalizeFruitProgressState() {
@@ -3203,7 +3205,6 @@ function shareGospel() {
   const pointsToAdd = actionRewards.sharegospel.fp;
   const previousFp = Math.floor(Number(faithPoints ?? 0) || 0);
   applyTreeProgress(pointsToAdd);
-  showScripture();
   updateDisplay();
   debugFpLog('share-gospel', {
     pointsToAdd,
@@ -3266,7 +3267,6 @@ function useAllPoints() {
 
     faithPoints = 0;
     applyTreeProgress(pointsUsed, { addFaithPoints: false });
-    showScripture();
     const successMessage = maxBloomReached
       ? `Blessed! You distributed ${pointsUsed} Faith Points for the fruit of your tree! 🍎`
       : `Blessed! You distributed ${pointsUsed} Faith Points for your growth! 🙏`;
@@ -3293,7 +3293,6 @@ function upgrade() {
     applyTreeProgress(pointsToAdd, { addFaithPoints: false });
     
     // upgradeCost stays at 10 - do not increment
-    showScripture();
     updateDisplay();
     debugFpLog('upgrade', {
       pointsToAdd,
