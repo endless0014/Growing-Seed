@@ -1,0 +1,22 @@
+{
+  "name": "growing-seed",
+  "version": "1.0.0",
+  "description": "Growing Seed is a browser-based faith journey app with authentication, daily actions, progress tracking, and an admin dashboard.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"No tests configured\"",
+    "cap:copy": "npx cap copy",
+    "cap:sync": "npx cap sync",
+    "android:open": "npx cap open android",
+    "android:debug": "cd android && ./gradlew assembleDebug"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "private": true,
+  "devDependencies": {
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/core": "^8.2.0"
+  }
+}
