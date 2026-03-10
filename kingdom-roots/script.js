@@ -3266,14 +3266,11 @@ function useAllPoints() {
 
     faithPoints = 0;
     applyTreeProgress(pointsUsed, { addFaithPoints: false });
-    
-    // Show success message
-    const message = maxBloomReached 
-      ? `Blessed! You distributed ${pointsUsed} Faith Points for the fruit of your tree! 🍎` 
+    showScripture();
+    const successMessage = maxBloomReached
+      ? `Blessed! You distributed ${pointsUsed} Faith Points for the fruit of your tree! 🍎`
       : `Blessed! You distributed ${pointsUsed} Faith Points for your growth! 🙏`;
-    document.getElementById("scriptureBox").textContent = message;
-    document.getElementById("scriptureBox").style.color = "#4CAF50";
-    document.getElementById("scriptureBox").style.fontWeight = "bold";
+    showNotification(successMessage, { type: 'success' });
     
     updateDisplay();
     closeUpgradeModal();
@@ -3282,12 +3279,6 @@ function useAllPoints() {
       fpAfter: Math.floor(Number(faithPoints ?? 0) || 0),
       treeProgressAfter: Math.floor(Number(treeProgress ?? 0) || 0)
     });
-    
-    // Reset message color after 3 seconds
-    setTimeout(() => {
-      document.getElementById("scriptureBox").style.color = "#555";
-      document.getElementById("scriptureBox").style.fontWeight = "normal";
-    }, 3000);
   } else {
     showNotification('Points must be divisible by 10 to use!', { type: 'warning' });
   }
@@ -3302,6 +3293,7 @@ function upgrade() {
     applyTreeProgress(pointsToAdd, { addFaithPoints: false });
     
     // upgradeCost stays at 10 - do not increment
+    showScripture();
     updateDisplay();
     debugFpLog('upgrade', {
       pointsToAdd,
