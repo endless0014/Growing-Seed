@@ -40,6 +40,7 @@ let dailyLoginState = {
   cycleStartDate: '',
   claimedDays: []
 };
+let hasAutoPromptedDailyLogin = false;
 const NON_USER_ROLES_FOR_PUBLIC_BOARDS = new Set(['admin', 'moderator']);
 
 function ensureNotificationContainer() {
@@ -468,6 +469,29 @@ function parseDateKeyToDate(dateKey) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function normalizeDateKey(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  const raw = String(value).trim();
+  if (!raw) {
+    return '';
+  }
+
+  const keyedDate = parseDateKeyToDate(raw);
+  if (keyedDate) {
+    return getDateKeyFromDate(keyedDate);
+  }
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return getDateKeyFromDate(parsed);
+  }
+
+  return '';
+}
+
 function getUserCurrentLoginStreak(user) {
   const parsed = Math.floor(Number(user?.loginStreakCurrent ?? 0));
   if (Number.isFinite(parsed) && parsed > 0) {
@@ -539,10 +563,12 @@ function isPublicBoardUser(user) {
 
   const resolvedRole = String(getRoleByEmail(user?.email, user?.role) || '').trim().toLowerCase();
   const storedRole = String(user?.role || '').trim().toLowerCase();
+  const storedViewMode = String(user?.viewMode || '').trim().toLowerCase();
   const privilegedByRole = NON_USER_ROLES_FOR_PUBLIC_BOARDS.has(resolvedRole) || NON_USER_ROLES_FOR_PUBLIC_BOARDS.has(storedRole);
   const privilegedByEmail = isAdminEmail(user?.email);
+  const privilegedByViewMode = storedViewMode === 'admin';
 
-  return !privilegedByRole && !privilegedByEmail;
+  return !privilegedByRole && !privilegedByEmail && !privilegedByViewMode;
 }
 
 function getPublicBoardUsers() {
@@ -857,8 +883,8 @@ function normalizeDailyLoginState(sourceState) {
 
   return {
     streakDay: safeStreakDay,
-    lastClaimDate: typeof input.lastClaimDate === 'string' ? input.lastClaimDate : '',
-    cycleStartDate: typeof input.cycleStartDate === 'string' ? input.cycleStartDate : '',
+    lastClaimDate: normalizeDateKey(input.lastClaimDate),
+    cycleStartDate: normalizeDateKey(input.cycleStartDate),
     claimedDays: Array.from(new Set(claimedDays)).sort((a, b) => a - b)
   };
 }
@@ -871,8 +897,8 @@ function refreshDailyLoginState() {
   }
 
   const today = new Date();
-  const lastClaimDate = new Date(dailyLoginState.lastClaimDate);
-  if (Number.isNaN(lastClaimDate.getTime())) {
+  const lastClaimDate = parseDateKeyToDate(dailyLoginState.lastClaimDate);
+  if (!lastClaimDate) {
     dailyLoginState = normalizeDailyLoginState({});
     return;
   }
@@ -1091,6 +1117,27 @@ function closeDailyLoginModal() {
   }
 }
 
+function autoPromptDailyLoginIfPending() {
+  if (!currentUser || hasAutoPromptedDailyLogin) {
+    return;
+  }
+
+  refreshDailyLoginState();
+  if (hasClaimedDailyLoginToday()) {
+    hasAutoPromptedDailyLogin = true;
+    return;
+  }
+
+  hasAutoPromptedDailyLogin = true;
+  window.setTimeout(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    openDailyLoginModal();
+  }, 180);
+}
+
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
@@ -1235,6 +1282,24 @@ function haveCloudUserStateDifferences(baseUser, incomingUser) {
     return true;
   }
 
+  const baseRole = getRoleByEmail(baseUser.email, baseUser.role);
+  const incomingRole = getRoleByEmail(incomingUser.email, incomingUser.role);
+  if (baseRole !== incomingRole) {
+    return true;
+  }
+
+  const baseRoleUpdatedAt = Number(baseUser.roleUpdatedAt ?? 0);
+  const incomingRoleUpdatedAt = Number(incomingUser.roleUpdatedAt ?? 0);
+  if (baseRoleUpdatedAt !== incomingRoleUpdatedAt) {
+    return true;
+  }
+
+  const baseViewMode = String(baseUser.viewMode || 'user');
+  const incomingViewMode = String(incomingUser.viewMode || 'user');
+  if (baseViewMode !== incomingViewMode) {
+    return true;
+  }
+
   return String(baseUser.lastLoginDateKey || '') !== String(incomingUser.lastLoginDateKey || '');
 }
 
@@ -1264,16 +1329,24 @@ function startCurrentUserCloudSync() {
     // Ignore stale snapshots so recent local progress (like FP gains) is not rolled back.
     const localUpdatedAt = Number(currentUser.updatedAt ?? currentUser.lastActiveAt ?? 0);
     const cloudUpdatedAt = Number(cloudUser.updatedAt ?? cloudUser.lastActiveAt ?? 0);
+    const localRoleUpdatedAt = Number(currentUser.roleUpdatedAt ?? 0);
+    const cloudRoleUpdatedAt = Number(cloudUser.roleUpdatedAt ?? 0);
+    const shouldApplyRoleUpdate = Number.isFinite(cloudRoleUpdatedAt)
+      && cloudRoleUpdatedAt > 0
+      && (!Number.isFinite(localRoleUpdatedAt) || cloudRoleUpdatedAt > localRoleUpdatedAt);
     if (
       Number.isFinite(localUpdatedAt) &&
       localUpdatedAt > 0 &&
       Number.isFinite(cloudUpdatedAt) &&
       cloudUpdatedAt > 0 &&
-      cloudUpdatedAt < localUpdatedAt
+      cloudUpdatedAt < localUpdatedAt &&
+      !shouldApplyRoleUpdate
     ) {
       debugFpLog('cloud-snapshot-ignored-stale', {
         localUpdatedAt,
         cloudUpdatedAt,
+        localRoleUpdatedAt,
+        cloudRoleUpdatedAt,
         localFaithPoints: Math.floor(Number(currentUser.faithPoints ?? faithPoints ?? 0) || 0),
         cloudFaithPoints: Math.floor(Number(cloudUser.faithPoints ?? 0) || 0)
       });
@@ -1451,7 +1524,15 @@ function mergeUsersByLatestTimestamp(localUsers, cloudUsers) {
       // Resolve role independently from activity timestamps so progress saves do not overwrite role changes.
       const localRoleUpdatedAt = Number(localUser.roleUpdatedAt ?? 0);
       const cloudRoleUpdatedAt = Number(cloudUser.roleUpdatedAt ?? 0);
-      const roleSource = cloudRoleUpdatedAt > localRoleUpdatedAt ? cloudUser : localUser;
+      const localResolvedRole = getRoleByEmail(localUser.email, localUser.role);
+      const cloudResolvedRole = getRoleByEmail(cloudUser.email, cloudUser.role);
+      const shouldPreferCloudRole = cloudRoleUpdatedAt > localRoleUpdatedAt
+        || (
+          cloudRoleUpdatedAt === localRoleUpdatedAt
+          && localResolvedRole === 'user'
+          && cloudResolvedRole !== 'user'
+        );
+      const roleSource = shouldPreferCloudRole ? cloudUser : localUser;
 
       mergedByEmail.set(cloudUser.email, {
         ...latestUser,
@@ -1631,6 +1712,7 @@ async function initializeApp() {
     setAppNotificationEnabled(true);
   }
   currentUser = localStorage.getItem('currentUser');
+  hasAutoPromptedDailyLogin = false;
   
   if (currentUser) {
     currentUser = JSON.parse(currentUser);
@@ -1652,6 +1734,7 @@ async function initializeApp() {
     showAppInterface();
     loadUserData();
     updateDisplay({ persist: false });
+    autoPromptDailyLoginIfPending();
     startCurrentUserCloudSync();
     startScheduledReminders();
   } else {
@@ -2453,6 +2536,7 @@ async function handleLogin(event) {
   );
   
   if (user) {
+    hasAutoPromptedDailyLogin = false;
     stopCurrentUserCloudSync();
 
     const userIndex = users.findIndex(u => Number(u.id) === Number(user.id));
@@ -2493,6 +2577,7 @@ async function handleLogin(event) {
     showAppInterface();
     loadUserData();
     updateDisplay();
+    autoPromptDailyLoginIfPending();
     startCurrentUserCloudSync();
     startScheduledReminders();
   } else {
@@ -2549,6 +2634,7 @@ function handleRegister(event) {
   stopCurrentUserCloudSync();
   
   currentUser = { ...newUser };
+  hasAutoPromptedDailyLogin = false;
   delete currentUser.password;
   localStorage.setItem('currentUser', JSON.stringify(currentUser));
   
