@@ -276,7 +276,9 @@ function handleLogout() {
 
 function performLogout(options) {
   const isAutoLogout = options?.auto === true;
+  const logoutMessage = options?.message || null;
   stopInactivityTimer();
+  stopForceLogoutListener();
   stopCurrentUserCloudSync();
   document.querySelectorAll('.modal').forEach(modalEl => { modalEl.style.display = 'none'; });
 
@@ -295,7 +297,7 @@ function performLogout(options) {
   switchToLogin();
   stopScheduledReminders();
   if (isAutoLogout) {
-    showNotification('You have been logged out due to inactivity.', { type: 'info', duration: 6000 });
+    showNotification(logoutMessage || 'You have been logged out due to inactivity.', { type: 'info', duration: 6000 });
   }
 }
 

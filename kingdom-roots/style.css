@@ -1099,6 +1099,20 @@ body.admin-view .container {
   background: #00897b;
 }
 
+.admin-action-btn.logout {
+  background: #c62828;
+}
+
+.admin-logout-all-btn {
+  background: #c62828 !important;
+  color: #fff !important;
+  border-color: #b71c1c !important;
+}
+
+.admin-logout-all-btn:hover {
+  background: #b71c1c !important;
+}
+
 @media (max-width: 900px) {
   .admin-nav-buttons {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -15,6 +15,7 @@ let hasAutoPromptedDailyLogin = false;
 let currentPublicBoardType = 'leaderboard';
 let inactivityTimerId = null;
 let inactivityWarningTimerId = null;
+let forceLogoutUnsubscribe = null;
 
 function resetGameState() {
   faithPoints = 0;

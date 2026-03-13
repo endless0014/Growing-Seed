@@ -26,6 +26,7 @@ let reminderIntervalId = null;
 let currentUserCloudUnsubscribe = null;
 let inactivityTimerId = null;
 let inactivityWarningTimerId = null;
+let forceLogoutUnsubscribe = null;
 
 const DAILY_LOGIN_REWARDS = [2, 2, 3, 4, 5, 6, 8];
 const DAILY_LOGIN_COMPLETION_BONUS = 20;
@@ -1304,6 +1305,102 @@ function getCloudUsersCollection() {
   return cloudDb ? cloudDb.collection(CLOUD_USERS_COLLECTION) : null;
 }
 
+// --- Force logout (admin action via Firestore) ---
+
+function startForceLogoutListener() {
+  stopForceLogoutListener();
+  if (!currentUser?.email) return;
+  if (!cloudDb) return;
+  const normalizedEmail = normalizeEmail(currentUser.email);
+  forceLogoutUnsubscribe = cloudDb.collection('_settings').doc('forceLogout').onSnapshot(snapshot => {
+    if (!snapshot.exists || !currentUser) return;
+    const data = snapshot.data();
+    const loginTime = Number(currentUser.lastActiveAt ?? 0) || 0;
+    // Check mass force-logout for all non-admin users
+    if (getCurrentUserRole() !== 'admin') {
+      const forceLogoutAt = Number(data.forceLogoutAt ?? 0) || 0;
+      if (forceLogoutAt > 0 && loginTime > 0 && forceLogoutAt > loginTime - 5000) {
+        performLogout({ auto: true, message: 'You have been logged out by an administrator.' });
+        return;
+      }
+    }
+    // Check per-user force-logout
+    const perUser = data.forceLogoutUsers;
+    const encodedEmail = normalizedEmail.replace(/\./g, '_');
+    if (perUser && typeof perUser === 'object' && perUser[encodedEmail]) {
+      const userForceAt = Number(perUser[encodedEmail]) || 0;
+      if (userForceAt > 0 && loginTime > 0 && userForceAt > loginTime - 5000) {
+        performLogout({ auto: true, message: 'You have been logged out by an administrator.' });
+      }
+    }
+  }, error => {
+    console.warn('Force logout listener error:', error);
+  });
+}
+
+function stopForceLogoutListener() {
+  if (typeof forceLogoutUnsubscribe === 'function') {
+    forceLogoutUnsubscribe();
+  }
+  forceLogoutUnsubscribe = null;
+}
+
+async function adminForceLogoutAll() {
+  if (!isAdminUser()) {
+    showNotification('Only admins can force logout all users.', { type: 'error' });
+    return;
+  }
+  if (!confirm('Are you sure you want to log out ALL users and moderators?\n\nThis will not affect admin accounts.')) return;
+  if (!cloudDb) {
+    showNotification('Cloud database not available. Cannot force logout remote users.', { type: 'error' });
+    return;
+  }
+  try {
+    await cloudDb.collection('_settings').doc('forceLogout').set({
+      forceLogoutAt: Date.now(),
+      triggeredBy: normalizeEmail(currentUser.email)
+    }, { merge: true });
+    showNotification('Force logout signal sent. All users and moderators will be logged out.', { type: 'success' });
+  } catch (error) {
+    console.error('Force logout all failed:', error);
+    showNotification('Failed to send force logout signal.', { type: 'error' });
+  }
+}
+
+async function adminForceLogoutUser(userId) {
+  if (!isAdminUser()) {
+    showNotification('Only admins can force logout users.', { type: 'error' });
+    return;
+  }
+  const users = getStoredUsersSafe();
+  const targetUser = users.find(u => Number(u.id) === Number(userId));
+  if (!targetUser) {
+    showNotification('User not found.', { type: 'error' });
+    return;
+  }
+  const targetRole = getRoleByEmail(targetUser.email, targetUser.role);
+  if (targetRole === 'admin') {
+    showNotification('Cannot force logout an admin user.', { type: 'warning' });
+    return;
+  }
+  const targetName = escapeHtml(targetUser.name || targetUser.email);
+  if (!confirm(`Are you sure you want to log out ${targetUser.name || targetUser.email}?`)) return;
+  if (!cloudDb) {
+    showNotification('Cloud database not available. Cannot force logout remote users.', { type: 'error' });
+    return;
+  }
+  const normalizedTargetEmail = normalizeEmail(targetUser.email);
+  try {
+    const updateData = {};
+    updateData[`forceLogoutUsers.${normalizedTargetEmail.replace(/\./g, '_')}`] = Date.now();
+    await cloudDb.collection('_settings').doc('forceLogout').set(updateData, { merge: true });
+    showNotification(`Force logout signal sent to ${targetName}.`, { type: 'success' });
+  } catch (error) {
+    console.error('Force logout user failed:', error);
+    showNotification('Failed to send force logout signal.', { type: 'error' });
+  }
+}
+
 function stopCurrentUserCloudSync() {
   if (typeof currentUserCloudUnsubscribe === 'function') {
     currentUserCloudUnsubscribe();
@@ -2007,8 +2104,10 @@ async function initializeApp() {
     startCurrentUserCloudSync();
     startScheduledReminders();
     startInactivityTimer();
+    startForceLogoutListener();
   } else {
     stopInactivityTimer();
+    stopForceLogoutListener();
     stopCurrentUserCloudSync();
     resetGameState();
     showAuthInterface();
@@ -2361,6 +2460,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
               <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})" ${disableResetProgress}>Reset Progress</button>
               ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
               <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})" ${disableOpenUi}>Open UI</button>
+              ${roleOfCurrentUser === 'admin' && role !== 'admin' ? `<button class="admin-action-btn logout" onclick="window.adminForceLogoutUser(${userId})">Log Out</button>` : ''}
             </div>
           </td>
         </tr>
@@ -2626,6 +2726,7 @@ function adminOpenUserUi(userId) {
   loadUserData();
   updateDisplay();
   startCurrentUserCloudSync();
+  startForceLogoutListener();
   showNotification(`Now viewing user UI as ${selectedUser.email}.`, { type: 'info' });
 }
 
@@ -2634,6 +2735,7 @@ window.adminResetPassword = adminResetPassword;
 window.adminResetProgress = adminResetProgress;
 window.adminViewProgress = adminViewProgress;
 window.adminOpenUserUi = adminOpenUserUi;
+window.adminForceLogoutUser = adminForceLogoutUser;
 
 function adminChangeUserRole(userId, nextRole) {
   if (!assertAdminDashboardAccess()) return;
@@ -2853,6 +2955,7 @@ async function handleLogin(event) {
     startCurrentUserCloudSync();
     startScheduledReminders();
     startInactivityTimer();
+    startForceLogoutListener();
   } else {
     document.getElementById('loginError').textContent = 'Invalid email or password';
   }
@@ -2919,6 +3022,7 @@ function handleRegister(event) {
   startCurrentUserCloudSync();
   startScheduledReminders();
   startInactivityTimer();
+  startForceLogoutListener();
 }
 
 function sendResetCode() {
@@ -3015,7 +3119,9 @@ function handleLogout() {
 
 function performLogout(options) {
   const isAutoLogout = options?.auto === true;
+  const logoutMessage = options?.message || null;
   stopInactivityTimer();
+  stopForceLogoutListener();
   stopCurrentUserCloudSync();
   // Ensure modal overlays do not persist when returning to auth screens.
   document.querySelectorAll('.modal').forEach(modalEl => {
@@ -3032,7 +3138,7 @@ function performLogout(options) {
   switchToLogin();
   stopScheduledReminders();
   if (isAutoLogout) {
-    showNotification('You have been logged out due to inactivity.', { type: 'info', duration: 6000 });
+    showNotification(logoutMessage || 'You have been logged out due to inactivity.', { type: 'info', duration: 6000 });
   }
 }
 
