@@ -1307,38 +1307,41 @@ function getCloudUsersCollection() {
 
 // --- Force logout (admin action via Firestore) ---
 
+let forceLogoutPollIntervalId = null;
+
 function startForceLogoutListener() {
   stopForceLogoutListener();
   if (!currentUser?.email) return;
-  if (!cloudDb) return;
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection) return;
   const normalizedEmail = normalizeEmail(currentUser.email);
   const listenerStartedAt = Date.now();
-  forceLogoutUnsubscribe = cloudDb.collection('_settings').doc('forceLogout').onSnapshot(snapshot => {
-    if (!snapshot.exists || !currentUser) return;
-    const data = snapshot.data();
-    // Check mass force-logout for all non-admin users
-    if (getCurrentUserRole() !== 'admin') {
-      const forceLogoutAt = Number(data.forceLogoutAt ?? 0) || 0;
-      if (forceLogoutAt > 0 && forceLogoutAt >= listenerStartedAt - 5000) {
-        performLogout({ auto: true, message: 'You have been logged out by an administrator.' });
-        return;
-      }
-    }
-    // Check per-user force-logout
-    const perUser = data.forceLogoutUsers;
-    const encodedEmail = normalizedEmail.replace(/\./g, '_');
-    if (perUser && typeof perUser === 'object' && perUser[encodedEmail]) {
-      const userForceAt = Number(perUser[encodedEmail]) || 0;
-      if (userForceAt > 0 && userForceAt >= listenerStartedAt - 5000) {
+
+  function checkForceLogout() {
+    if (!currentUser) return;
+    usersCollection.doc(normalizedEmail).get().then(snapshot => {
+      if (!snapshot.exists || !currentUser) return;
+      const data = snapshot.data();
+      const cloudForceLogoutAt = Number(data.forceLogoutAt ?? 0) || 0;
+      if (cloudForceLogoutAt > 0 && cloudForceLogoutAt >= listenerStartedAt - 5000) {
+        usersCollection.doc(normalizedEmail).update({ forceLogoutAt: 0 }).catch(() => {});
         performLogout({ auto: true, message: 'You have been logged out by an administrator.' });
       }
-    }
-  }, error => {
-    console.warn('Force logout listener error:', error);
-  });
+    }).catch(error => {
+      console.warn('Force logout poll error:', error);
+    });
+  }
+
+  // Check immediately, then every 5 seconds
+  checkForceLogout();
+  forceLogoutPollIntervalId = setInterval(checkForceLogout, 5000);
 }
 
 function stopForceLogoutListener() {
+  if (forceLogoutPollIntervalId) {
+    clearInterval(forceLogoutPollIntervalId);
+    forceLogoutPollIntervalId = null;
+  }
   if (typeof forceLogoutUnsubscribe === 'function') {
     forceLogoutUnsubscribe();
   }
