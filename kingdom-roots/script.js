@@ -1401,6 +1401,54 @@ async function adminForceLogoutUser(userId) {
   }
 }
 
+async function adminResetAllProgress() {
+  if (!isAdminUser()) {
+    showNotification('Only admins can reset all users progress.', { type: 'error' });
+    return;
+  }
+  if (!confirm('Are you sure you want to reset progress for ALL users and moderators?\n\nThis will not affect admin accounts.\nThis action cannot be undone.')) return;
+
+  const users = getStoredUsersSafe();
+  let resetCount = 0;
+
+  for (let i = 0; i < users.length; i++) {
+    const role = getRoleByEmail(users[i].email, users[i].role);
+    if (role === 'admin') continue;
+
+    users[i].faithPoints = 0;
+    users[i].treeProgress = 0;
+    users[i].passiveRate = 1;
+    users[i].fruitCount = 0;
+    users[i].pointsForFruit = 0;
+    users[i].maxBloomReached = false;
+    users[i].taskCompletions = {};
+    users[i].dailyLoginState = normalizeDailyLoginState({});
+    resetCount++;
+  }
+
+  setStoredUsers(users);
+
+  // Sync each reset user to cloud
+  const usersCollection = getCloudUsersCollection();
+  if (usersCollection) {
+    try {
+      await Promise.all(
+        users
+          .filter(u => getRoleByEmail(u.email, u.role) !== 'admin')
+          .map(u => upsertUserInCloud(u))
+      );
+    } catch (error) {
+      console.warn('Cloud sync for reset all progress failed:', error);
+    }
+  }
+
+  // If the current admin session user got reset (shouldn't happen), sync session
+  users.forEach(u => syncCurrentSessionIfNeeded(u));
+
+  renderAdminDashboard();
+  showNotification(`Progress reset for ${resetCount} user${resetCount === 1 ? '' : 's'}.`, { type: 'success' });
+}
+
 function stopCurrentUserCloudSync() {
   if (typeof currentUserCloudUnsubscribe === 'function') {
     currentUserCloudUnsubscribe();
@@ -2736,6 +2784,8 @@ window.adminResetProgress = adminResetProgress;
 window.adminViewProgress = adminViewProgress;
 window.adminOpenUserUi = adminOpenUserUi;
 window.adminForceLogoutUser = adminForceLogoutUser;
+window.adminForceLogoutAll = adminForceLogoutAll;
+window.adminResetAllProgress = adminResetAllProgress;
 
 function adminChangeUserRole(userId, nextRole) {
   if (!assertAdminDashboardAccess()) return;
