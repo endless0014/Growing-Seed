@@ -222,7 +222,7 @@ function toggleFpDebugMode() {
 async function runFpDiagnostics() {
   if (!currentUser?.email) {
     showNotification('No active user session to inspect.', { type: 'warning' });
-    return;
+    return null;
   }
 
   const normalizedEmail = normalizeEmail(currentUser.email);
@@ -246,6 +246,27 @@ async function runFpDiagnostics() {
   const currentUserFp = Math.floor(Number(currentUser.faithPoints ?? 0) || 0);
   const storedFp = Math.floor(Number(storedUser?.faithPoints ?? 0) || 0);
   const cloudFp = Math.floor(Number(cloudUser?.faithPoints ?? 0) || 0);
+  const sessionStreakDays = Math.max(
+    getUserCurrentLoginStreak(currentUser),
+    getLegacyDailyLoginStreak(dailyLoginState)
+  );
+  const currentUserStreakDays = getUserCurrentLoginStreak(currentUser);
+  const storedStreakDays = getUserCurrentLoginStreak(storedUser);
+  const cloudStreakDays = getUserCurrentLoginStreak(cloudUser);
+
+  const fallbackComparisonUser = cloudUser || storedUser || currentUser;
+  const rollback = getRollbackMetrics(
+    {
+      faithPoints: localSessionFp,
+      loginStreakCurrent: sessionStreakDays,
+      dailyLoginState
+    },
+    fallbackComparisonUser,
+    {
+      localDailyLoginState: dailyLoginState,
+      incomingDailyLoginState: fallbackComparisonUser?.dailyLoginState
+    }
+  );
 
   const summary = {
     email: normalizedEmail,
@@ -253,6 +274,13 @@ async function runFpDiagnostics() {
     currentUserFaithPoints: currentUserFp,
     localStorageFaithPoints: storedFp,
     cloudFaithPoints: cloudUser ? cloudFp : 'n/a',
+    sessionStreakDays,
+    currentUserStreakDays,
+    localStorageStreakDays: storedStreakDays,
+    cloudStreakDays: cloudUser ? cloudStreakDays : 'n/a',
+    fpRollbackAmount: rollback.fpRollbackAmount,
+    streakRollbackDays: rollback.streakRollbackDays,
+    rollbackComparedWith: cloudUser ? 'cloud' : 'localStorage/currentUser',
     currentUserUpdatedAt: Number(currentUser.updatedAt ?? currentUser.lastActiveAt ?? 0) || 0,
     localStorageUpdatedAt: Number(storedUser?.updatedAt ?? storedUser?.lastActiveAt ?? 0) || 0,
     cloudUpdatedAt: cloudUser ? (Number(cloudUser.updatedAt ?? cloudUser.lastActiveAt ?? 0) || 0) : 'n/a'
@@ -271,7 +299,10 @@ async function runFpDiagnostics() {
   const minFp = Math.min(...values);
 
   if (maxFp !== minFp) {
-    showNotification(`FP mismatch detected. Session:${localSessionFp}, Local:${storedFp}, Cloud:${cloudUser ? cloudFp : 'n/a'}.`, {
+    const rollbackMessage = rollback.hasRollback
+      ? ` Potential rollback: -${rollback.fpRollbackAmount} FP, -${rollback.streakRollbackDays} day(s).`
+      : '';
+    showNotification(`FP mismatch detected. Session:${localSessionFp}, Local:${storedFp}, Cloud:${cloudUser ? cloudFp : 'n/a'}.${rollbackMessage}`, {
       type: 'warning',
       duration: 7000
     });
@@ -280,6 +311,11 @@ async function runFpDiagnostics() {
       type: 'success'
     });
   }
+
+  return {
+    summary,
+    rollback
+  };
 }
 
 function updateProfileNotificationControls() {
@@ -518,6 +554,34 @@ function getLegacyDailyLoginStreak(dailyState) {
   const claimedCount = Array.isArray(normalized.claimedDays) ? normalized.claimedDays.length : 0;
   const impliedFromNextDay = Math.max(0, Math.floor(Number(normalized.streakDay ?? 1) - 1));
   return Math.max(claimedCount, impliedFromNextDay);
+}
+
+function getRollbackMetrics(localUserState, incomingUserState, options = {}) {
+  const { localDailyLoginState, incomingDailyLoginState } = options;
+  const localFaithPoints = Math.floor(Number(localUserState?.faithPoints ?? 0) || 0);
+  const incomingFaithPoints = Math.floor(Number(incomingUserState?.faithPoints ?? 0) || 0);
+
+  const localStreakDays = Math.max(
+    getUserCurrentLoginStreak(localUserState),
+    getLegacyDailyLoginStreak(localDailyLoginState ?? localUserState?.dailyLoginState)
+  );
+  const incomingStreakDays = Math.max(
+    getUserCurrentLoginStreak(incomingUserState),
+    getLegacyDailyLoginStreak(incomingDailyLoginState ?? incomingUserState?.dailyLoginState)
+  );
+
+  const fpRollbackAmount = Math.max(0, localFaithPoints - incomingFaithPoints);
+  const streakRollbackDays = Math.max(0, localStreakDays - incomingStreakDays);
+
+  return {
+    localFaithPoints,
+    incomingFaithPoints,
+    localStreakDays,
+    incomingStreakDays,
+    fpRollbackAmount,
+    streakRollbackDays,
+    hasRollback: fpRollbackAmount > 0 || streakRollbackDays > 0
+  };
 }
 
 function updateConsecutiveLoginStats(user, referenceDate = new Date()) {
@@ -1331,29 +1395,81 @@ function startCurrentUserCloudSync() {
     const cloudUpdatedAt = Number(cloudUser.updatedAt ?? cloudUser.lastActiveAt ?? 0);
     const localRoleUpdatedAt = Number(currentUser.roleUpdatedAt ?? 0);
     const cloudRoleUpdatedAt = Number(cloudUser.roleUpdatedAt ?? 0);
+    const rollbackMetrics = getRollbackMetrics(
+      {
+        ...currentUser,
+        faithPoints: Math.floor(Number(faithPoints ?? currentUser.faithPoints ?? 0) || 0),
+        dailyLoginState
+      },
+      cloudUser,
+      {
+        localDailyLoginState: dailyLoginState,
+        incomingDailyLoginState: cloudUser.dailyLoginState
+      }
+    );
     const shouldApplyRoleUpdate = Number.isFinite(cloudRoleUpdatedAt)
       && cloudRoleUpdatedAt > 0
       && (!Number.isFinite(localRoleUpdatedAt) || cloudRoleUpdatedAt > localRoleUpdatedAt);
-    if (
-      Number.isFinite(localUpdatedAt) &&
-      localUpdatedAt > 0 &&
-      Number.isFinite(cloudUpdatedAt) &&
-      cloudUpdatedAt > 0 &&
-      cloudUpdatedAt < localUpdatedAt &&
-      !shouldApplyRoleUpdate
-    ) {
-      debugFpLog('cloud-snapshot-ignored-stale', {
+    const hasCloudTimestamp = Number.isFinite(cloudUpdatedAt) && cloudUpdatedAt > 0;
+    const hasLocalTimestamp = Number.isFinite(localUpdatedAt) && localUpdatedAt > 0;
+    const isCloudClearlyNewer = hasCloudTimestamp && (!hasLocalTimestamp || cloudUpdatedAt > localUpdatedAt);
+    const isCloudStaleByTimestamp = hasLocalTimestamp && hasCloudTimestamp && cloudUpdatedAt < localUpdatedAt;
+    const shouldIgnoreRollback = rollbackMetrics.hasRollback && !isCloudClearlyNewer && !shouldApplyRoleUpdate;
+    let cloudUserToApply = cloudUser;
+
+    if (shouldApplyRoleUpdate && rollbackMetrics.hasRollback) {
+      // Apply role changes without allowing game progress to move backwards.
+      cloudUserToApply = {
+        ...cloudUser,
+        faithPoints: Math.floor(Number(faithPoints ?? currentUser.faithPoints ?? 0) || 0),
+        loginStreakCurrent: Math.max(
+          getUserCurrentLoginStreak(currentUser),
+          getLegacyDailyLoginStreak(dailyLoginState)
+        ),
+        loginStreakLongest: Math.max(
+          getUserLongestLoginStreak(currentUser),
+          getUserLongestLoginStreak(cloudUser)
+        ),
+        dailyLoginState: normalizeDailyLoginState(dailyLoginState),
+        updatedAt: Math.max(localUpdatedAt || 0, cloudUpdatedAt || 0)
+      };
+
+      debugFpLog('cloud-snapshot-role-update-without-rollback', {
         localUpdatedAt,
         cloudUpdatedAt,
         localRoleUpdatedAt,
         cloudRoleUpdatedAt,
+        fpRollbackAmount: rollbackMetrics.fpRollbackAmount,
+        streakRollbackDays: rollbackMetrics.streakRollbackDays
+      });
+    }
+    if (
+      !shouldApplyRoleUpdate
+      && (isCloudStaleByTimestamp || shouldIgnoreRollback)
+    ) {
+      const ignoredEventName = isCloudStaleByTimestamp
+        ? 'cloud-snapshot-ignored-stale'
+        : 'cloud-snapshot-ignored-rollback';
+      debugFpLog(ignoredEventName, {
+        localUpdatedAt,
+        cloudUpdatedAt,
+        localRoleUpdatedAt,
+        cloudRoleUpdatedAt,
+        fpRollbackAmount: rollbackMetrics.fpRollbackAmount,
+        streakRollbackDays: rollbackMetrics.streakRollbackDays,
         localFaithPoints: Math.floor(Number(currentUser.faithPoints ?? faithPoints ?? 0) || 0),
         cloudFaithPoints: Math.floor(Number(cloudUser.faithPoints ?? 0) || 0)
       });
+      if (rollbackMetrics.hasRollback) {
+        showNotification(
+          `Rollback prevented: -${rollbackMetrics.fpRollbackAmount} FP, -${rollbackMetrics.streakRollbackDays} day(s).`,
+          { type: 'warning', duration: 6500 }
+        );
+      }
       return;
     }
 
-    if (!haveCloudUserStateDifferences(currentUser, cloudUser)) {
+    if (!haveCloudUserStateDifferences(currentUser, cloudUserToApply)) {
       return;
     }
 
@@ -1361,7 +1477,7 @@ function startCurrentUserCloudSync() {
       localUpdatedAt,
       cloudUpdatedAt,
       previousFaithPoints: Math.floor(Number(currentUser.faithPoints ?? faithPoints ?? 0) || 0),
-      incomingFaithPoints: Math.floor(Number(cloudUser.faithPoints ?? 0) || 0)
+      incomingFaithPoints: Math.floor(Number(cloudUserToApply.faithPoints ?? 0) || 0)
     });
 
     const users = getStoredUsersSafe();
@@ -1369,17 +1485,17 @@ function startCurrentUserCloudSync() {
     if (userIndex !== -1) {
       users[userIndex] = {
         ...users[userIndex],
-        ...cloudUser,
-        role: getRoleByEmail(cloudUser.email, cloudUser.role)
+        ...cloudUserToApply,
+        role: getRoleByEmail(cloudUserToApply.email, cloudUserToApply.role)
       };
       localStorage.setItem('users', JSON.stringify(users));
     }
 
     currentUser = {
       ...currentUser,
-      ...cloudUser,
-      role: getRoleByEmail(cloudUser.email, cloudUser.role),
-      viewMode: currentUser.viewMode ?? cloudUser.viewMode ?? 'user'
+      ...cloudUserToApply,
+      role: getRoleByEmail(cloudUserToApply.email, cloudUserToApply.role),
+      viewMode: currentUser.viewMode ?? cloudUserToApply.viewMode ?? 'user'
     };
     delete currentUser.password;
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
