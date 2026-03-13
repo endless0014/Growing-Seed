@@ -1312,14 +1312,14 @@ function startForceLogoutListener() {
   if (!currentUser?.email) return;
   if (!cloudDb) return;
   const normalizedEmail = normalizeEmail(currentUser.email);
+  const listenerStartedAt = Date.now();
   forceLogoutUnsubscribe = cloudDb.collection('_settings').doc('forceLogout').onSnapshot(snapshot => {
     if (!snapshot.exists || !currentUser) return;
     const data = snapshot.data();
-    const loginTime = Number(currentUser.lastActiveAt ?? 0) || 0;
     // Check mass force-logout for all non-admin users
     if (getCurrentUserRole() !== 'admin') {
       const forceLogoutAt = Number(data.forceLogoutAt ?? 0) || 0;
-      if (forceLogoutAt > 0 && loginTime > 0 && forceLogoutAt > loginTime - 5000) {
+      if (forceLogoutAt > 0 && forceLogoutAt >= listenerStartedAt - 5000) {
         performLogout({ auto: true, message: 'You have been logged out by an administrator.' });
         return;
       }
@@ -1329,7 +1329,7 @@ function startForceLogoutListener() {
     const encodedEmail = normalizedEmail.replace(/\./g, '_');
     if (perUser && typeof perUser === 'object' && perUser[encodedEmail]) {
       const userForceAt = Number(perUser[encodedEmail]) || 0;
-      if (userForceAt > 0 && loginTime > 0 && userForceAt > loginTime - 5000) {
+      if (userForceAt > 0 && userForceAt >= listenerStartedAt - 5000) {
         performLogout({ auto: true, message: 'You have been logged out by an administrator.' });
       }
     }
