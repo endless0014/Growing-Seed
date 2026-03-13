@@ -21,8 +21,11 @@ const REMINDER_LOG_KEY = 'growingSeedReminderLogV1';
 const FP_DEBUG_MODE_KEY = 'growingSeedFpDebugModeV1';
 let cloudDb = null;
 const NOTIFICATION_DEFAULT_DURATION = 4200;
+const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 let reminderIntervalId = null;
 let currentUserCloudUnsubscribe = null;
+let inactivityTimerId = null;
+let inactivityWarningTimerId = null;
 
 const DAILY_LOGIN_REWARDS = [2, 2, 3, 4, 5, 6, 8];
 const DAILY_LOGIN_COMPLETION_BONUS = 20;
@@ -2003,7 +2006,9 @@ async function initializeApp() {
     autoPromptDailyLoginIfPending();
     startCurrentUserCloudSync();
     startScheduledReminders();
+    startInactivityTimer();
   } else {
+    stopInactivityTimer();
     stopCurrentUserCloudSync();
     resetGameState();
     showAuthInterface();
@@ -2847,6 +2852,7 @@ async function handleLogin(event) {
     autoPromptDailyLoginIfPending();
     startCurrentUserCloudSync();
     startScheduledReminders();
+    startInactivityTimer();
   } else {
     document.getElementById('loginError').textContent = 'Invalid email or password';
   }
@@ -2912,6 +2918,7 @@ function handleRegister(event) {
   updateDisplay();
   startCurrentUserCloudSync();
   startScheduledReminders();
+  startInactivityTimer();
 }
 
 function sendResetCode() {
@@ -3002,20 +3009,75 @@ function goBackToForgot() {
 
 function handleLogout() {
   if (confirm('Are you sure you want to logout?')) {
-    stopCurrentUserCloudSync();
-    // Ensure modal overlays do not persist when returning to auth screens.
-    document.querySelectorAll('.modal').forEach(modalEl => {
-      modalEl.style.display = 'none';
-    });
-    localStorage.removeItem('currentUser');
-    currentUser = null;
-    clearAuthErrors();
-    document.getElementById('loginForm').reset();
-    document.getElementById('registerForm').reset();
-    showAuthInterface();
-    switchToLogin();
-    stopScheduledReminders();
+    performLogout();
   }
+}
+
+function performLogout(options) {
+  const isAutoLogout = options?.auto === true;
+  stopInactivityTimer();
+  stopCurrentUserCloudSync();
+  // Ensure modal overlays do not persist when returning to auth screens.
+  document.querySelectorAll('.modal').forEach(modalEl => {
+    modalEl.style.display = 'none';
+  });
+  localStorage.removeItem('currentUser');
+  currentUser = null;
+  clearAuthErrors();
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  if (loginForm) loginForm.reset();
+  if (registerForm) registerForm.reset();
+  showAuthInterface();
+  switchToLogin();
+  stopScheduledReminders();
+  if (isAutoLogout) {
+    showNotification('You have been logged out due to inactivity.', { type: 'info', duration: 6000 });
+  }
+}
+
+// --- Inactivity auto-logout (excludes admin users) ---
+
+function startInactivityTimer() {
+  stopInactivityTimer();
+  if (!currentUser) return;
+  // Admin users are exempt from inactivity logout
+  if (getCurrentUserRole() === 'admin') return;
+  const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+  activityEvents.forEach(eventType => {
+    document.addEventListener(eventType, resetInactivityTimer, { passive: true });
+  });
+  scheduleInactivityLogout();
+}
+
+function stopInactivityTimer() {
+  if (inactivityTimerId) { clearTimeout(inactivityTimerId); inactivityTimerId = null; }
+  if (inactivityWarningTimerId) { clearTimeout(inactivityWarningTimerId); inactivityWarningTimerId = null; }
+  const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+  activityEvents.forEach(eventType => {
+    document.removeEventListener(eventType, resetInactivityTimer);
+  });
+}
+
+function resetInactivityTimer() {
+  if (!currentUser) return;
+  if (getCurrentUserRole() === 'admin') return;
+  if (inactivityTimerId) clearTimeout(inactivityTimerId);
+  if (inactivityWarningTimerId) clearTimeout(inactivityWarningTimerId);
+  scheduleInactivityLogout();
+}
+
+function scheduleInactivityLogout() {
+  // Show warning 1 minute before logout
+  const warningTime = Math.max(INACTIVITY_TIMEOUT_MS - 60000, 0);
+  inactivityWarningTimerId = setTimeout(() => {
+    if (!currentUser || getCurrentUserRole() === 'admin') return;
+    showNotification('You will be logged out in 1 minute due to inactivity.', { type: 'warning', duration: 10000 });
+  }, warningTime);
+  inactivityTimerId = setTimeout(() => {
+    if (!currentUser || getCurrentUserRole() === 'admin') return;
+    performLogout({ auto: true });
+  }, INACTIVITY_TIMEOUT_MS);
 }
 
 function openProfileModal() {
@@ -3520,18 +3582,17 @@ function updateDisplay(options = {}) {
     const sessionStreak = getUserCurrentLoginStreak(currentUser);
     const dailyClaimedStreak = getLegacyDailyLoginStreak(dailyLoginState);
     const displayStreak = Math.max(sessionStreak, dailyClaimedStreak, 1);
-    streakPillValueEl.textContent = `Day ${displayStreak}`;
+    streakPillValueEl.textContent = `${displayStreak} day${displayStreak === 1 ? '' : 's'}`;
   }
 
   if (dailyRewardStreakEl) {
-    const completedCount = Array.isArray(dailyLoginState.claimedDays)
-      ? dailyLoginState.claimedDays.length
-      : 0;
+    const sessionStreak = getUserCurrentLoginStreak(currentUser);
+    const dailyClaimedStreak = getLegacyDailyLoginStreak(dailyLoginState);
+    const loginStreak = Math.max(sessionStreak, dailyClaimedStreak, 1);
     const todayClaimed = hasClaimedDailyLoginToday();
-    const nextDay = Math.min(dailyLoginState.streakDay, DAILY_LOGIN_REWARDS.length);
     dailyRewardStreakEl.textContent = todayClaimed
-      ? `Checked in today. Next reward: Day ${nextDay}`
-      : `Day ${nextDay} reward ready`;
+      ? `Login streak: ${loginStreak} day${loginStreak === 1 ? '' : 's'} — Checked in today!`
+      : `Login streak: ${loginStreak} day${loginStreak === 1 ? '' : 's'} — Check in now!`;
   }
   
   updateTaskBadges();
