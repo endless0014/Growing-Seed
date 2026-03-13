@@ -15,6 +15,7 @@ const EMAIL_CORRECTIONS = {
   'nicolenavarrosa27@gmailc.com': 'nicolenavarrosa27@gmail.com'
 };
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
+const ROLLBACK_RECOVERY_KEY = 'growingSeedRollbackRecoveryDoneByEmailV1';
 const NOTIFICATION_PREFERENCE_KEY = 'growingSeedNotificationsEnabled';
 const REMINDER_LOG_KEY = 'growingSeedReminderLogV1';
 const FP_DEBUG_MODE_KEY = 'growingSeedFpDebugModeV1';
@@ -1607,6 +1608,154 @@ function syncUsersToCloud(users) {
   });
 }
 
+function getRollbackRecoveryMap() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ROLLBACK_RECOVERY_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function hasRollbackRecoveryRunForEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return false;
+  }
+
+  const recoveryMap = getRollbackRecoveryMap();
+  return recoveryMap[normalizedEmail] === true;
+}
+
+function markRollbackRecoveryRunForEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return;
+  }
+
+  const recoveryMap = getRollbackRecoveryMap();
+  recoveryMap[normalizedEmail] = true;
+  localStorage.setItem(ROLLBACK_RECOVERY_KEY, JSON.stringify(recoveryMap));
+}
+
+async function runRollbackRecoveryForCurrentUserOnce() {
+  if (!currentUser?.email) {
+    return null;
+  }
+
+  const normalizedEmail = normalizeEmail(currentUser.email);
+  if (!normalizedEmail || hasRollbackRecoveryRunForEmail(normalizedEmail)) {
+    return null;
+  }
+
+  const users = getStoredUsersSafe();
+  const storedUser = users.find(user => normalizeEmail(user.email) === normalizedEmail) || null;
+  let cloudUser = null;
+
+  const usersCollection = getCloudUsersCollection();
+  if (usersCollection) {
+    try {
+      const snapshot = await usersCollection.doc(normalizedEmail).get();
+      if (snapshot.exists) {
+        cloudUser = normalizeStoredUser(snapshot.data(), currentUser.id);
+      }
+    } catch (error) {
+      debugFpLog('rollback-recovery-cloud-read-error', {
+        error: String(error?.message || error)
+      });
+    }
+  }
+
+  const currentUserState = {
+    ...currentUser,
+    faithPoints: Math.floor(Number(currentUser.faithPoints ?? 0) || 0),
+    dailyLoginState: normalizeDailyLoginState(currentUser.dailyLoginState ?? dailyLoginState)
+  };
+  const candidateUsers = [currentUserState, storedUser, cloudUser].filter(Boolean);
+  if (candidateUsers.length === 0) {
+    markRollbackRecoveryRunForEmail(normalizedEmail);
+    return null;
+  }
+
+  const bestFaithPoints = Math.max(...candidateUsers.map(user => Math.floor(Number(user.faithPoints ?? 0) || 0)));
+  const bestCurrentStreak = Math.max(...candidateUsers.map(user => getUserCurrentLoginStreak(user)));
+  const bestLongestStreak = Math.max(...candidateUsers.map(user => getUserLongestLoginStreak(user)));
+
+  const bestDailySource = candidateUsers.reduce((bestUser, candidateUser) => {
+    if (!bestUser) {
+      return candidateUser;
+    }
+
+    const bestScore = getLegacyDailyLoginStreak(bestUser.dailyLoginState);
+    const candidateScore = getLegacyDailyLoginStreak(candidateUser.dailyLoginState);
+    return candidateScore > bestScore ? candidateUser : bestUser;
+  }, null);
+
+  const recoveredFp = Math.max(0, bestFaithPoints - Math.floor(Number(currentUserState.faithPoints ?? 0) || 0));
+  const recoveredStreakDays = Math.max(0, bestCurrentStreak - getUserCurrentLoginStreak(currentUserState));
+
+  if (recoveredFp === 0 && recoveredStreakDays === 0) {
+    markRollbackRecoveryRunForEmail(normalizedEmail);
+    return {
+      recoveredFp: 0,
+      recoveredStreakDays: 0
+    };
+  }
+
+  const now = Date.now();
+  const recoveredDailyLoginState = normalizeDailyLoginState(bestDailySource?.dailyLoginState ?? dailyLoginState);
+
+  currentUser.faithPoints = bestFaithPoints;
+  currentUser.loginStreakCurrent = Math.max(bestCurrentStreak, 1);
+  currentUser.loginStreakLongest = Math.max(bestLongestStreak, currentUser.loginStreakCurrent);
+  currentUser.dailyLoginState = recoveredDailyLoginState;
+  currentUser.lastActiveAt = now;
+  currentUser.updatedAt = now;
+
+  const userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedEmail);
+  if (userIndex !== -1) {
+    users[userIndex] = {
+      ...users[userIndex],
+      faithPoints: bestFaithPoints,
+      loginStreakCurrent: currentUser.loginStreakCurrent,
+      loginStreakLongest: currentUser.loginStreakLongest,
+      dailyLoginState: recoveredDailyLoginState,
+      lastActiveAt: now,
+      updatedAt: now
+    };
+  } else {
+    users.push(normalizeStoredUser(currentUser, currentUser.id));
+  }
+
+  setStoredUsers(users);
+  faithPoints = bestFaithPoints;
+  dailyLoginState = recoveredDailyLoginState;
+  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  await upsertUserInCloud(currentUser);
+
+  debugFpLog('rollback-recovery-applied', {
+    recoveredFp,
+    recoveredStreakDays,
+    restoredFaithPoints: bestFaithPoints,
+    restoredCurrentStreak: currentUser.loginStreakCurrent,
+    restoredLongestStreak: currentUser.loginStreakLongest
+  });
+
+  showNotification(
+    `Recovery applied: +${recoveredFp} FP, +${recoveredStreakDays} day(s) streak restored.`,
+    {
+      type: 'success',
+      duration: 7000
+    }
+  );
+
+  markRollbackRecoveryRunForEmail(normalizedEmail);
+  return {
+    recoveredFp,
+    recoveredStreakDays
+  };
+}
+
 function mergeUsersByLatestTimestamp(localUsers, cloudUsers) {
   const mergedByEmail = new Map();
 
@@ -1847,6 +1996,7 @@ async function initializeApp() {
       delete currentUser.password;
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
     }
+    await runRollbackRecoveryForCurrentUserOnce();
     showAppInterface();
     loadUserData();
     updateDisplay({ persist: false });
@@ -2689,6 +2839,7 @@ async function handleLogin(event) {
     };
     delete currentUser.password;
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    await runRollbackRecoveryForCurrentUserOnce();
     clearAuthErrors();
     showAppInterface();
     loadUserData();
