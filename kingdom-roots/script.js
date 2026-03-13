@@ -1351,15 +1351,21 @@ async function adminForceLogoutAll() {
     return;
   }
   if (!confirm('Are you sure you want to log out ALL users and moderators?\n\nThis will not affect admin accounts.')) return;
-  if (!cloudDb) {
+
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection) {
     showNotification('Cloud database not available. Cannot force logout remote users.', { type: 'error' });
     return;
   }
   try {
-    await cloudDb.collection('_settings').doc('forceLogout').set({
-      forceLogoutAt: Date.now(),
-      triggeredBy: normalizeEmail(currentUser.email)
-    }, { merge: true });
+    const users = getStoredUsersSafe();
+    const nonAdminUsers = users.filter(u => getRoleByEmail(u.email, u.role) !== 'admin');
+    const now = Date.now();
+    await Promise.all(
+      nonAdminUsers.map(u =>
+        usersCollection.doc(normalizeEmail(u.email)).set({ forceLogoutAt: now }, { merge: true })
+      )
+    );
     showNotification('Force logout signal sent. All users and moderators will be logged out.', { type: 'success' });
   } catch (error) {
     console.error('Force logout all failed:', error);
@@ -1385,15 +1391,15 @@ async function adminForceLogoutUser(userId) {
   }
   const targetName = escapeHtml(targetUser.name || targetUser.email);
   if (!confirm(`Are you sure you want to log out ${targetUser.name || targetUser.email}?`)) return;
-  if (!cloudDb) {
+
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection) {
     showNotification('Cloud database not available. Cannot force logout remote users.', { type: 'error' });
     return;
   }
   const normalizedTargetEmail = normalizeEmail(targetUser.email);
   try {
-    const updateData = {};
-    updateData[`forceLogoutUsers.${normalizedTargetEmail.replace(/\./g, '_')}`] = Date.now();
-    await cloudDb.collection('_settings').doc('forceLogout').set(updateData, { merge: true });
+    await usersCollection.doc(normalizedTargetEmail).set({ forceLogoutAt: Date.now() }, { merge: true });
     showNotification(`Force logout signal sent to ${targetName}.`, { type: 'success' });
   } catch (error) {
     console.error('Force logout user failed:', error);
@@ -1529,12 +1535,24 @@ function startCurrentUserCloudSync() {
   }
 
   const normalizedEmail = normalizeEmail(currentUser.email);
+  const syncStartedAt = Date.now();
   currentUserCloudUnsubscribe = usersCollection.doc(normalizedEmail).onSnapshot(snapshot => {
     if (!snapshot.exists || !currentUser) {
       return;
     }
 
-    const cloudUser = normalizeStoredUser(snapshot.data(), currentUser.id);
+    const rawData = snapshot.data();
+
+    // Check for admin-triggered force logout on the user's own document
+    const cloudForceLogoutAt = Number(rawData.forceLogoutAt ?? 0) || 0;
+    if (cloudForceLogoutAt > 0 && cloudForceLogoutAt >= syncStartedAt - 5000) {
+      // Clear the flag so user isn't logged out again on next login
+      usersCollection.doc(normalizedEmail).update({ forceLogoutAt: 0 }).catch(() => {});
+      performLogout({ auto: true, message: 'You have been logged out by an administrator.' });
+      return;
+    }
+
+    const cloudUser = normalizeStoredUser(rawData, currentUser.id);
     if (!cloudUser?.email || normalizeEmail(cloudUser.email) !== normalizeEmail(currentUser.email)) {
       return;
     }
