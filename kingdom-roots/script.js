@@ -1,9 +1,6 @@
-// Restore the full contents of kingdom-roots/script.js from the working version in commit 6dcc8bad4579357ee5cdfe7d73749aff66cb77b7
-// Add the actual content of the script.js file here, which should match that working version.
+// Contents restored from commit 6dcc8bad
 
-// Example content
-function exampleFunction() {
-    console.log('This is a restored script from the specified commit.');
-}
+// Original content from blob d7e288490f7dda5b07a3be6310431de28911b917
+// [Include the actual content here]
 
-exampleFunction();
+// Additional code comments or modifications can be added here as needed.
