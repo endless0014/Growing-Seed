@@ -251,10 +251,7 @@ async function runFpDiagnostics() {
   const currentUserFp = Math.floor(Number(currentUser.faithPoints ?? 0) || 0);
   const storedFp = Math.floor(Number(storedUser?.faithPoints ?? 0) || 0);
   const cloudFp = Math.floor(Number(cloudUser?.faithPoints ?? 0) || 0);
-  const sessionStreakDays = Math.max(
-    getUserCurrentLoginStreak(currentUser),
-    getLegacyDailyLoginStreak(dailyLoginState)
-  );
+  const sessionStreakDays = getUserCurrentLoginStreak(currentUser);
   const currentUserStreakDays = getUserCurrentLoginStreak(currentUser);
   const storedStreakDays = getUserCurrentLoginStreak(storedUser);
   const cloudStreakDays = getUserCurrentLoginStreak(cloudUser);
@@ -539,18 +536,15 @@ function getUserCurrentLoginStreak(user) {
     return parsed;
   }
 
-  const legacyStreak = getLegacyDailyLoginStreak(user?.dailyLoginState);
-  return legacyStreak;
+  return 0;
 }
 
 function getUserLongestLoginStreak(user) {
   const parsed = Math.floor(Number(user?.loginStreakLongest ?? 0));
   const parsedCurrent = Math.floor(Number(user?.loginStreakCurrent ?? 0));
-  const legacyStreak = getLegacyDailyLoginStreak(user?.dailyLoginState);
   return Math.max(
     Number.isFinite(parsed) && parsed > 0 ? parsed : 0,
-    Number.isFinite(parsedCurrent) && parsedCurrent > 0 ? parsedCurrent : 0,
-    legacyStreak
+    Number.isFinite(parsedCurrent) && parsedCurrent > 0 ? parsedCurrent : 0
   );
 }
 
@@ -603,14 +597,8 @@ function getRollbackMetrics(localUserState, incomingUserState, options = {}) {
   const normalizedLocalDaily = normalizeDailyLoginState(localDailyLoginState ?? localUserState?.dailyLoginState);
   const normalizedIncomingDaily = normalizeDailyLoginState(incomingDailyLoginState ?? incomingUserState?.dailyLoginState);
 
-  const localStreakDays = Math.max(
-    getUserCurrentLoginStreak(localUserState),
-    getLegacyDailyLoginStreak(normalizedLocalDaily)
-  );
-  const incomingStreakDays = Math.max(
-    getUserCurrentLoginStreak(incomingUserState),
-    getLegacyDailyLoginStreak(normalizedIncomingDaily)
-  );
+  const localStreakDays = getUserCurrentLoginStreak(localUserState);
+  const incomingStreakDays = getUserCurrentLoginStreak(incomingUserState);
 
   const fpRollbackAmount = Math.max(0, localFaithPoints - incomingFaithPoints);
   const streakRollbackDays = Math.max(0, localStreakDays - incomingStreakDays);
@@ -1033,30 +1021,8 @@ function normalizeDailyLoginState(sourceState) {
 
 function refreshDailyLoginState() {
   dailyLoginState = normalizeDailyLoginState(dailyLoginState);
-
-  if (!dailyLoginState.lastClaimDate) {
-    return;
-  }
-
-  const today = new Date();
-  const lastClaimDate = parseDateKeyToDate(dailyLoginState.lastClaimDate);
-  if (!lastClaimDate) {
-    dailyLoginState = normalizeDailyLoginState({});
-    return;
-  }
-
-  const daysDiff = getDaysBetween(lastClaimDate, today);
-
-  if (daysDiff <= 1) {
-    return;
-  }
-
-  dailyLoginState = {
-    streakDay: 1,
-    lastClaimDate: '',
-    cycleStartDate: '',
-    claimedDays: []
-  };
+  // Daily check-in cycle resets only when Day 7 is completed (see claimDailyLogin).
+  // Missed days do not reset the cycle so Sunday/week boundaries never wipe progress.
 }
 
 function hasClaimedDailyLoginToday() {
@@ -1689,7 +1655,7 @@ function startCurrentUserCloudSync() {
         faithPoints: Math.floor(Number(faithPoints ?? currentUser.faithPoints ?? 0) || 0),
         loginStreakCurrent: Math.max(
           getUserCurrentLoginStreak(currentUser),
-          getLegacyDailyLoginStreak(dailyLoginState)
+          getUserCurrentLoginStreak(cloudUser)
         ),
         loginStreakLongest: Math.max(
           getUserLongestLoginStreak(currentUser),
@@ -2579,8 +2545,8 @@ async function renderAdminDashboard(syncFromCloud = true) {
     const rightRole = getRoleByEmail(rightUser.email, rightUser.role);
     const leftFp = Math.floor(Number(leftUser.faithPoints ?? 0) || 0);
     const rightFp = Math.floor(Number(rightUser.faithPoints ?? 0) || 0);
-    const leftStreak = Math.max(0, Number((leftUser.dailyLoginState && leftUser.dailyLoginState.claimedDays && leftUser.dailyLoginState.claimedDays.length) || 0));
-    const rightStreak = Math.max(0, Number((rightUser.dailyLoginState && rightUser.dailyLoginState.claimedDays && rightUser.dailyLoginState.claimedDays.length) || 0));
+    const leftStreak = getUserLongestLoginStreak(leftUser);
+    const rightStreak = getUserLongestLoginStreak(rightUser);
     const leftLastActive = getLastActiveTimestamp(leftUser);
     const rightLastActive = getLastActiveTimestamp(rightUser);
 
@@ -2606,13 +2572,14 @@ async function renderAdminDashboard(syncFromCloud = true) {
       const email = escapeHtml(user.email || 'N/A');
       const faithPoints = Math.floor(Number(user.faithPoints ?? 0) || 0);
       const treeProgress = Math.floor(Number(user.treeProgress ?? 0) || 0);
-      const streak = Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0));
+      const loginStreak = getUserLongestLoginStreak(user);
+      const checkInDays = Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0));
       const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
       const userId = Number.isFinite(Number(user.id)) ? Number(user.id) : Date.now();
       const canEditTaskAndStreak = roleOfCurrentUser === 'admin';
       const streakControl = canEditTaskAndStreak
-        ? `<input type="number" min="0" max="${DAILY_LOGIN_REWARDS.length}" value="${streak}" onchange="window.adminSetStreakDays(${userId}, this.value)" aria-label="Streak days for ${name}">`
-        : `${streak} day${streak === 1 ? '' : 's'}`;
+        ? `${loginStreak} day${loginStreak === 1 ? '' : 's'}<br><small>Check-in: <input type="number" min="0" max="${DAILY_LOGIN_REWARDS.length}" value="${checkInDays}" onchange="window.adminSetStreakDays(${userId}, this.value)" aria-label="Daily check-in progress for ${name}"></small>`
+        : `${loginStreak} day${loginStreak === 1 ? '' : 's'}`;
       const taskCheckbox = taskKey => {
         const rule = taskRecurrenceRules[taskKey];
         const checked = rule && completions[taskKey] === getCurrentPeriodKey(rule.unit);
@@ -3889,16 +3856,12 @@ function updateDisplay(options = {}) {
   if (fpPillValueEl) fpPillValueEl.textContent = String(Math.floor(faithPoints));
 
   if (streakPillValueEl) {
-    const sessionStreak = getUserCurrentLoginStreak(currentUser);
-    const dailyClaimedStreak = getLegacyDailyLoginStreak(dailyLoginState);
-    const displayStreak = Math.max(sessionStreak, dailyClaimedStreak, 1);
+    const displayStreak = Math.max(getUserCurrentLoginStreak(currentUser), 1);
     streakPillValueEl.textContent = `${displayStreak} day${displayStreak === 1 ? '' : 's'}`;
   }
 
   if (dailyRewardStreakEl) {
-    const sessionStreak = getUserCurrentLoginStreak(currentUser);
-    const dailyClaimedStreak = getLegacyDailyLoginStreak(dailyLoginState);
-    const loginStreak = Math.max(sessionStreak, dailyClaimedStreak, 1);
+    const loginStreak = Math.max(getUserCurrentLoginStreak(currentUser), 1);
     const todayClaimed = hasClaimedDailyLoginToday();
     dailyRewardStreakEl.textContent = todayClaimed
       ? `Login streak: ${loginStreak} day${loginStreak === 1 ? '' : 's'} — Checked in today!`
