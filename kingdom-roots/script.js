@@ -305,7 +305,7 @@ async function runFpDiagnostics() {
 
   if (maxFp !== minFp) {
     const rollbackMessage = rollback.hasRollback
-      ? ` Potential rollback: -${rollback.fpRollbackAmount} FP, -${rollback.streakRollbackDays} day(s).`
+      ? ` Potential rollback: ${formatRollbackPreventionMessage(rollback).replace(/^Rollback prevented:\s*/i, '').replace(/\.$/, '')}.`
       : '';
     showNotification(`FP mismatch detected. Session:${localSessionFp}, Local:${storedFp}, Cloud:${cloudUser ? cloudFp : 'n/a'}.${rollbackMessage}`, {
       type: 'warning',
@@ -561,22 +561,72 @@ function getLegacyDailyLoginStreak(dailyState) {
   return Math.max(claimedCount, impliedFromNextDay);
 }
 
+function getDateKeyRank(dateKey) {
+  const parsed = parseDateKeyToDate(normalizeDateKey(dateKey));
+  if (!parsed) {
+    return 0;
+  }
+
+  return (parsed.getFullYear() * 10000) + ((parsed.getMonth() + 1) * 100) + parsed.getDate();
+}
+
+function formatRollbackPreventionMessage(metrics) {
+  const safeMetrics = metrics && typeof metrics === 'object' ? metrics : {};
+  const parts = [];
+  const fpRollbackAmount = Math.max(0, Math.floor(Number(safeMetrics.fpRollbackAmount ?? 0) || 0));
+  const streakRollbackDays = Math.max(0, Math.floor(Number(safeMetrics.streakRollbackDays ?? 0) || 0));
+  const dailyLoginRollbackDetected = Boolean(safeMetrics.dailyLoginRollbackDetected);
+
+  if (fpRollbackAmount > 0) {
+    parts.push(`-${fpRollbackAmount} FP`);
+  }
+
+  if (streakRollbackDays > 0) {
+    parts.push(`-${streakRollbackDays} day(s) streak`);
+  }
+
+  if (dailyLoginRollbackDetected) {
+    parts.push('daily check-in state');
+  }
+
+  if (parts.length === 0) {
+    return 'Rollback prevented.';
+  }
+
+  return `Rollback prevented: ${parts.join(', ')}.`;
+}
+
 function getRollbackMetrics(localUserState, incomingUserState, options = {}) {
   const { localDailyLoginState, incomingDailyLoginState } = options;
   const localFaithPoints = Math.floor(Number(localUserState?.faithPoints ?? 0) || 0);
   const incomingFaithPoints = Math.floor(Number(incomingUserState?.faithPoints ?? 0) || 0);
+  const normalizedLocalDaily = normalizeDailyLoginState(localDailyLoginState ?? localUserState?.dailyLoginState);
+  const normalizedIncomingDaily = normalizeDailyLoginState(incomingDailyLoginState ?? incomingUserState?.dailyLoginState);
 
   const localStreakDays = Math.max(
     getUserCurrentLoginStreak(localUserState),
-    getLegacyDailyLoginStreak(localDailyLoginState ?? localUserState?.dailyLoginState)
+    getLegacyDailyLoginStreak(normalizedLocalDaily)
   );
   const incomingStreakDays = Math.max(
     getUserCurrentLoginStreak(incomingUserState),
-    getLegacyDailyLoginStreak(incomingDailyLoginState ?? incomingUserState?.dailyLoginState)
+    getLegacyDailyLoginStreak(normalizedIncomingDaily)
   );
 
   const fpRollbackAmount = Math.max(0, localFaithPoints - incomingFaithPoints);
   const streakRollbackDays = Math.max(0, localStreakDays - incomingStreakDays);
+  const localClaimDateRank = getDateKeyRank(normalizedLocalDaily.lastClaimDate);
+  const incomingClaimDateRank = getDateKeyRank(normalizedIncomingDaily.lastClaimDate);
+  const localClaimedCount = Array.isArray(normalizedLocalDaily.claimedDays)
+    ? normalizedLocalDaily.claimedDays.length
+    : 0;
+  const incomingClaimedCount = Array.isArray(normalizedIncomingDaily.claimedDays)
+    ? normalizedIncomingDaily.claimedDays.length
+    : 0;
+  const dailyClaimDateRollback = localClaimDateRank > incomingClaimDateRank;
+  const dailyClaimProgressRollback = localClaimDateRank > 0
+    && localClaimDateRank === incomingClaimDateRank
+    && localClaimedCount > incomingClaimedCount;
+  const dailyLoginRollbackDetected = dailyClaimDateRollback || dailyClaimProgressRollback;
 
   return {
     localFaithPoints,
@@ -585,7 +635,8 @@ function getRollbackMetrics(localUserState, incomingUserState, options = {}) {
     incomingStreakDays,
     fpRollbackAmount,
     streakRollbackDays,
-    hasRollback: fpRollbackAmount > 0 || streakRollbackDays > 0
+    dailyLoginRollbackDetected,
+    hasRollback: fpRollbackAmount > 0 || streakRollbackDays > 0 || dailyLoginRollbackDetected
   };
 }
 
@@ -1627,14 +1678,12 @@ function startCurrentUserCloudSync() {
         cloudRoleUpdatedAt,
         fpRollbackAmount: rollbackMetrics.fpRollbackAmount,
         streakRollbackDays: rollbackMetrics.streakRollbackDays,
+        dailyLoginRollbackDetected: rollbackMetrics.dailyLoginRollbackDetected,
         localFaithPoints: Math.floor(Number(currentUser.faithPoints ?? faithPoints ?? 0) || 0),
         cloudFaithPoints: Math.floor(Number(cloudUser.faithPoints ?? 0) || 0)
       });
       if (rollbackMetrics.hasRollback) {
-        showNotification(
-          `Rollback prevented: -${rollbackMetrics.fpRollbackAmount} FP, -${rollbackMetrics.streakRollbackDays} day(s).`,
-          { type: 'warning', duration: 6500 }
-        );
+        showNotification(formatRollbackPreventionMessage(rollbackMetrics), { type: 'warning', duration: 6500 });
       }
       return;
     }
@@ -1729,6 +1778,26 @@ function formatDateTimeForDisplay(value) {
 function getLastActiveTimestamp(user) {
   const candidate = Number(user?.lastActiveAt ?? user?.updatedAt ?? 0);
   return Number.isFinite(candidate) && candidate > 0 ? candidate : 0;
+}
+
+function getUserLoginDateKeyForAnalytics(user) {
+  const explicitDateKey = normalizeDateKey(user?.lastLoginDateKey);
+  if (explicitDateKey) {
+    return explicitDateKey;
+  }
+
+  const parsedLastLoginDateKey = normalizeDateKey(user?.lastLogin);
+  if (parsedLastLoginDateKey) {
+    return parsedLastLoginDateKey;
+  }
+
+  // Legacy fallback for accounts without explicit login date fields.
+  const lastActive = getLastActiveTimestamp(user);
+  if (lastActive > 0) {
+    return getDateKeyFromDate(new Date(lastActive));
+  }
+
+  return '';
 }
 
 function sanitizeUserForCloud(user) {
@@ -2355,11 +2424,10 @@ async function renderAdminDashboard(syncFromCloud = true) {
     const dayStart = new Date();
     dayStart.setHours(0, 0, 0, 0);
     dayStart.setDate(dayStart.getDate() - dayOffset);
-    const dayEnd = new Date(dayStart.getTime() + oneDayMs);
+    const dayKey = getDateKeyFromDate(dayStart);
 
     const count = safeUsers.filter(user => {
-      const candidate = Number(new Date(user.lastLogin || '').getTime()) || Number(user.lastActiveAt || 0);
-      return candidate >= dayStart.getTime() && candidate < dayEnd.getTime();
+      return getUserLoginDateKeyForAnalytics(user) === dayKey;
     }).length;
 
     trendCounts.push({
@@ -2495,7 +2563,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
           return `<input type="checkbox" disabled ${checked ? 'checked' : ''} aria-label="${taskDisplayNames[taskKey]} completion">`;
         }
 
-        return `<input type="checkbox" ${checked ? 'checked' : ''} onchange="window.adminSetTaskCompletion(${userId}, '${taskKey}', this.checked)" aria-label="${taskDisplayNames[taskKey]} completion">`;
+        return `<input type="checkbox" ${checked ? 'checked' : ''} onchange="window.adminSetTaskCompletion(${userId}, '${taskKey}', this.checked, '${normalizedEmail}')" aria-label="${taskDisplayNames[taskKey]} completion">`;
       };
       const roleControl = roleOfCurrentUser === 'admin'
         ? `<select class="admin-role-select" onchange="window.adminChangeUserRole(${userId}, this.value)">
@@ -2850,7 +2918,7 @@ function adminChangeUserRole(userId, nextRole) {
 
 window.adminChangeUserRole = adminChangeUserRole;
 
-function adminSetTaskCompletion(userId, taskKey, isCompleted) {
+function adminSetTaskCompletion(userId, taskKey, isCompleted, userEmail = '') {
   if (!assertAdminDashboardAccess()) return;
   if (getCurrentUserRole() !== 'admin') {
     showNotification('Only admin can edit task completion.', { type: 'error' });
@@ -2866,7 +2934,12 @@ function adminSetTaskCompletion(userId, taskKey, isCompleted) {
   }
 
   const users = getStoredUsersSafe();
-  const userIndex = findUserIndexById(users, userId);
+  let userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1 && userEmail) {
+    const normalizedTargetEmail = normalizeEmail(userEmail);
+    userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedTargetEmail);
+  }
+
   if (userIndex === -1) {
     showNotification('User not found.', { type: 'error' });
     renderAdminDashboard(false);

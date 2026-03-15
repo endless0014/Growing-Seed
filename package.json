@@ -1,6 +1,6 @@
 {
   "name": "growing-seed",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Growing Seed is a browser-based faith journey app with authentication, daily actions, progress tracking, and an admin dashboard.",
   "main": "index.js",
   "scripts": {
