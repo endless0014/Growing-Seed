@@ -1327,10 +1327,32 @@ function canManageAction(actionKey) {
   }
 
   if (role === 'moderator') {
-    return actionKey !== 'resetProgress' && actionKey !== 'openUi' && actionKey !== 'changeRole' && actionKey !== 'viewProgress';
+    return actionKey !== 'resetProgress'
+      && actionKey !== 'openUi'
+      && actionKey !== 'changeRole'
+      && actionKey !== 'viewProgress'
+      && actionKey !== 'forceLogoutAll'
+      && actionKey !== 'resetAllProgress';
   }
 
   return false;
+}
+
+function updateAdminGlobalActionButtons() {
+  const forceLogoutAllBtn = document.getElementById('adminForceLogoutAllBtn');
+  const resetAllProgressBtn = document.getElementById('adminResetAllProgressBtn');
+  const canForceLogoutAll = canManageAction('forceLogoutAll');
+  const canResetAllProgress = canManageAction('resetAllProgress');
+
+  if (forceLogoutAllBtn) {
+    forceLogoutAllBtn.style.display = canForceLogoutAll ? '' : 'none';
+    forceLogoutAllBtn.disabled = !canForceLogoutAll;
+  }
+
+  if (resetAllProgressBtn) {
+    resetAllProgressBtn.style.display = canResetAllProgress ? '' : 'none';
+    resetAllProgressBtn.disabled = !canResetAllProgress;
+  }
 }
 
 function getDefaultViewModeForRole(role) {
@@ -2343,6 +2365,8 @@ function applyViewModeUI() {
     modeIndicator.style.display = hasManagement ? 'inline-block' : 'none';
     modeIndicator.textContent = isAdminView ? 'MANAGEMENT VIEW' : 'USER VIEW';
   }
+
+  updateAdminGlobalActionButtons();
 
   removeLegacyAdminFaithPointsCard();
   syncProfilePillVisibilityForViewport();
