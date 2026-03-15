@@ -215,14 +215,22 @@ async function renderAdminDashboard(syncFromCloud = true) {
     const email = escapeHtml(user.email || 'N/A');
     const fp = Math.floor(Number(user.faithPoints ?? 0) || 0);
     const tp = Math.floor(Number(user.treeProgress ?? 0) || 0);
-    const streak = Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0));
+    // Real Login Streak
+    const realLoginStreak = Math.max(0, Number(user.loginStreakCurrent ?? 0));
+    // Daily Reward Progress
+    const dailyRewardProgress = Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0));
     const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
     const userId = Number.isFinite(Number(user.id)) ? Number(user.id) : Date.now();
     const canEditTaskAndStreak = roleOfCurrentUser === 'admin';
 
-    const streakControl = canEditTaskAndStreak
-      ? `<input type="number" min="0" max="${DAILY_LOGIN_REWARDS.length}" value="${streak}" onchange="window.adminSetStreakDays(${userId}, this.value)" aria-label="Streak days for ${name}">`
-      : `${streak} day${streak === 1 ? '' : 's'}`;
+    let realLoginStreakControl, dailyRewardProgressControl;
+    if (canEditTaskAndStreak) {
+      realLoginStreakControl = `<input type="number" min="0" value="${realLoginStreak}" onchange="window.adminSetRealLoginStreak(${userId}, this.value)" aria-label="Login streak days for ${name}">`;
+      dailyRewardProgressControl = `<input type="number" min="0" max="${DAILY_LOGIN_REWARDS.length}" value="${dailyRewardProgress}" onchange="window.adminSetStreakDays(${userId}, this.value)" aria-label="Daily reward days for ${name}">`;
+    } else {
+      realLoginStreakControl = `${realLoginStreak} day${realLoginStreak === 1 ? '' : 's'}`;
+      dailyRewardProgressControl = `${dailyRewardProgress} day${dailyRewardProgress === 1 ? '' : 's'}`;
+    }
 
     const taskCheckbox = taskKey => {
       const rule = taskRecurrenceRules[taskKey];
@@ -246,7 +254,8 @@ async function renderAdminDashboard(syncFromCloud = true) {
     return `
       <tr>
         <td class="admin-cell-name">${name}</td>
-        <td>${streakControl}</td>
+        <td>${realLoginStreakControl}</td>
+        <td>${dailyRewardProgressControl}</td>
         <td>${lastLogin}</td>
         <td>${lastActive}</td>
         <td>${email}</td>
