@@ -91,7 +91,7 @@ async function runFpDiagnostics() {
   const currentUserFp = Math.floor(Number(currentUser.faithPoints ?? 0) || 0);
   const storedFp = Math.floor(Number(storedUser?.faithPoints ?? 0) || 0);
   const cloudFp = Math.floor(Number(cloudUser?.faithPoints ?? 0) || 0);
-  const sessionStreakDays = Math.max(getUserCurrentLoginStreak(currentUser), getLegacyDailyLoginStreak(dailyLoginState));
+  const sessionStreakDays = getUserCurrentLoginStreak(currentUser);
   const currentUserStreakDays = getUserCurrentLoginStreak(currentUser);
   const storedStreakDays = getUserCurrentLoginStreak(storedUser);
   const cloudStreakDays = getUserCurrentLoginStreak(cloudUser);
@@ -574,15 +574,11 @@ function updateDisplay(options) {
   if (upgradeCostEl) upgradeCostEl.textContent = upgradeCost;
   if (fpPillValueEl) fpPillValueEl.textContent = String(Math.floor(faithPoints));
   if (streakPillValueEl) {
-    const sessionStreak = getUserCurrentLoginStreak(currentUser);
-    const dailyClaimedStreak = getLegacyDailyLoginStreak(dailyLoginState);
-    const displayStreak = Math.max(sessionStreak, dailyClaimedStreak, 1);
+    const displayStreak = Math.max(getUserCurrentLoginStreak(currentUser), 1);
     streakPillValueEl.textContent = `${displayStreak} day${displayStreak === 1 ? '' : 's'}`;
   }
   if (dailyRewardStreakEl) {
-    const sessionStreak = getUserCurrentLoginStreak(currentUser);
-    const dailyClaimedStreak = getLegacyDailyLoginStreak(dailyLoginState);
-    const loginStreak = Math.max(sessionStreak, dailyClaimedStreak, 1);
+    const loginStreak = Math.max(getUserCurrentLoginStreak(currentUser), 1);
     const todayClaimed = hasClaimedDailyLoginToday();
     dailyRewardStreakEl.textContent = todayClaimed
       ? `Login streak: ${loginStreak} day${loginStreak === 1 ? '' : 's'} — Checked in today!`

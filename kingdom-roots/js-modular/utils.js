@@ -200,18 +200,15 @@ function normalizeDailyLoginState(sourceState) {
 
 function getUserCurrentLoginStreak(user) {
   const parsed = Math.floor(Number(user?.loginStreakCurrent ?? 0));
-  if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return getLegacyDailyLoginStreak(user?.dailyLoginState);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function getUserLongestLoginStreak(user) {
   const parsed = Math.floor(Number(user?.loginStreakLongest ?? 0));
   const parsedCurrent = Math.floor(Number(user?.loginStreakCurrent ?? 0));
-  const legacyStreak = getLegacyDailyLoginStreak(user?.dailyLoginState);
   return Math.max(
     Number.isFinite(parsed) && parsed > 0 ? parsed : 0,
-    Number.isFinite(parsedCurrent) && parsedCurrent > 0 ? parsedCurrent : 0,
-    legacyStreak
+    Number.isFinite(parsedCurrent) && parsedCurrent > 0 ? parsedCurrent : 0
   );
 }
 

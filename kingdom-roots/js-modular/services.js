@@ -298,7 +298,7 @@ function startCurrentUserCloudSync() {
       cloudUserToApply = {
         ...cloudUser,
         faithPoints: Math.floor(Number(faithPoints ?? currentUser.faithPoints ?? 0) || 0),
-        loginStreakCurrent: Math.max(getUserCurrentLoginStreak(currentUser), getLegacyDailyLoginStreak(dailyLoginState)),
+        loginStreakCurrent: Math.max(getUserCurrentLoginStreak(currentUser), getUserCurrentLoginStreak(cloudUser)),
         loginStreakLongest: Math.max(getUserLongestLoginStreak(currentUser), getUserLongestLoginStreak(cloudUser)),
         dailyLoginState: normalizeDailyLoginState(dailyLoginState),
         updatedAt: Math.max(localUpdatedAt || 0, cloudUpdatedAt || 0)
