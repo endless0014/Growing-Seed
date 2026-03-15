@@ -695,6 +695,21 @@ function getPublicBoardUsers() {
   return getStoredUsersSafe().filter(isPublicBoardUser);
 }
 
+function getUserLoginOrderingTimestamp(user) {
+  const explicitTimestamp = Number(user?.lastLoginAt ?? 0);
+  if (Number.isFinite(explicitTimestamp) && explicitTimestamp > 0) {
+    return explicitTimestamp;
+  }
+
+  const parsedLegacyTimestamp = Number(new Date(user?.lastLogin || '').getTime());
+  if (Number.isFinite(parsedLegacyTimestamp) && parsedLegacyTimestamp > 0) {
+    return parsedLegacyTimestamp;
+  }
+
+  // Unknown login time should sort after users with known login time.
+  return Number.POSITIVE_INFINITY;
+}
+
 let currentPublicBoardType = 'leaderboard';
 
 function updatePublicBoardTabs(boardType) {
@@ -749,6 +764,13 @@ function renderPublicBoardList(boardType = 'leaderboard') {
     if (rightValue !== leftValue) {
       return rightValue - leftValue;
     }
+
+    const leftLoginTimestamp = getUserLoginOrderingTimestamp(leftUser);
+    const rightLoginTimestamp = getUserLoginOrderingTimestamp(rightUser);
+    if (leftLoginTimestamp !== rightLoginTimestamp) {
+      return leftLoginTimestamp - rightLoginTimestamp;
+    }
+
     return String(leftUser?.name || '').localeCompare(String(rightUser?.name || ''));
   });
 
@@ -1732,6 +1754,7 @@ function normalizeStoredUser(user, fallbackId) {
     ? parsedUserId
     : (Number.isFinite(fallbackNumericId) ? fallbackNumericId : Date.now());
   const parsedLastActiveAt = Number(user?.lastActiveAt ?? user?.updatedAt ?? 0);
+  const parsedLastLoginAt = Number(user?.lastLoginAt ?? 0);
   const parsedRoleUpdatedAt = Number(user?.roleUpdatedAt ?? 0);
   const parsedLoginStreakCurrent = Number(user?.loginStreakCurrent ?? 0);
   const parsedLoginStreakLongest = Number(user?.loginStreakLongest ?? 0);
@@ -1751,6 +1774,7 @@ function normalizeStoredUser(user, fallbackId) {
     lastLoginDateKey: typeof user?.lastLoginDateKey === 'string' ? user.lastLoginDateKey : '',
     viewMode: user?.viewMode ?? 'user',
     lastLogin: user?.lastLogin ?? '',
+    lastLoginAt: Number.isFinite(parsedLastLoginAt) && parsedLastLoginAt > 0 ? parsedLastLoginAt : '',
     lastActiveAt: Number.isFinite(parsedLastActiveAt) && parsedLastActiveAt > 0 ? parsedLastActiveAt : '',
     taskCompletions: user?.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {},
     dailyLoginState: normalizeDailyLoginState(user?.dailyLoginState)
@@ -3055,12 +3079,14 @@ async function handleLogin(event) {
   if (user) {
     hasAutoPromptedDailyLogin = false;
     stopCurrentUserCloudSync();
+    const loginTimestamp = Date.now();
 
     const userIndex = users.findIndex(u => Number(u.id) === Number(user.id));
     const normalizedUser = normalizeStoredUser(user, user.id);
     updateConsecutiveLoginStats(normalizedUser);
     normalizedUser.lastLogin = new Date().toLocaleString();
-    normalizedUser.lastActiveAt = Date.now();
+    normalizedUser.lastLoginAt = loginTimestamp;
+    normalizedUser.lastActiveAt = loginTimestamp;
     normalizedUser.viewMode = normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role);
 
     if (userIndex !== -1) {
@@ -3135,6 +3161,7 @@ function handleRegister(event) {
     password,
     joinedDate: new Date().toLocaleDateString(),
     lastLogin: new Date().toLocaleString(),
+    lastLoginAt: Date.now(),
     lastLoginDateKey: getTodayDateKey(),
     loginStreakCurrent: 1,
     loginStreakLongest: 1,
