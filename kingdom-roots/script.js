@@ -2284,11 +2284,43 @@ async function initializeApp() {
   await syncUsersFromCloudToLocal();
   migrateLoginStreaksFromLegacyOnce();
   enforceAdminRoleInStorage();
+  // Backup login streaks for rollback
+  backupUserLoginStreaks();
   if (!localStorage.getItem(NOTIFICATION_PREFERENCE_KEY)) {
     setAppNotificationEnabled(true);
   }
   currentUser = localStorage.getItem('currentUser');
   hasAutoPromptedDailyLogin = false;
+  // Backup all users' login streaks to localStorage with timestamp
+  function backupUserLoginStreaks() {
+    const users = getStoredUsersSafe();
+    const backup = users.map(u => ({
+      id: u.id,
+      email: u.email,
+      loginStreakCurrent: u.loginStreakCurrent,
+      loginStreakLongest: u.loginStreakLongest
+    }));
+    const timestamp = new Date().toISOString();
+    localStorage.setItem('loginStreakBackup_' + timestamp, JSON.stringify(backup));
+  }
+
+  // Restore login streaks from latest backup
+  function restoreUserLoginStreaksFromBackup() {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('loginStreakBackup_'));
+    if (keys.length === 0) return;
+    // Find latest backup
+    const latestKey = keys.sort().reverse()[0];
+    const backup = JSON.parse(localStorage.getItem(latestKey) || '[]');
+    const users = getStoredUsersSafe();
+    backup.forEach(bu => {
+      const idx = users.findIndex(u => u.id === bu.id || u.email === bu.email);
+      if (idx !== -1) {
+        users[idx].loginStreakCurrent = bu.loginStreakCurrent;
+        users[idx].loginStreakLongest = bu.loginStreakLongest;
+      }
+    });
+    setStoredUsers(users);
+  }
   
   if (currentUser) {
     currentUser = JSON.parse(currentUser);
