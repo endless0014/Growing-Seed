@@ -115,6 +115,7 @@ async function initializeApp() {
   await applyEmailCorrections();
   await migrateLocalUsersToCloudOnce();
   await syncUsersFromCloudToLocal();
+  migrateLoginStreaksFromLegacyOnce();
   enforceAdminRoleInStorage();
 
   if (!localStorage.getItem(NOTIFICATION_PREFERENCE_KEY)) {

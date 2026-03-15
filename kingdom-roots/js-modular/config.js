@@ -24,6 +24,7 @@ const EMAIL_CORRECTIONS = {
 };
 
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
+const STREAK_MIGRATION_KEY = 'growingSeedStreakMigrationFromLegacyV1';
 const ROLLBACK_RECOVERY_KEY = 'growingSeedRollbackRecoveryDoneByEmailV1';
 const NOTIFICATION_PREFERENCE_KEY = 'growingSeedNotificationsEnabled';
 const REMINDER_LOG_KEY = 'growingSeedReminderLogV1';

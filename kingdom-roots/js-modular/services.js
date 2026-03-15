@@ -414,6 +414,29 @@ async function migrateLocalUsersToCloudOnce() {
   localStorage.setItem(CLOUD_MIGRATION_KEY, 'done');
 }
 
+function migrateLoginStreaksFromLegacyOnce() {
+  if (localStorage.getItem(STREAK_MIGRATION_KEY) === 'done') return;
+  const users = getStoredUsersSafe();
+  let changed = false;
+  users.forEach(user => {
+    const currentStreak = Math.floor(Number(user.loginStreakCurrent ?? 0) || 0);
+    const longestStreak = Math.floor(Number(user.loginStreakLongest ?? 0) || 0);
+    const legacyStreak = getLegacyDailyLoginStreak(user.dailyLoginState);
+    if (legacyStreak > 0 && currentStreak === 0) {
+      user.loginStreakCurrent = legacyStreak;
+      changed = true;
+    }
+    if (legacyStreak > longestStreak) {
+      user.loginStreakLongest = legacyStreak;
+      changed = true;
+    }
+  });
+  if (changed) {
+    setStoredUsers(users);
+  }
+  localStorage.setItem(STREAK_MIGRATION_KEY, 'done');
+}
+
 async function applyEmailCorrections() {
   const corrections = Object.entries(EMAIL_CORRECTIONS);
   if (corrections.length === 0) return;

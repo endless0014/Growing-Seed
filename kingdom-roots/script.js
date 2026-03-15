@@ -15,6 +15,7 @@ const EMAIL_CORRECTIONS = {
   'nicolenavarrosa27@gmailc.com': 'nicolenavarrosa27@gmail.com'
 };
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
+const STREAK_MIGRATION_KEY = 'growingSeedStreakMigrationFromLegacyV1';
 const ROLLBACK_RECOVERY_KEY = 'growingSeedRollbackRecoveryDoneByEmailV1';
 const NOTIFICATION_PREFERENCE_KEY = 'growingSeedNotificationsEnabled';
 const REMINDER_LOG_KEY = 'growingSeedReminderLogV1';
@@ -2249,12 +2250,38 @@ function enforceAdminRoleInStorage() {
   }
 }
 
+// One-time migration: bootstrap loginStreakCurrent/loginStreakLongest from
+// legacy dailyLoginState for users who currently show 0.
+function migrateLoginStreaksFromLegacyOnce() {
+  if (localStorage.getItem(STREAK_MIGRATION_KEY) === 'done') return;
+  const users = getStoredUsersSafe();
+  let changed = false;
+  users.forEach(user => {
+    const currentStreak = Math.floor(Number(user.loginStreakCurrent ?? 0) || 0);
+    const longestStreak = Math.floor(Number(user.loginStreakLongest ?? 0) || 0);
+    const legacyStreak = getLegacyDailyLoginStreak(user.dailyLoginState);
+    if (legacyStreak > 0 && currentStreak === 0) {
+      user.loginStreakCurrent = legacyStreak;
+      changed = true;
+    }
+    if (legacyStreak > longestStreak) {
+      user.loginStreakLongest = legacyStreak;
+      changed = true;
+    }
+  });
+  if (changed) {
+    setStoredUsers(users);
+  }
+  localStorage.setItem(STREAK_MIGRATION_KEY, 'done');
+}
+
 // Initialize app
 async function initializeApp() {
   initializeCloudDatabase();
   await applyEmailCorrections();
   await migrateLocalUsersToCloudOnce();
   await syncUsersFromCloudToLocal();
+  migrateLoginStreaksFromLegacyOnce();
   enforceAdminRoleInStorage();
   if (!localStorage.getItem(NOTIFICATION_PREFERENCE_KEY)) {
     setAppNotificationEnabled(true);
