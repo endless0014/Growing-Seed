@@ -2253,7 +2253,8 @@ function enforceAdminRoleInStorage() {
 // One-time migration: bootstrap loginStreakCurrent/loginStreakLongest from
 // legacy dailyLoginState for users who currently show 0.
 function migrateLoginStreaksFromLegacyOnce() {
-  if (localStorage.getItem(STREAK_MIGRATION_KEY) === 'done') return;
+  // Force rerun migration: ignore migration key for one run
+  // REMOVE this after migration is complete
   const users = getStoredUsersSafe();
   let changed = false;
   users.forEach(user => {
