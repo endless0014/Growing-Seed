@@ -3924,11 +3924,13 @@ function updateDisplay(options = {}) {
   }
 
   if (dailyRewardStreakEl) {
-    const loginStreak = Math.max(getUserCurrentLoginStreak(currentUser), 1);
+    refreshDailyLoginState();
+    const currentDay = dailyLoginState.streakDay;
+    const totalDays = DAILY_LOGIN_REWARDS.length;
     const todayClaimed = hasClaimedDailyLoginToday();
     dailyRewardStreakEl.textContent = todayClaimed
-      ? `Login streak: ${loginStreak} day${loginStreak === 1 ? '' : 's'} — Checked in today!`
-      : `Login streak: ${loginStreak} day${loginStreak === 1 ? '' : 's'} — Check in now!`;
+      ? `Day ${currentDay > totalDays ? totalDays : currentDay}/${totalDays} — Checked in today!`
+      : `Day ${currentDay}/${totalDays} — Check in now!`;
   }
   
   updateTaskBadges();
