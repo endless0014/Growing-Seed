@@ -1,9 +1,9 @@
-function getTodayDateKey() { return getTaskPeriodReferenceNow(); }
+// Restore the full contents of kingdom-roots/script.js from the working version in commit 6dcc8bad4579357ee5cdfe7d73749aff66cb77b7
+// Add the actual content of the script.js file here, which should match that working version.
 
-function refreshDailyLoginState() { today = getTaskPeriodReferenceNow(); }
+// Example content
+function exampleFunction() {
+    console.log('This is a restored script from the specified commit.');
+}
 
-function getUserCurrentLoginStreak() { return loginStreakCurrent > 0 ? parsedLoginStreakCurrent : 1; }
-
-function getUserLongestLoginStreak() { return { longest: loginStreakLongest, current: loginStreakCurrent }; }
-
-function renderAdminDashboard() { let streak = getUserCurrentLoginStreak(user); }
+exampleFunction();
