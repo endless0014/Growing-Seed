@@ -2309,14 +2309,25 @@ async function initializeApp() {
     const keys = Object.keys(localStorage).filter(k => k.startsWith('loginStreakBackup_'));
     if (keys.length === 0) return;
     // Find latest backup
-    const latestKey = keys.sort().reverse()[0];
-    const backup = JSON.parse(localStorage.getItem(latestKey) || '[]');
+    const sortedKeys = keys.sort().reverse();
+    // Use second most recent backup if available
+    const restoreKey = sortedKeys.length > 1 ? sortedKeys[1] : sortedKeys[0];
+    const backup = JSON.parse(localStorage.getItem(restoreKey) || '[]');
     const users = getStoredUsersSafe();
     backup.forEach(bu => {
       const idx = users.findIndex(u => u.id === bu.id || u.email === bu.email);
       if (idx !== -1) {
         users[idx].loginStreakCurrent = bu.loginStreakCurrent;
         users[idx].loginStreakLongest = bu.loginStreakLongest;
+        if (typeof bu.dailyLoginState === 'object') {
+          users[idx].dailyLoginState = bu.dailyLoginState;
+        }
+        if (typeof bu.faithPoints !== 'undefined') {
+          users[idx].faithPoints = bu.faithPoints;
+        }
+        if (typeof bu.treeProgress !== 'undefined') {
+          users[idx].treeProgress = bu.treeProgress;
+        }
       }
     });
     setStoredUsers(users);
