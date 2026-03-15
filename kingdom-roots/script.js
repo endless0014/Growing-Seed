@@ -1862,7 +1862,16 @@ async function upsertUserInCloud(user) {
 
   try {
     const normalizedEmail = normalizeEmail(user.email);
-    await usersCollection.doc(normalizedEmail).set(sanitizeUserForCloud(user), { merge: true });
+    const cloudUser = sanitizeUserForCloud(user);
+    const {
+      taskCompletions = {},
+      dailyLoginState = normalizeDailyLoginState({}),
+      ...cloudUserFields
+    } = cloudUser;
+    const userDoc = usersCollection.doc(normalizedEmail);
+
+    await userDoc.set(cloudUserFields, { merge: true });
+    await userDoc.update({ taskCompletions, dailyLoginState });
   } catch (error) {
     console.warn('Cloud upsert failed:', error);
   }
