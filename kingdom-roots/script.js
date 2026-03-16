@@ -2714,68 +2714,118 @@ async function renderAdminDashboard(syncFromCloud = true) {
           <td>${taskCheckbox('smallgroup')}</td>
           <td>${taskCheckbox('attendService')}</td>
           <td>
-            <div class="admin-actions">
-              <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
-              <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
-              <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
-              function adminRestoreProgress(userId) {
-                if (!assertAdminDashboardAccess()) return;
-                if (!ensureActionPermission('resetProgress', 'Moderator cannot restore progress.')) return;
-
-                const users = getStoredUsersSafe();
-                const userIndex = findUserIndexById(users, userId);
-                if (userIndex === -1) {
-                  showNotification('User not found.', { type: 'error' });
-                  return;
-                }
-                const targetEmail = users[userIndex].email;
-                const confirmRestore = confirm(`Restore previous session progress for ${targetEmail}?`);
-                if (!confirmRestore) return;
-
-                // Find latest backup for this user
-                const backupKeys = Object.keys(localStorage).filter(k => k.startsWith('loginStreakBackup_'));
-                if (backupKeys.length === 0) {
-                  showNotification('No backup found for restore.', { type: 'error' });
-                  return;
-                }
-                const sortedKeys = backupKeys.sort().reverse();
-                let backup = null;
-                for (const key of sortedKeys) {
-                  const arr = JSON.parse(localStorage.getItem(key) || '[]');
-                  backup = arr.find(bu => bu.id === users[userIndex].id || bu.email === users[userIndex].email);
-                  if (backup) break;
-                }
-                if (!backup) {
-                  showNotification('No backup found for this user.', { type: 'error' });
-                  return;
-                }
-                users[userIndex].loginStreakCurrent = backup.loginStreakCurrent;
-                users[userIndex].loginStreakLongest = backup.loginStreakLongest;
-                if (typeof backup.dailyLoginState === 'object') {
-                  users[userIndex].dailyLoginState = backup.dailyLoginState;
-                }
-                if (typeof backup.faithPoints !== 'undefined') {
-                  users[userIndex].faithPoints = backup.faithPoints;
-                }
-                if (typeof backup.treeProgress !== 'undefined') {
-                  users[userIndex].treeProgress = backup.treeProgress;
-                }
-                setStoredUsers(users);
-                syncCurrentSessionIfNeeded(users[userIndex]);
-                renderAdminDashboard();
-                showNotification(`Progress restored for ${targetEmail}.`, { type: 'success' });
-              }
-              window.adminRestoreProgress = adminRestoreProgress;
-              ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
-              <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})" ${disableOpenUi}>Open UI</button>
-              ${roleOfCurrentUser === 'admin' && role !== 'admin' ? `<button class="admin-action-btn logout" onclick="window.adminForceLogoutUser(${userId})">Log Out</button>` : ''}
-            </div>
+              <div class="admin-actions">
+                <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
+                <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
+                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
+                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+                <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})" ${disableOpenUi}>Open UI</button>
+                ${roleOfCurrentUser === 'admin' && role !== 'admin' ? `<button class="admin-action-btn logout" onclick="window.adminForceLogoutUser(${userId})">Log Out</button>` : ''}
+              </div>
           </td>
         </tr>
       `;
     })
     .join('');
+  // Function definition moved outside template literal
+  function adminRestoreProgress(userId) {
+    if (!assertAdminDashboardAccess()) return;
+    if (!ensureActionPermission('resetProgress', 'Moderator cannot restore progress.')) return;
+
+    const users = getStoredUsersSafe();
+    const userIndex = findUserIndexById(users, userId);
+    if (userIndex === -1) {
+      showNotification('User not found.', { type: 'error' });
+      return;
+    }
+    const targetEmail = users[userIndex].email;
+    const confirmRestore = confirm(`Restore previous session progress for ${targetEmail}?`);
+    if (!confirmRestore) return;
+
+    // Find latest backup for this user
+    const backupKeys = Object.keys(localStorage).filter(k => k.startsWith('loginStreakBackup_'));
+    if (backupKeys.length === 0) {
+      showNotification('No backup found for restore.', { type: 'error' });
+      return;
+    }
+    const sortedKeys = backupKeys.sort().reverse();
+    let backup = null;
+    for (const key of sortedKeys) {
+      const arr = JSON.parse(localStorage.getItem(key) || '[]');
+      backup = arr.find(bu => bu.id === users[userIndex].id || bu.email === users[userIndex].email);
+      if (backup) break;
+    }
+    if (!backup) {
+      showNotification('No backup found for this user.', { type: 'error' });
+      return;
+    }
+    users[userIndex].loginStreakCurrent = backup.loginStreakCurrent;
+    users[userIndex].loginStreakLongest = backup.loginStreakLongest;
+    if (typeof backup.dailyLoginState === 'object') {
+      users[userIndex].dailyLoginState = backup.dailyLoginState;
+    }
+    if (typeof backup.faithPoints !== 'undefined') {
+      users[userIndex].faithPoints = backup.faithPoints;
+    }
+    if (typeof backup.treeProgress !== 'undefined') {
+      users[userIndex].treeProgress = backup.treeProgress;
+    }
+    setStoredUsers(users);
+    syncCurrentSessionIfNeeded(users[userIndex]);
+    renderAdminDashboard();
+    showNotification(`Progress restored for ${targetEmail}.`, { type: 'success' });
+  }
+  window.adminRestoreProgress = adminRestoreProgress;
 }
+
+function adminRestoreProgress(userId) {
+  if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('resetProgress', 'Moderator cannot restore progress.')) return;
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    showNotification('User not found.', { type: 'error' });
+    return;
+  }
+  const targetEmail = users[userIndex].email;
+  const confirmRestore = confirm(`Restore previous session progress for ${targetEmail}?`);
+  if (!confirmRestore) return;
+
+  // Find latest backup for this user
+  const backupKeys = Object.keys(localStorage).filter(k => k.startsWith('loginStreakBackup_'));
+  if (backupKeys.length === 0) {
+    showNotification('No backup found for restore.', { type: 'error' });
+    return;
+  }
+  const sortedKeys = backupKeys.sort().reverse();
+  let backup = null;
+  for (const key of sortedKeys) {
+    const arr = JSON.parse(localStorage.getItem(key) || '[]');
+    backup = arr.find(bu => bu.id === users[userIndex].id || bu.email === users[userIndex].email);
+    if (backup) break;
+  }
+  if (!backup) {
+    showNotification('No backup found for this user.', { type: 'error' });
+    return;
+  }
+  users[userIndex].loginStreakCurrent = backup.loginStreakCurrent;
+  users[userIndex].loginStreakLongest = backup.loginStreakLongest;
+  if (typeof backup.dailyLoginState === 'object') {
+    users[userIndex].dailyLoginState = backup.dailyLoginState;
+  }
+  if (typeof backup.faithPoints !== 'undefined') {
+    users[userIndex].faithPoints = backup.faithPoints;
+  }
+  if (typeof backup.treeProgress !== 'undefined') {
+    users[userIndex].treeProgress = backup.treeProgress;
+  }
+  setStoredUsers(users);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard();
+  showNotification(`Progress restored for ${targetEmail}.`, { type: 'success' });
+}
+window.adminRestoreProgress = adminRestoreProgress;
 
 function assertAdminDashboardAccess() {
   if (!hasManagementAccess()) {
