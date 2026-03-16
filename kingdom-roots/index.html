@@ -352,6 +352,7 @@
         <button type="button" class="admin-nav-btn" onclick="openProfileModal()">Profile</button>
         <button id="adminForceLogoutAllBtn" type="button" class="admin-nav-btn admin-logout-all-btn" onclick="adminForceLogoutAll()">🚪 Log Out All Users</button>
         <button id="adminResetAllProgressBtn" type="button" class="admin-nav-btn admin-logout-all-btn" onclick="adminResetAllProgress()">🔄 Reset All Users Progress</button>
+        <button id="adminRestoreAllBtn" type="button" class="admin-nav-btn admin-restore-all-btn" onclick="restoreUserLoginStreaksFromBackup()">🛠️ Restore All Users</button>
       </div>
       <p id="adminTaskRefreshTime">Task refresh: 24:00</p>
 
@@ -410,7 +411,7 @@
               <option value="roleAsc">Role</option>
             </select>
             <button onclick="renderAdminDashboard()" class="settings-btn">Refresh</button>
-            <button onclick="restoreUserLoginStreaksFromBackup()" class="settings-btn admin-restore-btn">Restore All Login Streaks</button>
+            <!-- Restore All button moved to nav -->
           </div>
         </div>
         <div class="admin-table-wrap">
@@ -457,7 +458,6 @@
         <h3>⚙️ Settings</h3>
         <button id="switchAdminViewBtn" onclick="toggleAdminView()" class="settings-btn" style="display: none;">Switch to Admin View</button>
         <button id="enableNotificationsBtn" onclick="enableBrowserNotificationsFromProfile()" class="settings-btn">Notification Disabled</button>
-        <button id="restoreLoginStreakBtn" onclick="restoreUserLoginStreaksFromBackup()" class="settings-btn">Restore Login Streaks</button>
         <button onclick="openChangePasswordModal()" class="settings-btn">Change Password</button>
         <button onclick="downloadUserData()" class="settings-btn">Download My Data</button>
         <button onclick="handleLogout()" class="settings-btn">Logout</button>

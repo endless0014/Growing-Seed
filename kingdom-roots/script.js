@@ -2690,13 +2690,18 @@ async function renderAdminDashboard(syncFromCloud = true) {
             <option value="admin" ${role === 'admin' ? 'selected' : ''}>admin</option>
           </select>`
         : `<span class="admin-role-badge ${role}">${role}</span>`;
-      const disableResetProgress = !canManageAction('resetProgress') ? 'disabled' : '';
+      const disableRestoreProgress = !canManageAction('resetProgress') ? 'disabled' : '';
       const canViewProgress = canManageAction('viewProgress');
       const disableOpenUi = !canManageAction('openUi') ? 'disabled' : '';
+      // Daily check-in progress: show highest claimed day
+      const claimedDays = Array.isArray(user.dailyLoginState?.claimedDays) ? user.dailyLoginState.claimedDays : [];
+      const dailyCheckinDay = claimedDays.length > 0 ? Math.max(...claimedDays) : 1;
+      const dailyCheckinProgress = `Day ${dailyCheckinDay}/${DAILY_LOGIN_REWARDS.length}`;
       return `
         <tr>
           <td class="admin-cell-name">${name}</td>
           <td>${streakControl}</td>
+          <td>${dailyCheckinProgress}</td>
           <td>${lastLogin}</td>
           <td>${lastActive}</td>
           <td>${email}</td>
@@ -2712,7 +2717,55 @@ async function renderAdminDashboard(syncFromCloud = true) {
             <div class="admin-actions">
               <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
               <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
-              <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})" ${disableResetProgress}>Reset Progress</button>
+              <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
+              function adminRestoreProgress(userId) {
+                if (!assertAdminDashboardAccess()) return;
+                if (!ensureActionPermission('resetProgress', 'Moderator cannot restore progress.')) return;
+
+                const users = getStoredUsersSafe();
+                const userIndex = findUserIndexById(users, userId);
+                if (userIndex === -1) {
+                  showNotification('User not found.', { type: 'error' });
+                  return;
+                }
+                const targetEmail = users[userIndex].email;
+                const confirmRestore = confirm(`Restore previous session progress for ${targetEmail}?`);
+                if (!confirmRestore) return;
+
+                // Find latest backup for this user
+                const backupKeys = Object.keys(localStorage).filter(k => k.startsWith('loginStreakBackup_'));
+                if (backupKeys.length === 0) {
+                  showNotification('No backup found for restore.', { type: 'error' });
+                  return;
+                }
+                const sortedKeys = backupKeys.sort().reverse();
+                let backup = null;
+                for (const key of sortedKeys) {
+                  const arr = JSON.parse(localStorage.getItem(key) || '[]');
+                  backup = arr.find(bu => bu.id === users[userIndex].id || bu.email === users[userIndex].email);
+                  if (backup) break;
+                }
+                if (!backup) {
+                  showNotification('No backup found for this user.', { type: 'error' });
+                  return;
+                }
+                users[userIndex].loginStreakCurrent = backup.loginStreakCurrent;
+                users[userIndex].loginStreakLongest = backup.loginStreakLongest;
+                if (typeof backup.dailyLoginState === 'object') {
+                  users[userIndex].dailyLoginState = backup.dailyLoginState;
+                }
+                if (typeof backup.faithPoints !== 'undefined') {
+                  users[userIndex].faithPoints = backup.faithPoints;
+                }
+                if (typeof backup.treeProgress !== 'undefined') {
+                  users[userIndex].treeProgress = backup.treeProgress;
+                }
+                setStoredUsers(users);
+                syncCurrentSessionIfNeeded(users[userIndex]);
+                renderAdminDashboard();
+                showNotification(`Progress restored for ${targetEmail}.`, { type: 'success' });
+              }
+              window.adminRestoreProgress = adminRestoreProgress;
               ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
               <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})" ${disableOpenUi}>Open UI</button>
               ${roleOfCurrentUser === 'admin' && role !== 'admin' ? `<button class="admin-action-btn logout" onclick="window.adminForceLogoutUser(${userId})">Log Out</button>` : ''}
@@ -3969,12 +4022,18 @@ function updateDisplay(options = {}) {
 
   if (dailyRewardStreakEl) {
     refreshDailyLoginState();
-    const currentDay = dailyLoginState.streakDay;
     const totalDays = DAILY_LOGIN_REWARDS.length;
+    // Find the highest claimed day, or 1 if none
+    const claimedDays = Array.isArray(dailyLoginState.claimedDays) ? dailyLoginState.claimedDays : [];
+    let displayDay = 1;
+    if (claimedDays.length > 0) {
+      displayDay = Math.max(...claimedDays);
+    }
+    // If today is claimed, show the actual claimed day
     const todayClaimed = hasClaimedDailyLoginToday();
     dailyRewardStreakEl.textContent = todayClaimed
-      ? `Day ${currentDay > totalDays ? totalDays : currentDay}/${totalDays} — Checked in today!`
-      : `Day ${currentDay}/${totalDays} — Check in now!`;
+      ? `Day ${displayDay}/${totalDays} — Checked in today!`
+      : `Day ${displayDay}/${totalDays} — Check in now!`;
   }
   
   updateTaskBadges();

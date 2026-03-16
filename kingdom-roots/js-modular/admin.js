@@ -217,8 +217,18 @@ async function renderAdminDashboard(syncFromCloud = true) {
     const tp = Math.floor(Number(user.treeProgress ?? 0) || 0);
     // Real Login Streak
     const realLoginStreak = Math.max(0, Number(user.loginStreakCurrent ?? 0));
-    // Daily Reward Progress
-    const dailyRewardProgress = Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0));
+    // Daily Reward Progress (day count, not timestamp)
+    let dailyRewardProgress = 0;
+    if (user.dailyLoginState && Array.isArray(user.dailyLoginState.claimedDays)) {
+      dailyRewardProgress = user.dailyLoginState.claimedDays.length;
+    }
+    // Ensure dailyRewardProgressControl is always a number, not a date
+    let dailyRewardProgressControl;
+    if (canEditTaskAndStreak) {
+      dailyRewardProgressControl = `<input type="number" min="0" max="${DAILY_LOGIN_REWARDS.length}" value="${dailyRewardProgress}" onchange="window.adminSetStreakDays(${userId}, this.value)" aria-label="Daily reward days for ${name}">`;
+    } else {
+      dailyRewardProgressControl = `${dailyRewardProgress} day${dailyRewardProgress === 1 ? '' : 's'}`;
+    }
     const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
     const userId = Number.isFinite(Number(user.id)) ? Number(user.id) : Date.now();
     const canEditTaskAndStreak = roleOfCurrentUser === 'admin';
@@ -272,6 +282,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
             <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
             <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Send Reset Email</button>
             <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})" ${disableResetProgress}>Reset Progress</button>
+            <button class="admin-action-btn restore" onclick="window.adminRestoreUser(${userId})">Restore</button>
             ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
             <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})" ${disableOpenUi}>Open UI</button>
           </div>
