@@ -565,10 +565,12 @@ function renderDailyLoginCalendar() {
     const dayClass = getDailyLoginDayClass(dayNumber);
     const disabled = canClaimDailyLoginDay(dayNumber) ? '' : 'disabled';
     const iconMarkup = getDailyLoginStageSvgMarkup(dayNumber);
+    const checkMarkup = dayClass === 'claimed' ? `<span class="daily-login-check">✓</span>` : '';
     return `
       <div class="daily-login-node ${dayClass}">
         <button class="daily-login-tile" data-day="${dayNumber}" ${disabled}>
           <span class="daily-login-tile-icon">${iconMarkup}</span>
+          ${checkMarkup}
         </button>
         <span class="daily-login-day-label">Day${dayNumber}</span>
         <span class="daily-login-day-points">+${points}</span>
