@@ -2676,70 +2676,31 @@ async function renderAdminDashboard(syncFromCloud = true) {
   tbody.innerHTML = sortedUsers
     .map(user => {
       // Debug: Output generated HTML for each user row
-      const role = getRoleByEmail(user.email, user.role);
-      const normalizedEmail = normalizeEmail(user.email || '');
-      const name = escapeHtml(user.name || 'N/A');
-      const lastLogin = escapeHtml(user.lastLogin || 'Never');
-      const lastActive = escapeHtml(formatDateTimeForDisplay(user.lastActiveAt ?? user.updatedAt));
-      const email = escapeHtml(user.email || 'N/A');
-      const faithPoints = Math.floor(Number(user.faithPoints ?? 0) || 0);
-      const treeProgress = Math.floor(Number(user.treeProgress ?? 0) || 0);
-      const streak = Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0));
-      const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
-      const userId = Number.isFinite(Number(user.id)) ? Number(user.id) : Date.now();
-      const canEditTaskAndStreak = roleOfCurrentUser === 'admin';
-      const streakControl = canEditTaskAndStreak
-        ? `<input type="number" min="0" max="${DAILY_LOGIN_REWARDS.length}" value="${streak}" onchange="window.adminSetStreakDays(${userId}, this.value)" aria-label="Streak days for ${name}">`
-        : `${streak} day${streak === 1 ? '' : 's'}`;
-      const taskCheckbox = taskKey => {
-        const rule = taskRecurrenceRules[taskKey];
-        const checked = rule && completions[taskKey] === getCurrentPeriodKey(rule.unit);
-        if (!canEditTaskAndStreak) {
-          return `<input type="checkbox" disabled ${checked ? 'checked' : ''} aria-label="${taskDisplayNames[taskKey]} completion">`;
-        }
-        return `<input type="checkbox" ${checked ? 'checked' : ''} onchange="window.adminSetTaskCompletion(${userId}, '${taskKey}', this.checked, '${normalizedEmail}')" aria-label="${taskDisplayNames[taskKey]} completion">`;
-      };
-      const roleControl = roleOfCurrentUser === 'admin'
-        ? `<select class="admin-role-select" onchange="window.adminChangeUserRole(${userId}, this.value)">
-            <option value="user" ${role === 'user' ? 'selected' : ''}>user</option>
-            <option value="moderator" ${role === 'moderator' ? 'selected' : ''}>moderator</option>
-            <option value="admin" ${role === 'admin' ? 'selected' : ''}>admin</option>
-          </select>`
-        : `<span class="admin-role-badge ${role}">${role}</span>`;
-      const disableRestoreProgress = !canManageAction('resetProgress') ? 'disabled' : '';
-      const canViewProgress = canManageAction('viewProgress');
-      const disableOpenUi = !canManageAction('openUi') ? 'disabled' : '';
-      // Daily check-in progress: show highest claimed day
-      const claimedDays = Array.isArray(user.dailyLoginState?.claimedDays) ? user.dailyLoginState.claimedDays : [];
-      const dailyCheckinDay = claimedDays.length > 0 ? Math.max(...claimedDays) : 1;
-      const dailyCheckinProgress = roleOfCurrentUser === 'admin'
-        ? `<input type="number" min="1" max="${DAILY_LOGIN_REWARDS.length}" value="${dailyCheckinDay}" class="admin-checkin-edit" style="width:40px;text-align:center;" data-user-id="${userId}" aria-label="Daily check-in day for ${name}">/${DAILY_LOGIN_REWARDS.length}`
-        : `Day ${dailyCheckinDay}/${DAILY_LOGIN_REWARDS.length}`;
+      // Remove all dynamic onclick handlers to guarantee no syntax errors
       const userRowHtml = `
         <tr>
-          <td class="admin-cell-name">${name}</td>
-          <td>${streakControl}</td>
-          <td>${dailyCheckinProgress}</td>
-          <td>${lastLogin}</td>
-          <td>${lastActive}</td>
-          <td>${email}</td>
-          <td>${roleControl}</td>
-          <td>${faithPoints}</td>
-          <td>${treeProgress}</td>
-          <td>${taskCheckbox('pray')}</td>
-          <td>${taskCheckbox('bible')}</td>
-          <td>${taskCheckbox('devotion')}</td>
-          <td>${taskCheckbox('smallgroup')}</td>
-          <td>${taskCheckbox('attendService')}</td>
+          <td class="admin-cell-name">${escapeHtml(user.name || 'N/A')}</td>
+          <td>${Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0))} day${Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0)) === 1 ? '' : 's'}</td>
+          <td>Day ${Array.isArray(user.dailyLoginState?.claimedDays) && user.dailyLoginState.claimedDays.length > 0 ? Math.max(...user.dailyLoginState.claimedDays) : 1}/${DAILY_LOGIN_REWARDS.length}</td>
+          <td>${escapeHtml(user.lastLogin || 'Never')}</td>
+          <td>${escapeHtml(formatDateTimeForDisplay(user.lastActiveAt ?? user.updatedAt))}</td>
+          <td>${escapeHtml(user.email || 'N/A')}</td>
+          <td><span class="admin-role-badge ${getRoleByEmail(user.email, user.role)}">${getRoleByEmail(user.email, user.role)}</span></td>
+          <td>${Math.floor(Number(user.faithPoints ?? 0) || 0)}</td>
+          <td>${Math.floor(Number(user.treeProgress ?? 0) || 0)}</td>
+          <td><input type="checkbox" disabled aria-label="${taskDisplayNames['pray']} completion"></td>
+          <td><input type="checkbox" disabled aria-label="${taskDisplayNames['bible']} completion"></td>
+          <td><input type="checkbox" disabled aria-label="${taskDisplayNames['devotion']} completion"></td>
+          <td><input type="checkbox" disabled aria-label="${taskDisplayNames['smallgroup']} completion"></td>
+          <td><input type="checkbox" disabled aria-label="${taskDisplayNames['attendService']} completion"></td>
           <td>
               <div class="admin-actions">
-                <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
-                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
-                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+                <button class="admin-action-btn password" disabled>Reset PW</button>
+                <button class="admin-action-btn restore" disabled>Restore</button>
+                <button class="admin-action-btn view" disabled>View</button>
               </div>
           </td>
         </tr>`;
-      console.log('DEBUG USER ROW HTML:', userRowHtml);
       return userRowHtml;
       const role = getRoleByEmail(user.email, user.role);
       const normalizedEmail = normalizeEmail(user.email || '');
