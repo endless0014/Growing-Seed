@@ -2738,22 +2738,6 @@ async function renderAdminDashboard(syncFromCloud = true) {
               </div>
           </td>
         </tr>`;
-                    </div>
-                </td>
-              </tr>`;
-      showNotification('No backup found for restore.', { type: 'error' });
-      return;
-    }
-    const sortedKeys = backupKeys.sort().reverse();
-    let backup = null;
-    for (const key of sortedKeys) {
-      const arr = JSON.parse(localStorage.getItem(key) || '[]');
-      backup = arr.find(bu => bu.id === users[userIndex].id || bu.email === users[userIndex].email);
-      if (backup) break;
-    }
-    if (!backup) {
-      showNotification('No backup found for this user.', { type: 'error' });
-      return;
     }
     users[userIndex].loginStreakCurrent = backup.loginStreakCurrent;
     users[userIndex].loginStreakLongest = backup.loginStreakLongest;
