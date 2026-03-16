@@ -1037,17 +1037,15 @@ function refreshDailyLoginState() {
   }
 
   const daysDiff = getDaysBetween(lastClaimDate, today);
-
-  if (daysDiff <= 1) {
-    return;
+  // Only reset if lastClaimDate is NOT today and daysDiff > 1
+  if (daysDiff > 1 && dailyLoginState.lastClaimDate !== getTodayDateKey()) {
+    dailyLoginState = {
+      streakDay: 1,
+      lastClaimDate: '',
+      cycleStartDate: '',
+      claimedDays: []
+    };
   }
-
-  dailyLoginState = {
-    streakDay: 1,
-    lastClaimDate: '',
-    cycleStartDate: '',
-    claimedDays: []
-  };
 }
 
 function hasClaimedDailyLoginToday() {
@@ -2538,6 +2536,13 @@ async function renderAdminDashboard(syncFromCloud = true) {
 
   const trendDays = 7;
   const trendCounts = [];
+  // Load or initialize max login counts from localStorage
+  let maxLoginCounts = {};
+  try {
+    maxLoginCounts = JSON.parse(localStorage.getItem('adminMaxLoginCounts') || '{}');
+    if (typeof maxLoginCounts !== 'object' || maxLoginCounts === null) maxLoginCounts = {};
+  } catch { maxLoginCounts = {}; }
+
   for (let dayOffset = trendDays - 1; dayOffset >= 0; dayOffset--) {
     const dayStart = new Date();
     dayStart.setHours(0, 0, 0, 0);
@@ -2548,11 +2553,18 @@ async function renderAdminDashboard(syncFromCloud = true) {
       return getUserLoginDateKeyForAnalytics(user) === dayKey;
     }).length;
 
+    // Update max count for this day
+    const prevMax = Number(maxLoginCounts[dayKey] ?? 0);
+    const newMax = Math.max(count, prevMax);
+    maxLoginCounts[dayKey] = newMax;
+
     trendCounts.push({
       label: dayStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      value: count
+      value: newMax
     });
   }
+  // Save updated max counts
+  localStorage.setItem('adminMaxLoginCounts', JSON.stringify(maxLoginCounts));
 
   const totalUsersEl = document.getElementById('adminTotalUsers');
   const totalAdminsEl = document.getElementById('adminTotalAdmins');
@@ -2577,13 +2589,15 @@ async function renderAdminDashboard(syncFromCloud = true) {
     dailyTrendEl.innerHTML = trendCounts
       .map(entry => {
         const widthPct = Math.max(6, Math.round((entry.value / maxTrendValue) * 100));
+        const isMax = entry.value === maxTrendValue && maxTrendValue > 0;
         return `
-          <div class="admin-bar-row">
+          <div class="admin-bar-row${isMax ? ' max' : ''}">
             <span class="admin-bar-label">${escapeHtml(entry.label)}</span>
             <div class="admin-bar-track">
-              <div class="admin-bar-fill" style="width: ${widthPct}%;"></div>
+              <div class="admin-bar-fill${isMax ? ' max' : ''}" style="width: ${widthPct}%;"></div>
             </div>
-            <strong class="admin-bar-value">${entry.value}</strong>
+            <strong class="admin-bar-value${isMax ? ' max' : ''}">${entry.value}</strong>
+            ${isMax ? '<span class="admin-bar-max-label">Max</span>' : ''}
           </div>
         `;
       })
@@ -2696,12 +2710,50 @@ async function renderAdminDashboard(syncFromCloud = true) {
       // Daily check-in progress: show highest claimed day
       const claimedDays = Array.isArray(user.dailyLoginState?.claimedDays) ? user.dailyLoginState.claimedDays : [];
       const dailyCheckinDay = claimedDays.length > 0 ? Math.max(...claimedDays) : 1;
-      const dailyCheckinProgress = `Day ${dailyCheckinDay}/${DAILY_LOGIN_REWARDS.length}`;
+      const dailyCheckinProgress = roleOfCurrentUser === 'admin'
+        ? `<input type="number" min="1" max="${DAILY_LOGIN_REWARDS.length}" value="${dailyCheckinDay}" class="admin-checkin-edit" style="width:40px;text-align:center;" data-user-id="${userId}" aria-label="Daily check-in day for ${name}">/${DAILY_LOGIN_REWARDS.length}`
+        : `Day ${dailyCheckinDay}/${DAILY_LOGIN_REWARDS.length}`;
       return `
         <tr>
           <td class="admin-cell-name">${name}</td>
           <td>${streakControl}</td>
           <td>${dailyCheckinProgress}</td>
+          // Admin handler to set daily check-in day
+          function adminSetDailyCheckinDay(userId, dayValue) {
+            if (!assertAdminDashboardAccess()) return;
+            const users = getStoredUsersSafe();
+            const userIndex = findUserIndexById(users, userId);
+            if (userIndex === -1) {
+              showNotification('User not found.', { type: 'error' });
+              return;
+            }
+            const day = Math.max(1, Math.min(Number(dayValue), DAILY_LOGIN_REWARDS.length));
+            users[userIndex].dailyLoginState = {
+              ...users[userIndex].dailyLoginState,
+              claimedDays: Array.from({length: day}, (_, i) => i + 1),
+              streakDay: day,
+            };
+            setStoredUsers(users);
+            // Also update currentUser if editing self
+            const currentUserRaw = localStorage.getItem('currentUser');
+            if (currentUserRaw) {
+              try {
+                const parsedCurrentUser = JSON.parse(currentUserRaw);
+                if (parsedCurrentUser.id == userId) {
+                  parsedCurrentUser.dailyLoginState = {
+                    ...parsedCurrentUser.dailyLoginState,
+                    claimedDays: Array.from({length: day}, (_, i) => i + 1),
+                    streakDay: day,
+                  };
+                  localStorage.setItem('currentUser', JSON.stringify(parsedCurrentUser));
+                }
+              } catch {}
+            }
+            syncCurrentSessionIfNeeded(users[userIndex]);
+            renderAdminDashboard();
+            showNotification(`Daily check-in progress updated to Day ${day}.`, { type: 'success' });
+          }
+          window.adminSetDailyCheckinDay = adminSetDailyCheckinDay;
           <td>${lastLogin}</td>
           <td>${lastActive}</td>
           <td>${email}</td>
@@ -2883,51 +2935,59 @@ function findUserIndexForSession(users, sessionUser) {
 
   const byIdIndex = findUserIndexById(users, sessionUser.id);
   if (byIdIndex !== -1) {
-    return byIdIndex;
-  }
-
-  const normalizedSessionEmail = normalizeEmail(sessionUser.email);
-  if (!normalizedSessionEmail) {
-    return -1;
-  }
-
-  return users.findIndex(user => normalizeEmail(user.email) === normalizedSessionEmail);
-}
-
-function hydrateCurrentUserFromStoredUsers() {
-  if (!currentUser) {
-    return false;
-  }
-
-  const users = getStoredUsersSafe();
-  const userIndex = findUserIndexForSession(users, currentUser);
-  if (userIndex === -1) {
-    return false;
-  }
-
-  const mergedUser = {
-    ...users[userIndex],
-    role: getRoleByEmail(users[userIndex].email, users[userIndex].role),
-    viewMode: currentUser.viewMode ?? users[userIndex].viewMode ?? 'user'
-  };
-
-  delete mergedUser.password;
-  currentUser = mergedUser;
-  localStorage.setItem('currentUser', JSON.stringify(currentUser));
-  return true;
-}
-
-function syncCurrentSessionIfNeeded(updatedUser, options = {}) {
-  const { persist = true } = options;
-
-  if (!currentUser || !updatedUser) {
-    return;
-  }
-
-  const sameId = Number(currentUser.id) === Number(updatedUser.id);
-  const sameEmail = normalizeEmail(currentUser.email) !== '' && normalizeEmail(currentUser.email) === normalizeEmail(updatedUser.email);
-
-  if (sameId || sameEmail) {
+        <tr>
+          <td class="admin-cell-name">${name}</td>
+          <td>${streakControl}</td>
+          <td>${dailyCheckinProgress}</td>
+          <td>${lastLogin}</td>
+          <td>${lastActive}</td>
+          <td>${email}</td>
+          <td>${roleControl}</td>
+          <td>${faithPoints}</td>
+          <td>${treeProgress}</td>
+          <td>${taskCheckbox('pray')}</td>
+          <td>${taskCheckbox('bible')}</td>
+          <td>${taskCheckbox('devotion')}</td>
+          <td>${taskCheckbox('smallgroup')}</td>
+          <td>${taskCheckbox('attendService')}</td>
+          <td>
+              <div class="admin-actions">
+                <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
+                <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
+                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
+                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+              </div>
+          </td>
+        </tr>
+    // Admin handler to set daily check-in day (outside template)
+    function adminSetDailyCheckinDay(userId, dayValue) {
+      if (!assertAdminDashboardAccess()) return;
+      const users = getStoredUsersSafe();
+      const userIndex = findUserIndexById(users, userId);
+      if (userIndex === -1) {
+        showNotification('User not found.', { type: 'error' });
+        return;
+      }
+      const day = Math.max(1, Math.min(Number(dayValue), DAILY_LOGIN_REWARDS.length));
+      users[userIndex].dailyLoginState = {
+        ...users[userIndex].dailyLoginState,
+        claimedDays: Array.from({length: day}, (_, i) => i + 1),
+        streakDay: day,
+      };
+      setStoredUsers(users);
+      syncCurrentSessionIfNeeded(users[userIndex]);
+      renderAdminDashboard();
+      showNotification(`Daily check-in progress updated to Day ${day}.`, { type: 'success' });
+    }
+    window.adminSetDailyCheckinDay = adminSetDailyCheckinDay;
+    // Attach event listener for admin daily check-in input
+    document.addEventListener('change', function(e) {
+      if (e.target && e.target.classList.contains('admin-checkin-edit')) {
+        const userId = e.target.getAttribute('data-user-id');
+        const dayValue = e.target.value;
+        window.adminSetDailyCheckinDay(userId, dayValue);
+      }
+    });
     currentUser = {
       ...currentUser,
       ...updatedUser,
