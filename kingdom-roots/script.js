@@ -2733,7 +2733,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
           <td>${taskCheckbox('attendService')}</td>
           <td>
               <div class="admin-actions">
-                  <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, ${JSON.stringify(encodeURIComponent(normalizedEmail))})">+Points</button>
+                  <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${encodeURIComponent(normalizedEmail).replace(/'/g, "\\'")}')">+Points</button>
                 <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
                 <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
                 ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
