@@ -219,10 +219,44 @@ async function renderAdminDashboard(syncFromCloud = true) {
   if (taskRefreshEl) taskRefreshEl.textContent = `Task refresh: ${getTaskRefreshTimeLabel()}`;
 
   if (dailyTrendEl) {
-    const maxTrendValue = Math.max(...trendCounts.map(entry => entry.value), 1);
-    dailyTrendEl.innerHTML = trendCounts.map(entry => {
-      const widthPct = Math.max(6, Math.round((entry.value / maxTrendValue) * 100));
-      return `<div class="admin-bar-row"><span class="admin-bar-label">${escapeHtml(entry.label)}</span><div class="admin-bar-track"><div class="admin-bar-fill" style="width: ${widthPct}%;"></div></div><strong class="admin-bar-value">${entry.value}</strong></div>`;
+    // For each day, pick the single user with the max `loginStreakCurrent` among users active that day.
+    const dailyRows = [];
+    for (let i = 0; i < trendCounts.length; i++) {
+      const label = trendCounts[i].label;
+      // compute day window again to find users for that label/day
+      const dayOffset = trendCounts.length - 1 - i;
+      const dayStart = new Date();
+      dayStart.setHours(0, 0, 0, 0);
+      dayStart.setDate(dayStart.getDate() - dayOffset);
+      const dayEnd = new Date(dayStart.getTime() + oneDayMs);
+
+      const usersThisDay = safeUsers.filter(user => {
+        const candidate = Number(new Date(user.lastLogin || '').getTime()) || Number(user.lastActiveAt || 0);
+        return candidate >= dayStart.getTime() && candidate < dayEnd.getTime();
+      });
+
+      if (usersThisDay.length === 0) {
+        dailyRows.push({ label, value: 0, userName: '' });
+        continue;
+      }
+
+      // choose the user with the highest loginStreakCurrent (fallback to 0)
+      const topUser = usersThisDay.reduce((best, cur) => {
+        const bestVal = Number(best?.loginStreakCurrent || 0);
+        const curVal = Number(cur?.loginStreakCurrent || 0);
+        return curVal > bestVal ? cur : best;
+      }, usersThisDay[0]);
+
+      const topValue = Number(topUser.loginStreakCurrent || 0) || 1;
+      const topName = topUser.name || topUser.email || '';
+      dailyRows.push({ label, value: topValue, userName: topName });
+    }
+
+    const maxTrendValue = Math.max(...dailyRows.map(r => r.value), 1);
+    dailyTrendEl.innerHTML = dailyRows.map(row => {
+      const widthPct = Math.max(6, Math.round((row.value / maxTrendValue) * 100));
+      const valueLabel = row.value > 0 ? `${row.value} day${row.value === 1 ? '' : 's'} — ${escapeHtml(row.userName)}` : '—';
+      return `<div class="admin-bar-row"><span class="admin-bar-label">${escapeHtml(row.label)}</span><div class="admin-bar-track"><div class="admin-bar-fill" style="width: ${widthPct}%;"></div></div><strong class="admin-bar-value">${valueLabel}</strong></div>`;
     }).join('');
   }
 
