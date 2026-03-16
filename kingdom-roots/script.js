@@ -2701,7 +2701,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
           return `<input type="checkbox" disabled ${checked ? 'checked' : ''} aria-label="${taskDisplayNames[taskKey]} completion">`;
         }
 
-        return `<input type="checkbox" ${checked ? 'checked' : ''} aria-label="${taskDisplayNames[taskKey]} completion">`;
+        return `<input type="checkbox" disabled aria-label="${taskDisplayNames[taskKey]} completion">`;
       };
       const roleControl = roleOfCurrentUser === 'admin'
         ? `<select class="admin-role-select" onchange="window.adminChangeUserRole(${userId}, this.value)">
@@ -2737,10 +2737,9 @@ async function renderAdminDashboard(syncFromCloud = true) {
           <td>${taskCheckbox('attendService')}</td>
           <td>
               <div class="admin-actions">
-                  <!-- Removed adminAddPoints button to prevent syntax errors and restore login functionality -->
-                <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
-                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
-                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+                <button class="admin-action-btn password" onclick="window.adminResetPassword(\"${userId}\")">Reset PW</button>
+                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(\"${userId}\")" ${disableRestoreProgress}>Restore</button>
+                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(\"${userId}\")">View</button>` : ''}
               </div>
           </td>
         </tr>`;
