@@ -2328,10 +2328,14 @@ function updateDisplay(options = {}) {
       ? dailyLoginState.claimedDays.length
       : 0;
     const todayClaimed = hasClaimedDailyLoginToday();
-    const nextDay = Math.min(dailyLoginState.streakDay, DAILY_LOGIN_REWARDS.length);
-    dailyRewardStreakEl.textContent = todayClaimed
-      ? `Checked in today. Next reward: Day ${nextDay}`
-      : `Day ${nextDay} reward ready`;
+    // When the user has checked in today, show the completed day count (Day X/7).
+    if (todayClaimed) {
+      const shownDay = Math.max(1, completedCount);
+      dailyRewardStreakEl.textContent = `Day ${shownDay}/${DAILY_LOGIN_REWARDS.length} — Checked in today.`;
+    } else {
+      const nextDay = Math.min(dailyLoginState.streakDay, DAILY_LOGIN_REWARDS.length);
+      dailyRewardStreakEl.textContent = `Day ${nextDay} reward ready`;
+    }
   }
   
   updateTaskBadges();
@@ -2943,6 +2947,16 @@ try {
   if (typeof renderDailyLoginCalendar === 'function') window.renderDailyLoginCalendar = renderDailyLoginCalendar;
   if (typeof canClaimDailyLoginDay === 'function') window.canClaimDailyLoginDay = canClaimDailyLoginDay;
   if (typeof hasClaimedDailyLoginToday === 'function') window.hasClaimedDailyLoginToday = hasClaimedDailyLoginToday;
+} catch (e) {
+  // ignore
+}
+
+// Ensure public board / modal handlers are available globally for inline onclick attrs
+try {
+  if (typeof openLeaderboardModal === 'function') window.openLeaderboardModal = openLeaderboardModal;
+  if (typeof closeLeaderboardModal === 'function') window.closeLeaderboardModal = closeLeaderboardModal;
+  if (typeof switchPublicBoardType === 'function') window.switchPublicBoardType = switchPublicBoardType;
+  if (typeof openDailyLoginModal === 'function') window.openDailyLoginModal = openDailyLoginModal;
 } catch (e) {
   // ignore
 }
