@@ -2778,5 +2778,19 @@ window.addEventListener('DOMContentLoaded', function() {
   resolveLogoSources();
   ensureDailyLoginUi();
   removeLegacyAdminFaithPointsCard();
+
+  // Defensive: ensure the login form and login button are wired to handleLogin,
+  // in case HTML markup varies or onsubmit is not set on the form element.
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm && !loginForm.__loginHandlerAttached) {
+    loginForm.addEventListener('submit', handleLogin);
+    loginForm.__loginHandlerAttached = true;
+  }
+  const loginBtn = document.getElementById('loginBtn');
+  if (loginBtn && !loginBtn.__loginClickAttached) {
+    loginBtn.addEventListener('click', handleLogin);
+    loginBtn.__loginClickAttached = true;
+  }
+
   initializeApp();
 });
