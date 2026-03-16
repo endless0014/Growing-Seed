@@ -1930,21 +1930,23 @@ function handleLogout() {
 }
 
 function openProfileModal() {
-  if (isAdminEmail(currentUser?.email)) {
-    if (currentUser.role !== 'admin') {
-      currentUser.role = 'admin';
+  // Ensure currentUser role is canonical according to email and saved role
+  try {
+    if (currentUser) {
+      const roleFromEmail = getRoleByEmail(currentUser.email, currentUser.role);
+      if (roleFromEmail !== currentUser.role) currentUser.role = roleFromEmail;
+      safeSetCurrentUser(currentUser);
     }
-    safeSetCurrentUser(currentUser);
-  }
+  } catch (e) { /* ignore */ }
 
   applyViewModeUI();
 
   const toggleBtn = document.getElementById('switchAdminViewBtn');
   if (toggleBtn) {
-    const isAdmin = isAdminEmail(currentUser?.email);
-    toggleBtn.style.display = isAdmin ? 'block' : 'none';
-    if (isAdmin) {
-      toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Admin View';
+    const canManage = hasManagementAccess();
+    toggleBtn.style.display = canManage ? 'block' : 'none';
+    if (canManage) {
+      toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Management View';
     }
   }
 

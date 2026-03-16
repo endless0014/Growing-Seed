@@ -34,7 +34,8 @@ function adminSetEmail(userId, emailValue) {
 
 function adminSetFaithPoints(userId, pointsValue) {
   if (!assertAdminDashboardAccess()) return;
-  if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit faith points.', { type: 'error' }); renderAdminDashboard(false); return; }
+  // Allow moderators to add points via `addPoints` permission; admins may fully edit.
+  if (!ensureActionPermission('addPoints', 'Only admin or moderator can edit faith points.')) { renderAdminDashboard(false); return; }
   const parsed = Math.floor(Number(pointsValue));
   if (!Number.isFinite(parsed) || parsed < 0) { showNotification('Invalid points value.', { type: 'error' }); return; }
   const users = getStoredUsersSafe();
@@ -52,6 +53,7 @@ function adminSetFaithPoints(userId, pointsValue) {
 
 function adminSetTreeProgress(userId, progressValue) {
   if (!assertAdminDashboardAccess()) return;
+  // Tree progress is admin-only
   if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit tree progress.', { type: 'error' }); renderAdminDashboard(false); return; }
   const parsed = Math.floor(Number(progressValue));
   if (!Number.isFinite(parsed) || parsed < 0) { showNotification('Invalid tree progress value.', { type: 'error' }); return; }
