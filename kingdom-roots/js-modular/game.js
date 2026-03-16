@@ -433,7 +433,12 @@ function renderPublicBoardList(boardType) {
   const boardTitle = document.getElementById('publicBoardTitle');
   const boardSubtitle = document.getElementById('publicBoardSubtitle');
   if (!boardBody || !boardTitle || !boardSubtitle) return;
-  const users = getPublicBoardUsers().filter(isPublicBoardUser);
+  const users = getPublicBoardUsers().filter(user => {
+    if (!user) return false;
+    const resolvedRole = String(getRoleByEmail(user.email, user.role) || '').trim().toLowerCase();
+    const storedRole = String(user.role || '').trim().toLowerCase();
+    return resolvedRole !== 'admin' && resolvedRole !== 'moderator' && storedRole !== 'admin' && storedRole !== 'moderator';
+  });
   const isRanking = boardType === 'ranking';
   updatePublicBoardTabs(boardType);
   boardTitle.textContent = isRanking ? 'Ranking' : 'Leaderboard';
