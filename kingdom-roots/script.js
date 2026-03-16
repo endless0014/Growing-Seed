@@ -2640,6 +2640,8 @@ function submitPhoto() {
   markTaskCompleted(currentAction, recurrenceCheck.periodKey);
   showScripture();
   updateDisplay();
+  // Ensure updated FP and user session are persisted immediately
+  try { saveUserData(); } catch (e) { console.warn('saveUserData failed after submitPhoto', e); }
   closeUploadModal();
   showNotification(`Great job! ${pointsToAdd} FP added for ${reward.name}.`, {
     type: 'success',
