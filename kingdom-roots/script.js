@@ -3257,47 +3257,31 @@ window.adminSetTaskCompletion = adminSetTaskCompletion;
 window.adminSetStreakDays = adminSetStreakDays;
 
 function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function switchToRegister() {
-  document.getElementById('loginScreen').classList.remove('active');
-  document.getElementById('registerScreen').classList.add('active');
-}
-
-function switchToLogin() {
-  document.getElementById('registerScreen').classList.remove('active');
-  document.getElementById('forgotPasswordScreen').classList.remove('active');
-  document.getElementById('loginScreen').classList.add('active');
-  clearAuthErrors();
-}
-
-function switchToForgotPassword() {
-  document.getElementById('loginScreen').classList.remove('active');
-  document.getElementById('forgotPasswordScreen').classList.add('active');
-  document.getElementById('forgotStep1').style.display = 'block';
-  document.getElementById('forgotStep2').style.display = 'none';
-}
-
-async function handleLogin(event) {
-  window.handleLogin = handleLogin;
-  event.preventDefault();
-  const email = document.getElementById('loginEmail').value;
-  const password = document.getElementById('loginPassword').value;
-  const normalizedEmail = normalizeEmail(email);
-
-  await syncUsersFromCloudToLocal();
-  
-  const users = JSON.parse(localStorage.getItem('users') || '[]');
-  const user = users.find(
-    u => normalizeEmail(u.email) === normalizedEmail && u.password === password
-  );
-  
+      return `
+        <tr>
+          <td class="admin-cell-name">${name}</td>
+          <td>${streakControl}</td>
+          <td>${dailyCheckinProgress}</td>
+          <td>${lastLogin}</td>
+          <td>${lastActive}</td>
+          <td>${email}</td>
+          <td>${roleControl}</td>
+          <td>${faithPoints}</td>
+          <td>${treeProgress}</td>
+          <td>${taskCheckbox('pray')}</td>
+          <td>${taskCheckbox('bible')}</td>
+          <td>${taskCheckbox('devotion')}</td>
+          <td>${taskCheckbox('smallgroup')}</td>
+          <td>${taskCheckbox('attendService')}</td>
+          <td>
+              <div class="admin-actions">
+                <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
+                <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
+                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
+                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+              </div>
+          </td>
+        </tr>`;
   if (!user) {
     // Fallback: accept any password for cloud-synced users without a stored password
     const cloudSyncedUser = users.find(u => normalizeEmail(u.email) === normalizedEmail);
@@ -3388,47 +3372,31 @@ function handleRegister(event) {
   }
   
   const newUser = {
-    id: Date.now(),
-    name,
-    email,
-    role: getRoleByEmail(email, 'user'),
-    viewMode: 'user',
-    password,
-    joinedDate: new Date().toLocaleDateString(),
-    lastLogin: new Date().toLocaleString(),
-    lastLoginAt: Date.now(),
-    lastLoginDateKey: getTodayDateKey(),
-    loginStreakCurrent: 1,
-    loginStreakLongest: 1,
-    lastActiveAt: Date.now(),
-    faithPoints: 0,
-    treeProgress: 0,
-    passiveRate: 1,
-    fruitCount: 0,
-    pointsForFruit: 0,
-    maxBloomReached: false,
-    taskCompletions: {},
-    dailyLoginState: normalizeDailyLoginState({})
-  };
-  
-  users.push(newUser);
-  setStoredUsers(users);
-  stopCurrentUserCloudSync();
-  
-  currentUser = { ...newUser };
-  hasAutoPromptedDailyLogin = false;
-  delete currentUser.password;
-  localStorage.setItem('currentUser', JSON.stringify(currentUser));
-  
-  clearAuthErrors();
-  document.getElementById('registerForm').reset();
-  showAppInterface();
-  resetGameState();
-  updateDisplay();
-  startCurrentUserCloudSync();
-  startScheduledReminders();
-  startInactivityTimer();
-  startForceLogoutListener();
+      return `
+        <tr>
+          <td class="admin-cell-name">${name}</td>
+          <td>${streakControl}</td>
+          <td>${dailyCheckinProgress}</td>
+          <td>${lastLogin}</td>
+          <td>${lastActive}</td>
+          <td>${email}</td>
+          <td>${roleControl}</td>
+          <td>${faithPoints}</td>
+          <td>${treeProgress}</td>
+          <td>${taskCheckbox('pray')}</td>
+          <td>${taskCheckbox('bible')}</td>
+          <td>${taskCheckbox('devotion')}</td>
+          <td>${taskCheckbox('smallgroup')}</td>
+          <td>${taskCheckbox('attendService')}</td>
+          <td>
+              <div class="admin-actions">
+                <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
+                <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
+                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
+                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+              </div>
+          </td>
+        </tr>`;
 }
 
 function sendResetCode() {
