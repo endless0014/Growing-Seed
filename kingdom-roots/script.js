@@ -2677,31 +2677,8 @@ async function renderAdminDashboard(syncFromCloud = true) {
     .map(user => {
       // Debug: Output generated HTML for each user row
       // Remove all dynamic onclick handlers to guarantee no syntax errors
-      const userRowHtml = `
-        <tr>
-          <td class="admin-cell-name">User</td>
-          <td>0 days</td>
-          <td>Day 1/7</td>
-          <td>Never</td>
-          <td>Never</td>
-          <td>Email</td>
-          <td><span class="admin-role-badge">user</span></td>
-          <td>0</td>
-          <td>0</td>
-          <td><input type="checkbox" disabled></td>
-          <td><input type="checkbox" disabled></td>
-          <td><input type="checkbox" disabled></td>
-          <td><input type="checkbox" disabled></td>
-          <td><input type="checkbox" disabled></td>
-          <td>
-              <div class="admin-actions">
-                <button class="admin-action-btn password" disabled>Reset PW</button>
-                <button class="admin-action-btn restore" disabled>Restore</button>
-                <button class="admin-action-btn view" disabled>View</button>
-              </div>
-          </td>
-        </tr>`;
-      return userRowHtml;
+      // Disable user table rendering until login is successful
+      return '';
       const role = getRoleByEmail(user.email, user.role);
       const normalizedEmail = normalizeEmail(user.email || '');
       const name = escapeHtml(user.name || 'N/A');
