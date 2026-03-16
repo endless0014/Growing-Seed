@@ -1819,6 +1819,11 @@ function handleLogout() {
 }
 
 function openProfileModal() {
+  if (!currentUser) {
+    switchToLogin();
+    return;
+  }
+
   if (isAdminEmail(currentUser?.email)) {
     if (currentUser.role !== 'admin') {
       currentUser.role = 'admin';
@@ -2939,6 +2944,53 @@ function attachAuthEventListeners() {
 
   const forgotToLoginLink = document.getElementById('forgotToLoginLink');
   if (forgotToLoginLink) forgotToLoginLink.addEventListener('click', e => { e.preventDefault(); switchToLogin(); });
+
+  // Ensure leaderboard / ranking buttons reliably open the public board modal
+  try {
+    const leaderboardCandidates = Array.from(document.querySelectorAll('.gs-pill.leaderboard, .bottom-nav-item'));
+    leaderboardCandidates.forEach(el => {
+      try {
+        const onclickAttr = el.getAttribute && el.getAttribute('onclick');
+        const match = onclickAttr && onclickAttr.match(/openLeaderboardModal\(['"]?(leaderboard|ranking)['"]?\)/);
+        const boardType = match ? match[1] : 'leaderboard';
+        el.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          if (typeof window.openLeaderboardModal === 'function') {
+            window.openLeaderboardModal(boardType);
+          } else if (typeof openLeaderboardModal === 'function') {
+            try { openLeaderboardModal(boardType); } catch(e){}
+          } else {
+            // Fallback: try to show modal element directly
+            const modal = document.getElementById('leaderboardModal');
+            if (modal) modal.style.display = 'flex';
+          }
+        });
+      } catch (e) { /* ignore per-element listener errors */ }
+    });
+  } catch (e) { /* ignore overall leaderboard wiring errors */ }
+  
+  // Ensure profile buttons reliably open the profile modal
+  try {
+    const profileCandidates = Array.from(document.querySelectorAll('.gs-pill.profile-access, .bottom-nav-item'));
+    profileCandidates.forEach(el => {
+      try {
+        const onclickAttr = el.getAttribute && el.getAttribute('onclick');
+        const isProfile = onclickAttr && onclickAttr.indexOf('openProfileModal') !== -1;
+        if (!isProfile) return;
+        el.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          if (typeof window.openProfileModal === 'function') {
+            try { window.openProfileModal(); } catch(e) { /* ignore */ }
+          } else if (typeof openProfileModal === 'function') {
+            try { openProfileModal(); } catch(e) { /* ignore */ }
+          } else {
+            const modal = document.getElementById('profileModal');
+            if (modal) modal.style.display = 'flex';
+          }
+        });
+      } catch (e) { /* ignore per-element errors */ }
+    });
+  } catch (e) { /* ignore profile wiring errors */ }
 }
 
 // Expose daily-login helpers for debugging and console-driven tests
