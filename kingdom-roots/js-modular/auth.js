@@ -137,7 +137,27 @@ async function handleLogin(event) {
 
   const userIndex = users.findIndex(u => Number(u.id) === Number(user.id));
   const normalizedUser = normalizeStoredUser(user, user.id);
-  updateConsecutiveLoginStats(normalizedUser);
+  // Update consecutive login stats (fallback logic ensures increment if yesterday)
+  try {
+    updateConsecutiveLoginStats(normalizedUser);
+  } catch (e) {
+    // If helper missing or failed, apply simple fallback increment based on lastLoginDateKey
+    try {
+      const todayKey = getDateKeyFromDate(new Date());
+      const lastKey = normalizedUser.lastLoginDateKey;
+      const lastDate = parseDateKeyToDate(lastKey);
+      if (lastDate) {
+        const days = getDaysBetween(lastDate, new Date());
+        normalizedUser.loginStreakCurrent = days === 1 ? (Number(normalizedUser.loginStreakCurrent || 0) + 1) : 1;
+      } else {
+        normalizedUser.loginStreakCurrent = 1;
+      }
+      normalizedUser.lastLoginDateKey = todayKey;
+    } catch (ee) {
+      normalizedUser.loginStreakCurrent = Number(normalizedUser.loginStreakCurrent || 1);
+      normalizedUser.lastLoginDateKey = getDateKeyFromDate(new Date());
+    }
+  }
   normalizedUser.lastLogin = new Date().toLocaleString();
   normalizedUser.lastActiveAt = Date.now();
   normalizedUser.viewMode = normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role);

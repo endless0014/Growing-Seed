@@ -18,5 +18,8 @@
     "@capacitor/android": "^8.2.0",
     "@capacitor/cli": "^8.2.0",
     "@capacitor/core": "^8.2.0"
+  },
+  "dependencies": {
+    "puppeteer": "^24.39.1"
   }
 }

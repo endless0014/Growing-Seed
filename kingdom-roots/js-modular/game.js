@@ -220,11 +220,44 @@ function refreshDailyLoginState() {
   dailyLoginState = normalizeDailyLoginState(dailyLoginState);
   if (!dailyLoginState.lastClaimDate) return;
   const today = new Date();
-  const lastClaimDate = parseDateKeyToDate(dailyLoginState.lastClaimDate);
-  if (!lastClaimDate) { dailyLoginState = normalizeDailyLoginState({}); return; }
+  const lastClaimDate = parseDateKeyToDate(dailyLoginState.lastClaimDate) || new Date(dailyLoginState.lastClaimDate);
+  if (!lastClaimDate || Number.isNaN(lastClaimDate.getTime())) {
+    dailyLoginState = normalizeDailyLoginState({});
+    try {
+      const normalized = normalizeDailyLoginState(dailyLoginState);
+      if (typeof currentUser !== 'undefined' && currentUser) {
+        currentUser.dailyLoginState = normalized;
+        currentUser.updatedAt = Date.now();
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        const users = getStoredUsersSafe();
+        const idx = findUserIndexForSession(users, currentUser);
+        if (idx !== -1) {
+          users[idx].dailyLoginState = normalized;
+          users[idx].updatedAt = currentUser.updatedAt;
+          setStoredUsers(users);
+        }
+      }
+    } catch (e) {}
+    return;
+  }
   const daysDiff = getDaysBetween(lastClaimDate, today);
   if (daysDiff <= 1) return;
   dailyLoginState = { streakDay: 1, lastClaimDate: '', cycleStartDate: '', claimedDays: [] };
+  try {
+    const normalized = normalizeDailyLoginState(dailyLoginState);
+    if (typeof currentUser !== 'undefined' && currentUser) {
+      currentUser.dailyLoginState = normalized;
+      currentUser.updatedAt = Date.now();
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    }
+    const users = getStoredUsersSafe();
+    const idx = findUserIndexForSession(users, currentUser);
+    if (idx !== -1) {
+      users[idx].dailyLoginState = normalized;
+      users[idx].updatedAt = currentUser?.updatedAt ?? Date.now();
+      setStoredUsers(users);
+    }
+  } catch (e) {}
 }
 
 function hasClaimedDailyLoginToday() {

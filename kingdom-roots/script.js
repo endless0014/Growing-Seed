@@ -500,9 +500,28 @@ function refreshDailyLoginState() {
   }
 
   const today = new Date();
-  const lastClaimDate = new Date(dailyLoginState.lastClaimDate);
-  if (Number.isNaN(lastClaimDate.getTime())) {
+  // Use parseDateKeyToDate for robust parsing of internal date-key strings
+  const lastClaimDate = parseDateKeyToDate(dailyLoginState.lastClaimDate) || new Date(dailyLoginState.lastClaimDate);
+  if (!lastClaimDate || Number.isNaN(lastClaimDate.getTime())) {
     dailyLoginState = normalizeDailyLoginState({});
+    // Persist reset to storage
+    try {
+      const normalized = normalizeDailyLoginState(dailyLoginState);
+      if (currentUser) {
+        currentUser.dailyLoginState = normalized;
+        currentUser.updatedAt = Date.now();
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        const users = getStoredUsersSafe();
+        const idx = findUserIndexForSession(users, currentUser);
+        if (idx !== -1) {
+          users[idx].dailyLoginState = normalized;
+          users[idx].updatedAt = currentUser.updatedAt;
+          setStoredUsers(users);
+        }
+      }
+    } catch (e) {
+      // ignore persistence errors
+    }
     return;
   }
 
@@ -512,12 +531,32 @@ function refreshDailyLoginState() {
     return;
   }
 
+  // Reset in-memory state
   dailyLoginState = {
     streakDay: 1,
     lastClaimDate: '',
     cycleStartDate: '',
     claimedDays: []
   };
+
+  // Persist reset to currentUser and stored users so storage reflects the reset
+  try {
+    const normalized = normalizeDailyLoginState(dailyLoginState);
+    if (currentUser) {
+      currentUser.dailyLoginState = normalized;
+      currentUser.updatedAt = Date.now();
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    }
+    const users = getStoredUsersSafe();
+    const idx = findUserIndexForSession(users, currentUser);
+    if (idx !== -1) {
+      users[idx].dailyLoginState = normalized;
+      users[idx].updatedAt = currentUser?.updatedAt ?? Date.now();
+      setStoredUsers(users);
+    }
+  } catch (e) {
+    // ignore persistence errors
+  }
 }
 
 function hasClaimedDailyLoginToday() {
@@ -1558,6 +1597,30 @@ async function handleLogin(event) {
     normalizedUser.lastLogin = new Date().toLocaleString();
     normalizedUser.lastActiveAt = Date.now();
     normalizedUser.viewMode = isAdminEmail(normalizedUser.email) ? 'admin' : (normalizedUser.viewMode ?? 'user');
+    // Update consecutive login streak based on lastLoginDateKey (use helper if available)
+    try {
+      if (typeof updateConsecutiveLoginStats === 'function') {
+        updateConsecutiveLoginStats(normalizedUser);
+      } else {
+        throw new Error('missing helper');
+      }
+    } catch (e) {
+      try {
+        const todayKey = getDateKeyFromDate(new Date());
+        const lastKey = normalizedUser.lastLoginDateKey;
+        const lastDate = parseDateKeyToDate(lastKey);
+        if (lastDate) {
+          const days = getDaysBetween(lastDate, new Date());
+          normalizedUser.loginStreakCurrent = days === 1 ? (Number(normalizedUser.loginStreakCurrent || 0) + 1) : 1;
+        } else {
+          normalizedUser.loginStreakCurrent = 1;
+        }
+        normalizedUser.lastLoginDateKey = todayKey;
+      } catch (ee) {
+        normalizedUser.loginStreakCurrent = Number(normalizedUser.loginStreakCurrent || 1);
+        normalizedUser.lastLoginDateKey = getDateKeyFromDate(new Date());
+      }
+    }
 
     if (userIndex !== -1) {
       users[userIndex] = normalizedUser;
