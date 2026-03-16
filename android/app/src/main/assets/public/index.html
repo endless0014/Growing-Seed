@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Growing Seed</title>
+  <link rel="stylesheet" href="style.css?v=20260315-release-1" />
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <!-- Authentication Screens -->
+  <div id="authContainer" class="auth-container">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="auth-screen active">
+      <div class="auth-card">
+        <div class="auth-card-logos" aria-label="Login logos">
+          <div class="mobile-logo-wrap">
+            <img src="assets/ABCF.png?v=20260225-logo-refresh-2" data-logo-file="ABCF.png" alt="ABCF logo" class="mobile-header-logo">
+             <span class="logo-fallback-text">ABCF</span>
+          </div>
+          <div class="mobile-logo-wrap">
+            <img src="assets/Pulse.png?v=20260225-logo-refresh-2" data-logo-file="Pulse.png" alt="Pulse logo" class="mobile-header-logo">
+             <span class="logo-fallback-text">Pulse</span>
+          </div>
+        </div>
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
+        <p class="auth-subtitle">Grow your faith journey</p>
+        <form id="loginForm" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label for="loginEmail">Email</label>
+            <input type="email" id="loginEmail" placeholder="Enter your email" required>
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" placeholder="Enter your password" required>
+          </div>
+          <button type="submit" class="auth-btn">Login</button>
+          <p id="loginError" class="error-message"></p>
+        </form>
+        <p class="auth-link">Don't have an account? <a href="#" onclick="switchToRegister()">Register here</a></p>
+        <p class="auth-link"><a href="#" onclick="switchToForgotPassword()">Forgot password?</a></p>
+      </div>
+    </div>
+
+    <!-- Registration Screen -->
+    <div id="registerScreen" class="auth-screen">
+      <div class="auth-card">
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
+        <p class="auth-subtitle">Create your account</p>
+        <form id="registerForm" onsubmit="handleRegister(event)">
+          <div class="form-group">
+            <label for="regName">Full Name</label>
+            <input type="text" id="regName" placeholder="Enter your name" required>
+          </div>
+          <div class="form-group">
+            <label for="regEmail">Email</label>
+            <input type="email" id="regEmail" placeholder="Enter your email" required>
+          </div>
+          <div class="form-group">
+            <label for="regPassword">Password</label>
+            <input type="password" id="regPassword" placeholder="Create a password (min 6 chars)" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label for="regConfirmPassword">Confirm Password</label>
+            <input type="password" id="regConfirmPassword" placeholder="Confirm your password" required>
+          </div>
+          <button type="submit" class="auth-btn">Register</button>
+          <p id="registerError" class="error-message"></p>
+        </form>
+        <p class="auth-link">Already have an account? <a href="#" onclick="switchToLogin()">Login here</a></p>
+      </div>
+    </div>
+
+    <!-- Forgot Password Screen -->
+    <div id="forgotPasswordScreen" class="auth-screen">
+      <div class="auth-card">
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
+        <p class="auth-subtitle">Reset your password</p>
+        <div id="forgotStep1">
+          <p>Enter your email to receive a reset code</p>
+          <div class="form-group">
+            <label for="forgotEmail">Email</label>
+            <input type="email" id="forgotEmail" placeholder="Enter your email" required>
+          </div>
+          <button onclick="sendResetCode()" class="auth-btn">Send Reset Code</button>
+          <p id="forgotError" class="error-message"></p>
+        </div>
+        <div id="forgotStep2" style="display: none;">
+          <p>Enter the reset code sent to your email and create a new password</p>
+          <div class="form-group">
+            <label for="resetCode">Reset Code</label>
+            <input type="text" id="resetCode" placeholder="Enter the code (check email)">
+          </div>
+          <div class="form-group">
+            <label for="newPassword">New Password</label>
+            <input type="password" id="newPassword" placeholder="Enter new password" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label for="confirmNewPassword">Confirm Password</label>
+            <input type="password" id="confirmNewPassword" placeholder="Confirm new password" required>
+          </div>
+          <button onclick="resetPasswordWithCode()" class="auth-btn">Reset Password</button>
+          <button onclick="goBackToForgot()" class="auth-btn secondary">Back</button>
+          <p id="resetError" class="error-message"></p>
+        </div>
+        <p class="auth-link"><a href="#" onclick="switchToLogin()">Back to Login</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App Container -->
+  <div id="appContainer" class="app-container" style="display: none;">
+    <!-- Header with User Info and Logout -->
+    <div class="app-header">
+      <div class="title-with-logos">
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
+        <div class="mobile-header-logos" aria-label="Header logos">
+          <div class="mobile-logo-wrap">
+            <img src="assets/ABCF.png?v=20260225-logo-refresh-2" data-logo-file="ABCF.png" alt="ABCF logo" class="mobile-header-logo">
+            <span class="logo-fallback-text">ABCF</span>
+          </div>
+          <div class="mobile-logo-wrap">
+            <img src="assets/Pulse.png?v=20260225-logo-refresh-2" data-logo-file="Pulse.png" alt="Pulse logo" class="mobile-header-logo">
+            <span class="logo-fallback-text">Pulse</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-right">
+        <span id="viewModeIndicator" class="view-mode-indicator" style="display: none;">USER VIEW</span>
+        <span class="user-greeting" id="userGreeting"></span>
+      </div>
+    </div>
+
+    <div id="userMainContainer" class="container">
+    <h1 class="main-title gs-brand-title">🌱 Growing Seed</h1>
+    <p class="main-fp">Faith Points: <span id="faithPoints">0</span></p>
+    <div class="gs-stats-row">
+      <div class="gs-pill fp">⭐ <span id="fpPillValue">0</span> FP</div>
+      <div class="gs-pill streak">🔥 <span id="streakPillValue">1 day</span></div>
+      <button type="button" class="gs-pill leaderboard" onclick="openLeaderboardModal('leaderboard')">🏆 Leaderboard</button>
+      <button id="profileAccessPill" type="button" class="gs-pill profile-access" onclick="openProfileModal()">👤 Profile</button>
+    </div>
+
+    <div class="gs-card daily-reward-card">
+      <div class="gs-card-head">
+        <h3>🎁 Daily Reward</h3>
+        <button id="dailyLoginBtn" onclick="openDailyLoginModal()" class="daily-login-btn">Claim Reward</button>
+      </div>
+      <p class="daily-reward-text">Come back daily for streak rewards and bonus points.</p>
+      <p id="dailyRewardStreakText" class="daily-reward-streak">Login streak: 1 day</p>
+    </div>
+
+    <div class="gs-card seed-growth-card">
+    <div class="gs-card-head">
+      <h3>🌱 Seed Growth</h3>
+      <button onclick="handleUpgradeRootsClick()" class="upgrade-btn">Upgrade Roots</button>
+    </div>
+    <div id="tree">
+      <div id="treeStageImages" style="position: relative; width: 250px; height: 350px;">
+        <div id="seedStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <defs>
+              <radialGradient id="seedBodyGrad" cx="35%" cy="35%">
+                <stop offset="0%" stop-color="#b98d5d"/>
+                <stop offset="100%" stop-color="#7b5a3d"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="60" cy="97" rx="24" ry="7" fill="rgba(80,60,35,0.25)"/>
+            <ellipse cx="60" cy="93" rx="17" ry="6" fill="#8c6c4b" opacity="0.55"/>
+            <path d="M53 88 C51 79 57 74 62 73 C69 72 73 77 72 85 C71 92 65 98 58 97 C55 96 53 93 53 88 Z" fill="url(#seedBodyGrad)"/>
+            <path d="M60 75 C62 80 62 88 59 94" stroke="#6b4a2f" stroke-width="1.2" fill="none" opacity="0.75"/>
+          </svg>
+        </div>
+        <div id="germinationStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <defs>
+              <linearGradient id="sproutGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#7ed957"/>
+                <stop offset="100%" stop-color="#2f8f3d"/>
+              </linearGradient>
+            </defs>
+            <ellipse cx="60" cy="98" rx="24" ry="7" fill="rgba(80,60,35,0.25)"/>
+            <ellipse cx="60" cy="94" rx="17" ry="6" fill="#8c6c4b" opacity="0.55"/>
+            <path d="M59 91 C59 84 60 78 64 72 C67 67 70 63 72 58" stroke="#2f8f3d" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+            <ellipse cx="73" cy="58" rx="6" ry="11" fill="url(#sproutGrad)" transform="rotate(22 73 58)"/>
+            <ellipse cx="66" cy="66" rx="4.5" ry="8" fill="#65c653" transform="rotate(-28 66 66)"/>
+          </svg>
+        </div>
+        <div id="seedlingStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <defs>
+              <linearGradient id="seedlingStemGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#7b5e3c"/>
+                <stop offset="100%" stop-color="#5d452f"/>
+              </linearGradient>
+            </defs>
+            <ellipse cx="60" cy="106" rx="22" ry="6.8" fill="rgba(80,60,35,0.22)"/>
+            <path d="M60 98 C58 87 59 78 61 67" stroke="url(#seedlingStemGrad)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+            <ellipse cx="53" cy="78" rx="7" ry="11" fill="#67c95a" transform="rotate(-28 53 78)"/>
+            <ellipse cx="68" cy="72" rx="7" ry="11" fill="#63c255" transform="rotate(24 68 72)"/>
+            <ellipse cx="58" cy="65" rx="6" ry="10" fill="#6ed25e" transform="rotate(-8 58 65)"/>
+            <ellipse cx="60" cy="102" rx="15" ry="4.8" fill="#8c6c4b" opacity="0.5"/>
+          </svg>
+        </div>
+        <div id="saplingStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <defs>
+              <linearGradient id="saplingLeafGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#7cda63"/>
+                <stop offset="100%" stop-color="#2f8d45"/>
+              </linearGradient>
+            </defs>
+            <ellipse cx="60" cy="106" rx="24" ry="7" fill="rgba(80,60,35,0.22)"/>
+            <path d="M60 101 C57 86 58 72 61 57" stroke="#6f5338" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M60 82 C66 76 69 71 72 66" stroke="#4a7c43" stroke-width="2.2" fill="none"/>
+            <path d="M60 73 C54 67 50 62 48 57" stroke="#4a7c43" stroke-width="2" fill="none"/>
+            <ellipse cx="73" cy="66" rx="7" ry="12" fill="url(#saplingLeafGrad)" transform="rotate(24 73 66)"/>
+            <ellipse cx="48" cy="57" rx="6" ry="10" fill="#5fbe52" transform="rotate(-30 48 57)"/>
+            <ellipse cx="60" cy="54" rx="8" ry="13" fill="#6fcd5e"/>
+            <ellipse cx="60" cy="102" rx="15" ry="5" fill="#8c6c4b" opacity="0.45"/>
+          </svg>
+        </div>
+        <div id="youngTreeStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <defs>
+              <radialGradient id="youngCanopyGrad" cx="42%" cy="35%">
+                <stop offset="0%" stop-color="#7fe169"/>
+                <stop offset="100%" stop-color="#2e7f3f"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="60" cy="113" rx="28" ry="7" fill="rgba(80,60,35,0.23)"/>
+            <path d="M56 109 C56 90 56 75 58 58 C60 55 62 55 64 58 C66 75 66 90 66 109 Z" fill="#8a6748"/>
+            <circle cx="60" cy="53" r="18" fill="url(#youngCanopyGrad)"/>
+            <circle cx="46" cy="63" r="13" fill="#3f9a4b"/>
+            <circle cx="74" cy="63" r="13" fill="#3f9a4b"/>
+            <circle cx="57" cy="66" r="10" fill="#66c95a" opacity="0.85"/>
+            <circle cx="67" cy="66" r="10" fill="#66c95a" opacity="0.85"/>
+          </svg>
+        </div>
+        <div id="matureTreeStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <defs>
+              <radialGradient id="matureCanopyGrad" cx="40%" cy="34%">
+                <stop offset="0%" stop-color="#8bea76"/>
+                <stop offset="100%" stop-color="#246f3c"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="60" cy="114" rx="30" ry="7" fill="rgba(70,50,30,0.25)"/>
+            <path d="M53 110 C54 87 53 67 57 50 C59 46 61 46 63 50 C67 67 66 87 67 110 Z" fill="#7c5a3f"/>
+            <circle cx="60" cy="48" r="24" fill="url(#matureCanopyGrad)"/>
+            <circle cx="40" cy="62" r="18" fill="#3b9049"/>
+            <circle cx="80" cy="62" r="18" fill="#3b9049"/>
+            <circle cx="55" cy="69" r="14" fill="#63c75a" opacity="0.9"/>
+            <circle cx="66" cy="69" r="14" fill="#63c75a" opacity="0.9"/>
+            <circle cx="61" cy="40" r="10" fill="#9bf07f" opacity="0.55"/>
+          </svg>
+        </div>
+        <div id="oldTreeStageImg" class="tree-stage-img">
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <defs>
+              <radialGradient id="oldCanopyGrad" cx="40%" cy="30%">
+                <stop offset="0%" stop-color="#9bf383"/>
+                <stop offset="100%" stop-color="#1f6337"/>
+              </radialGradient>
+            </defs>
+            <ellipse cx="60" cy="114" rx="34" ry="7" fill="rgba(65,48,30,0.27)"/>
+            <path d="M50 110 C50 86 50 63 56 42 C59 37 61 37 64 42 C70 63 70 86 70 110 Z" fill="#75553b"/>
+            <path d="M58 64 C53 56 47 53 42 49" stroke="#6f4f36" stroke-width="2" fill="none"/>
+            <path d="M62 60 C68 54 74 50 79 47" stroke="#6f4f36" stroke-width="2" fill="none"/>
+            <circle cx="60" cy="44" r="28" fill="url(#oldCanopyGrad)"/>
+            <circle cx="36" cy="60" r="20" fill="#2f7f44"/>
+            <circle cx="84" cy="60" r="20" fill="#2f7f44"/>
+            <circle cx="50" cy="70" r="16" fill="#5fc757" opacity="0.9"/>
+            <circle cx="70" cy="70" r="16" fill="#5fc757" opacity="0.9"/>
+            <circle cx="62" cy="34" r="12" fill="#a4f58c" opacity="0.5"/>
+            <g id="oldTreeFruits">
+              <circle cx="49" cy="50" r="3.4" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="67" cy="48" r="3.4" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="77" cy="58" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="41" cy="61" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="59" cy="63" r="3.5" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="71" cy="70" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="47" cy="73" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="61" cy="78" r="3.3" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="82" cy="67" r="3.1" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="34" cy="68" r="3.1" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+            </g>
+          </svg>
+          <div class="bird-overlay" aria-hidden="true">
+            <span class="tree-bird bird-a">🕊️</span>
+            <span class="tree-bird bird-b">🐦</span>
+            <span class="tree-bird bird-c">🕊️</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p id="currentStageName" class="current-stage-name">seed</p>
+    <div id="progressDisplay" class="progress-container">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+      </div>
+      <p id="progressText" class="progress-text">📈 0/50 points to Germination</p>
+    </div>
+    <div id="scriptureBox"></div>
+    </div>
+
+    <div id="faithActivitiesSection" class="gs-card activities-card">
+    <div class="gs-card-head">
+      <h3>Faith Activities</h3>
+      <span class="earn-pill">+ Earn FP</span>
+    </div>
+    <div class="button-group">
+      <button id="prayBtn" class="task-action-btn" onclick="openUploadModal('pray')">
+        <span class="task-title">🙏 Prayer Time (+2 FP)</span>
+      </button>
+      <button id="bibleBtn" class="task-action-btn" onclick="openUploadModal('bible')">
+        <span class="task-title">📘 Bible Reading (+2 FP)</span>
+      </button>
+      <button id="devotionBtn" class="task-action-btn" onclick="openUploadModal('devotion')">
+        <span class="task-title">🕊️ Daily Devotion (+4 FP)</span>
+      </button>
+      <button id="smallgroupBtn" class="task-action-btn" onclick="openUploadModal('smallgroup')">
+        <span class="task-title">🧑‍🤝‍🧑 Small Group (+10 FP)</span>
+      </button>
+      <button id="attendServiceBtn" class="task-action-btn" onclick="openUploadModal('attendService')">
+        <span class="task-title">🏠 Worship Attendance (+15 FP)</span>
+      </button>
+      <button id="shareGospelBtn" onclick="openUploadModal('sharegospel')" style="display: none;">Share Gospel (+10 FP)</button>
+    </div>
+    </div>
+
+    <div class="bottom-nav" aria-label="Bottom navigation">
+      <button type="button" class="bottom-nav-item active" onclick="goHomeTop()">🌱<span>Home</span></button>
+      <button type="button" class="bottom-nav-item" onclick="goToFaithActivities()">✅<span>Tasks</span></button>
+      <button type="button" class="bottom-nav-item" onclick="openLeaderboardModal('ranking')">🏆<span>Ranking</span></button>
+      <button type="button" class="bottom-nav-item" onclick="openProfileModal()">👤<span>Profile</span></button>
+    </div>
+
+    </div>
+
+    <div id="adminDashboard" class="container admin-dashboard" style="display: none;">
+      <h1>🛡️ Admin Dashboard</h1>
+      <p>Management overview and user insights.</p>
+      <div class="admin-nav-buttons" aria-label="Admin navigation">
+        <button type="button" class="admin-nav-btn" onclick="switchToUserHome()">Home</button>
+        <button type="button" class="admin-nav-btn" onclick="scrollAdminSection('adminOverviewSection')">Dashboard</button>
+        <button type="button" class="admin-nav-btn" onclick="scrollAdminSection('adminUsersSection')">Registered User</button>
+        <button type="button" class="admin-nav-btn" onclick="openProfileModal()">Profile</button>
+        <button id="adminForceLogoutAllBtn" type="button" class="admin-nav-btn admin-logout-all-btn" onclick="adminForceLogoutAll()">🚪 Log Out All Users</button>
+        <button id="adminResetAllProgressBtn" type="button" class="admin-nav-btn admin-logout-all-btn" onclick="adminResetAllProgress()">🔄 Reset All Users Progress</button>
+      </div>
+      <p id="adminTaskRefreshTime">Task refresh: 24:00</p>
+
+      <div id="adminOverviewSection" class="admin-stats-grid">
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Total Users</div>
+          <div id="adminTotalUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Admins</div>
+          <div id="adminTotalAdmins" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Moderators</div>
+          <div id="adminTotalModerators" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Active Users (24h)</div>
+          <div id="adminActiveUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Inactive Users (24h)</div>
+          <div id="adminInactiveUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Task Completion</div>
+          <div id="adminTaskCompletionRate" class="admin-stat-value">0%</div>
+        </div>
+      </div>
+
+      <div class="admin-analytics-grid">
+        <div class="admin-analytics-card">
+          <h3>Daily Login Trend (7 days)</h3>
+          <div id="adminDailyLoginTrend" class="admin-trend-list"></div>
+        </div>
+        <div class="admin-analytics-card">
+          <h3>Task Status Completion</h3>
+          <div id="adminTaskStatusSummary" class="admin-trend-list"></div>
+        </div>
+      </div>
+
+      <div id="adminUsersSection" class="admin-users-section">
+        <div class="admin-users-header">
+          <h3>Registered Users</h3>
+          <div class="admin-users-controls">
+            <label for="adminSortSelect">Sort by</label>
+            <select id="adminSortSelect" onchange="renderAdminDashboard(false)">
+              <option value="lastActiveDesc">Last Active (Newest)</option>
+              <option value="lastActiveAsc">Last Active (Oldest)</option>
+              <option value="nameAsc">Name (A-Z)</option>
+              <option value="nameDesc">Name (Z-A)</option>
+              <option value="faithPointsDesc">Faith Points (High-Low)</option>
+              <option value="faithPointsAsc">Faith Points (Low-High)</option>
+              <option value="streakDesc">Streak (High-Low)</option>
+              <option value="streakAsc">Streak (Low-High)</option>
+              <option value="roleAsc">Role</option>
+            </select>
+            <button onclick="renderAdminDashboard()" class="settings-btn">Refresh</button>
+          </div>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Streak</th>
+                <th>Last Login</th>
+                <th>Last Active</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Faith Points</th>
+                <th>Tree Progress</th>
+                <th><span class="task-head-logo" title="Prayer Time">🙏</span></th>
+                <th><span class="task-head-logo" title="Bible Reading">📘</span></th>
+                <th><span class="task-head-logo" title="Daily Devotion">🕊️</span></th>
+                <th><span class="task-head-logo" title="Small Group">🧑‍🤝‍🧑</span></th>
+                <th><span class="task-head-logo" title="Worship Attendance">🏠</span></th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="adminUsersTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Profile Modal -->
+  <div id="profileModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeProfileModal()">&times;</span>
+      <h2>👤 User Profile</h2>
+      <div class="profile-section">
+        <div class="profile-info">
+          <p><strong>Name:</strong> <span id="profileName"></span></p>
+          <p><strong>Email:</strong> <span id="profileEmail"></span></p>
+          <p><strong>Joined:</strong> <span id="profileJoined"></span></p>
+        </div>
+      </div>
+      <div class="profile-section">
+        <h3>⚙️ Settings</h3>
+        <button id="switchAdminViewBtn" onclick="toggleAdminView()" class="settings-btn" style="display: none;">Switch to Admin View</button>
+        <button id="enableNotificationsBtn" onclick="enableBrowserNotificationsFromProfile()" class="settings-btn">Notification Disabled</button>
+        <button id="toggleFpDebugBtn" onclick="toggleFpDebugMode()" class="settings-btn">FP Debug: OFF</button>
+        <button onclick="runFpDiagnostics()" class="settings-btn">Run FP Diagnostics</button>
+        <button onclick="openChangePasswordModal()" class="settings-btn">Change Password</button>
+        <button onclick="downloadUserData()" class="settings-btn">Download My Data</button>
+        <button onclick="handleLogout()" class="settings-btn">Logout</button>
+        <button onclick="deleteAccountConfirm()" class="settings-btn danger-btn">Delete Account</button>
+      </div>
+      <div class="modal-buttons">
+        <button onclick="closeProfileModal()" class="auth-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div id="changePasswordModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeChangePasswordModal()">&times;</span>
+      <h2>Change Password</h2>
+      <form id="changePasswordForm" onsubmit="handleChangePassword(event)">
+        <div class="form-group">
+          <label for="currentPassword">Current Password</label>
+          <input type="password" id="currentPassword" placeholder="Enter current password" required>
+        </div>
+        <div class="form-group">
+          <label for="newPassChange">New Password</label>
+          <input type="password" id="newPassChange" placeholder="Enter new password (min 6 chars)" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="confirmPassChange">Confirm New Password</label>
+          <input type="password" id="confirmPassChange" placeholder="Confirm new password" required>
+        </div>
+        <p id="changePassError" class="error-message"></p>
+        <div class="modal-buttons">
+          <button type="submit" class="auth-btn">Update Password</button>
+          <button type="button" onclick="closeChangePasswordModal()" class="cancel-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Photo Upload Modal -->
+  <div id="uploadModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeUploadModal()">&times;</span>
+      <h2><span id="uploadTitlePrefix">Share Your</span> <span id="actionName">Prayer Time</span></h2>
+      <p>Upload a photo to receive bonus points!</p>
+      <input type="file" id="photoInput" accept="image/*" />
+      <img id="photoPreview" style="max-width: 100%; margin-top: 1rem; display: none;" />
+      <div class="modal-buttons">
+        <button id="submitPhotoBtn" onclick="submitPhoto()" disabled>Submit Photo</button>
+        <button onclick="closeUploadModal()" class="cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upgrade Modal -->
+  <div id="upgradeModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeUpgradeModal()">&times;</span>
+      <h2>Upgrade Your Roots</h2>
+      <p id="upgradeCostText">Cost: <span id="upgradeCostAmount">10</span> FP</p>
+      <div class="modal-buttons">
+        <button onclick="confirmUpgrade()">Upgrade Roots</button>
+        <button id="useAllPointsModalBtn" onclick="useAllPoints()" style="display: none; background-color: #9C27B0;">Use All Points</button>
+        <button onclick="closeUpgradeModal()" class="cancel-btn">Cancel</button>
+      </div>
+      <p id="insufficientFpMessage" style="color: red; margin-top: 1rem; display: none;">Insufficient FP for upgrade</p>
+    </div>
+  </div>
+
+  <!-- Daily Login Modal -->
+  <div id="dailyLoginModal" class="modal" style="display: none;">
+    <div class="modal-content daily-login-panel">
+      <div class="daily-login-header">
+        <h2>Daily check in</h2>
+        <button id="dailyLoginReminderToggle" type="button" class="daily-login-reminder-toggle" onclick="toggleDailyLoginReminder()" aria-pressed="true">
+          <span class="daily-login-reminder-knob"></span>
+        </button>
+      </div>
+      <p class="daily-login-subtitle">Continuous check-in for 7 days will earn surprise!</p>
+      <div id="dailyLoginCalendar" class="daily-login-grid"></div>
+      <div class="modal-buttons">
+        <button type="button" onclick="closeDailyLoginModal()" class="auth-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Public Leaderboard / Ranking Modal -->
+  <div id="leaderboardModal" class="modal" style="display: none;">
+    <div class="modal-content public-board-panel">
+      <span class="close" onclick="closeLeaderboardModal()">&times;</span>
+      <h2 id="publicBoardTitle">Leaderboard</h2>
+      <div class="public-board-switch" role="tablist" aria-label="Board type">
+        <button id="publicBoardLeaderboardTab" type="button" class="public-board-tab" onclick="switchPublicBoardType('leaderboard')" role="tab" aria-controls="publicBoardBody" aria-selected="true">🏆 Leaderboard</button>
+        <button id="publicBoardRankingTab" type="button" class="public-board-tab" onclick="switchPublicBoardType('ranking')" role="tab" aria-controls="publicBoardBody" aria-selected="false">📈 Ranking</button>
+      </div>
+      <p id="publicBoardSubtitle">Sorted by longest consecutive login streak</p>
+      <ul id="publicBoardBody" class="public-board-list"></ul>
+      <div class="modal-buttons">
+        <button type="button" onclick="closeLeaderboardModal()" class="auth-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js?v=20260315-release-2"></script>
+</body>
+</html>

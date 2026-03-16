@@ -1,6 +1,7 @@
 // Authentication System
 let currentUser = null;
 const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
+const ALLOWED_ROLES = ['admin', 'moderator', 'user'];
 const FIREBASE_CONFIG = {
   apiKey: 'AIzaSyDXPQnVHn9ux9Je5vGASWKig3AdBvnlOIk',
   authDomain: 'growing-seed-fc973.firebaseapp.com',
@@ -10,14 +11,22 @@ const FIREBASE_CONFIG = {
   appId: '1:154122860320:web:90f610016b49ad25ef0945'
 };
 const CLOUD_USERS_COLLECTION = 'users';
+const EMAIL_CORRECTIONS = {
+  'nicolenavarrosa27@gmailc.com': 'nicolenavarrosa27@gmail.com'
+};
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
+const ROLLBACK_RECOVERY_KEY = 'growingSeedRollbackRecoveryDoneByEmailV1';
 const NOTIFICATION_PREFERENCE_KEY = 'growingSeedNotificationsEnabled';
 const REMINDER_LOG_KEY = 'growingSeedReminderLogV1';
 const FP_DEBUG_MODE_KEY = 'growingSeedFpDebugModeV1';
 let cloudDb = null;
 const NOTIFICATION_DEFAULT_DURATION = 4200;
+const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 let reminderIntervalId = null;
 let currentUserCloudUnsubscribe = null;
+let inactivityTimerId = null;
+let inactivityWarningTimerId = null;
+let forceLogoutUnsubscribe = null;
 
 const DAILY_LOGIN_REWARDS = [2, 2, 3, 4, 5, 6, 8];
 const DAILY_LOGIN_COMPLETION_BONUS = 20;
@@ -36,6 +45,23 @@ let dailyLoginState = {
   cycleStartDate: '',
   claimedDays: []
 };
+let hasAutoPromptedDailyLogin = false;
+const NON_USER_ROLES_FOR_PUBLIC_BOARDS = new Set(['admin', 'moderator']);
+
+// Compatibility helper for Android asset builds: prefer canonical persist, fallback to direct write.
+function safeSetCurrentUser(userObj) {
+  try {
+    if (typeof persistAllUserState === 'function' && typeof getStoredUsersSafe === 'function') {
+      persistAllUserState(getStoredUsersSafe(), userObj);
+      return;
+    }
+  } catch (e) {}
+  try {
+    try { if (window.safeSetCurrentUser) { window.safeSetCurrentUser(userObj); } else { localStorage.setItem('currentUser', JSON.stringify(userObj)); } } catch(e) {}
+    try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch(_) {}
+    try { console.debug('[persist] fallback wrote currentUser.faithPoints=', userObj && typeof userObj.faithPoints !== 'undefined' ? userObj.faithPoints : null, ' ts=', String(Date.now())); } catch(_) {}
+  } catch (e) {}
+}
 
 function ensureNotificationContainer() {
   let container = document.getElementById('appNotifications');
@@ -51,8 +77,51 @@ function ensureNotificationContainer() {
   return container;
 }
 
+function getCapacitorLocalNotificationsPlugin() {
+  const capacitor = window.Capacitor;
+  if (!capacitor || typeof capacitor.isNativePlatform !== 'function' || !capacitor.isNativePlatform()) {
+    return null;
+  }
+
+  return capacitor.Plugins?.LocalNotifications || null;
+}
+
+async function triggerNativeLocalNotification(message, title = 'Growing Seed') {
+  const localNotifications = getCapacitorLocalNotificationsPlugin();
+  if (!localNotifications || !isAppNotificationEnabled()) {
+    return;
+  }
+
+  try {
+    const permissionStatus = await localNotifications.checkPermissions();
+    if (permissionStatus?.display !== 'granted') {
+      return;
+    }
+
+    const notificationId = Math.floor(Date.now() % 2147483000);
+    await localNotifications.schedule({
+      notifications: [
+        {
+          id: notificationId,
+          title,
+          body: String(message || ''),
+          schedule: { at: new Date(Date.now() + 250) }
+        }
+      ]
+    });
+  } catch (error) {
+    console.warn('Native notification failed:', error);
+  }
+}
+
 function triggerBrowserNotification(message, title = 'Growing Seed') {
   if (!isAppNotificationEnabled()) {
+    return;
+  }
+
+  const localNotifications = getCapacitorLocalNotificationsPlugin();
+  if (localNotifications) {
+    void triggerNativeLocalNotification(message, title);
     return;
   }
 
@@ -68,6 +137,23 @@ function triggerBrowserNotification(message, title = 'Growing Seed') {
 }
 
 function requestBrowserNotificationPermission() {
+  const localNotifications = getCapacitorLocalNotificationsPlugin();
+  if (localNotifications) {
+    return localNotifications
+      .checkPermissions()
+      .then(status => {
+        if (status?.display === 'granted') {
+          return 'granted';
+        }
+
+        return localNotifications.requestPermissions().then(requestStatus => requestStatus?.display || 'default');
+      })
+      .catch(error => {
+        console.warn('Native notification permission request failed:', error);
+        return 'default';
+      });
+  }
+
   if (!('Notification' in window)) {
     return Promise.resolve('unsupported');
   }
@@ -156,7 +242,7 @@ function toggleFpDebugMode() {
 async function runFpDiagnostics() {
   if (!currentUser?.email) {
     showNotification('No active user session to inspect.', { type: 'warning' });
-    return;
+    return null;
   }
 
   const normalizedEmail = normalizeEmail(currentUser.email);
@@ -180,6 +266,27 @@ async function runFpDiagnostics() {
   const currentUserFp = Math.floor(Number(currentUser.faithPoints ?? 0) || 0);
   const storedFp = Math.floor(Number(storedUser?.faithPoints ?? 0) || 0);
   const cloudFp = Math.floor(Number(cloudUser?.faithPoints ?? 0) || 0);
+  const sessionStreakDays = Math.max(
+    getUserCurrentLoginStreak(currentUser),
+    getLegacyDailyLoginStreak(dailyLoginState)
+  );
+  const currentUserStreakDays = getUserCurrentLoginStreak(currentUser);
+  const storedStreakDays = getUserCurrentLoginStreak(storedUser);
+  const cloudStreakDays = getUserCurrentLoginStreak(cloudUser);
+
+  const fallbackComparisonUser = cloudUser || storedUser || currentUser;
+  const rollback = getRollbackMetrics(
+    {
+      faithPoints: localSessionFp,
+      loginStreakCurrent: sessionStreakDays,
+      dailyLoginState
+    },
+    fallbackComparisonUser,
+    {
+      localDailyLoginState: dailyLoginState,
+      incomingDailyLoginState: fallbackComparisonUser?.dailyLoginState
+    }
+  );
 
   const summary = {
     email: normalizedEmail,
@@ -187,6 +294,13 @@ async function runFpDiagnostics() {
     currentUserFaithPoints: currentUserFp,
     localStorageFaithPoints: storedFp,
     cloudFaithPoints: cloudUser ? cloudFp : 'n/a',
+    sessionStreakDays,
+    currentUserStreakDays,
+    localStorageStreakDays: storedStreakDays,
+    cloudStreakDays: cloudUser ? cloudStreakDays : 'n/a',
+    fpRollbackAmount: rollback.fpRollbackAmount,
+    streakRollbackDays: rollback.streakRollbackDays,
+    rollbackComparedWith: cloudUser ? 'cloud' : 'localStorage/currentUser',
     currentUserUpdatedAt: Number(currentUser.updatedAt ?? currentUser.lastActiveAt ?? 0) || 0,
     localStorageUpdatedAt: Number(storedUser?.updatedAt ?? storedUser?.lastActiveAt ?? 0) || 0,
     cloudUpdatedAt: cloudUser ? (Number(cloudUser.updatedAt ?? cloudUser.lastActiveAt ?? 0) || 0) : 'n/a'
@@ -205,7 +319,10 @@ async function runFpDiagnostics() {
   const minFp = Math.min(...values);
 
   if (maxFp !== minFp) {
-    showNotification(`FP mismatch detected. Session:${localSessionFp}, Local:${storedFp}, Cloud:${cloudUser ? cloudFp : 'n/a'}.`, {
+    const rollbackMessage = rollback.hasRollback
+      ? ` Potential rollback: ${formatRollbackPreventionMessage(rollback).replace(/^Rollback prevented:\s*/i, '').replace(/\.$/, '')}.`
+      : '';
+    showNotification(`FP mismatch detected. Session:${localSessionFp}, Local:${storedFp}, Cloud:${cloudUser ? cloudFp : 'n/a'}.${rollbackMessage}`, {
       type: 'warning',
       duration: 7000
     });
@@ -214,6 +331,11 @@ async function runFpDiagnostics() {
       type: 'success'
     });
   }
+
+  return {
+    summary,
+    rollback
+  };
 }
 
 function updateProfileNotificationControls() {
@@ -273,19 +395,20 @@ function ensureProfileNotificationControls() {
 
 async function enableBrowserNotificationsFromProfile() {
   const willEnable = !isAppNotificationEnabled();
+  const localNotifications = getCapacitorLocalNotificationsPlugin();
 
   if (willEnable) {
-    if (!('Notification' in window)) {
+    if (!localNotifications && !('Notification' in window)) {
       setAppNotificationEnabled(true);
       updateProfileNotificationControls();
-      showNotification('Notification Enabled.', { type: 'success' });
+      showNotification('Notifications enabled.', { type: 'success' });
       return;
     }
 
-    if (Notification.permission === 'denied') {
+    if (!localNotifications && Notification.permission === 'denied') {
       setAppNotificationEnabled(false);
       updateProfileNotificationControls();
-      showNotification('Browser blocked notifications. Enable permission in browser settings first.', { type: 'warning' });
+      showNotification('Notifications are blocked. Enable permission in browser or phone settings first.', { type: 'warning' });
       return;
     }
 
@@ -293,19 +416,19 @@ async function enableBrowserNotificationsFromProfile() {
     if (permission !== 'granted') {
       setAppNotificationEnabled(false);
       updateProfileNotificationControls();
-      showNotification('Notification Disabled.', { type: 'info' });
+      showNotification('Notifications disabled.', { type: 'info' });
       return;
     }
 
     setAppNotificationEnabled(true);
     updateProfileNotificationControls();
-    showNotification('Notification Enabled.', { type: 'success', browser: true });
+    showNotification('Notifications enabled.', { type: 'success', browser: true });
     return;
   }
 
   setAppNotificationEnabled(false);
   updateProfileNotificationControls();
-  showNotification('Notification Disabled.', { type: 'info' });
+  showNotification('Notifications disabled.', { type: 'info' });
 }
 
 function showNotification(message, options = {}) {
@@ -381,7 +504,335 @@ function goToFaithActivities() {
 }
 
 function showRankingComingSoon() {
-  showNotification('Ranking Coming Soon', { type: 'info' });
+  openLeaderboardModal('ranking');
+}
+
+function parseDateKeyToDate(dateKey) {
+  const normalized = String(dateKey || '').trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const parsed = new Date(year, monthIndex, day);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeDateKey(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  const raw = String(value).trim();
+  if (!raw) {
+    return '';
+  }
+
+  const keyedDate = parseDateKeyToDate(raw);
+  if (keyedDate) {
+    return getDateKeyFromDate(keyedDate);
+  }
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return getDateKeyFromDate(parsed);
+  }
+
+  return '';
+}
+
+function getUserCurrentLoginStreak(user) {
+  const parsed = Math.floor(Number(user?.loginStreakCurrent ?? 0));
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  const legacyStreak = getLegacyDailyLoginStreak(user?.dailyLoginState);
+  return legacyStreak;
+}
+
+function getUserLongestLoginStreak(user) {
+  const parsed = Math.floor(Number(user?.loginStreakLongest ?? 0));
+  const parsedCurrent = Math.floor(Number(user?.loginStreakCurrent ?? 0));
+  const legacyStreak = getLegacyDailyLoginStreak(user?.dailyLoginState);
+  return Math.max(
+    Number.isFinite(parsed) && parsed > 0 ? parsed : 0,
+    Number.isFinite(parsedCurrent) && parsedCurrent > 0 ? parsedCurrent : 0,
+    legacyStreak
+  );
+}
+
+function getLegacyDailyLoginStreak(dailyState) {
+  const normalized = normalizeDailyLoginState(dailyState);
+  const claimedCount = Array.isArray(normalized.claimedDays) ? normalized.claimedDays.length : 0;
+  const impliedFromNextDay = Math.max(0, Math.floor(Number(normalized.streakDay ?? 1) - 1));
+  return Math.max(claimedCount, impliedFromNextDay);
+}
+
+function getDateKeyRank(dateKey) {
+  const parsed = parseDateKeyToDate(normalizeDateKey(dateKey));
+  if (!parsed) {
+    return 0;
+  }
+
+  return (parsed.getFullYear() * 10000) + ((parsed.getMonth() + 1) * 100) + parsed.getDate();
+}
+
+function formatRollbackPreventionMessage(metrics) {
+  const safeMetrics = metrics && typeof metrics === 'object' ? metrics : {};
+  const parts = [];
+  const fpRollbackAmount = Math.max(0, Math.floor(Number(safeMetrics.fpRollbackAmount ?? 0) || 0));
+  const streakRollbackDays = Math.max(0, Math.floor(Number(safeMetrics.streakRollbackDays ?? 0) || 0));
+  const dailyLoginRollbackDetected = Boolean(safeMetrics.dailyLoginRollbackDetected);
+
+  if (fpRollbackAmount > 0) {
+    parts.push(`-${fpRollbackAmount} FP`);
+  }
+
+  if (streakRollbackDays > 0) {
+    parts.push(`-${streakRollbackDays} day(s) streak`);
+  }
+
+  if (dailyLoginRollbackDetected) {
+    parts.push('daily check-in state');
+  }
+
+  if (parts.length === 0) {
+    return 'Rollback prevented.';
+  }
+
+  return `Rollback prevented: ${parts.join(', ')}.`;
+}
+
+function getRollbackMetrics(localUserState, incomingUserState, options = {}) {
+  const { localDailyLoginState, incomingDailyLoginState } = options;
+  const localFaithPoints = Math.floor(Number(localUserState?.faithPoints ?? 0) || 0);
+  const incomingFaithPoints = Math.floor(Number(incomingUserState?.faithPoints ?? 0) || 0);
+  const normalizedLocalDaily = normalizeDailyLoginState(localDailyLoginState ?? localUserState?.dailyLoginState);
+  const normalizedIncomingDaily = normalizeDailyLoginState(incomingDailyLoginState ?? incomingUserState?.dailyLoginState);
+
+  const localStreakDays = Math.max(
+    getUserCurrentLoginStreak(localUserState),
+    getLegacyDailyLoginStreak(normalizedLocalDaily)
+  );
+  const incomingStreakDays = Math.max(
+    getUserCurrentLoginStreak(incomingUserState),
+    getLegacyDailyLoginStreak(normalizedIncomingDaily)
+  );
+
+  const fpRollbackAmount = Math.max(0, localFaithPoints - incomingFaithPoints);
+  const streakRollbackDays = Math.max(0, localStreakDays - incomingStreakDays);
+  const localClaimDateRank = getDateKeyRank(normalizedLocalDaily.lastClaimDate);
+  const incomingClaimDateRank = getDateKeyRank(normalizedIncomingDaily.lastClaimDate);
+  const localClaimedCount = Array.isArray(normalizedLocalDaily.claimedDays)
+    ? normalizedLocalDaily.claimedDays.length
+    : 0;
+  const incomingClaimedCount = Array.isArray(normalizedIncomingDaily.claimedDays)
+    ? normalizedIncomingDaily.claimedDays.length
+    : 0;
+  const dailyClaimDateRollback = localClaimDateRank > incomingClaimDateRank;
+  const dailyClaimProgressRollback = localClaimDateRank > 0
+    && localClaimDateRank === incomingClaimDateRank
+    && localClaimedCount > incomingClaimedCount;
+  const dailyLoginRollbackDetected = dailyClaimDateRollback || dailyClaimProgressRollback;
+
+  return {
+    localFaithPoints,
+    incomingFaithPoints,
+    localStreakDays,
+    incomingStreakDays,
+    fpRollbackAmount,
+    streakRollbackDays,
+    dailyLoginRollbackDetected,
+    hasRollback: fpRollbackAmount > 0 || streakRollbackDays > 0 || dailyLoginRollbackDetected
+  };
+}
+
+function updateConsecutiveLoginStats(user, referenceDate = new Date()) {
+  if (!user || typeof user !== 'object') {
+    return;
+  }
+
+  const today = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  const todayKey = getDateKeyFromDate(today);
+  const lastLoginDate = parseDateKeyToDate(user.lastLoginDateKey);
+
+  let currentStreak = getUserCurrentLoginStreak(user);
+  let longestStreak = getUserLongestLoginStreak(user);
+
+  if (!lastLoginDate) {
+    currentStreak = 1;
+  } else {
+    const dayGap = getDaysBetween(lastLoginDate, today);
+    if (dayGap === 0) {
+      user.loginStreakCurrent = currentStreak;
+      user.loginStreakLongest = Math.max(longestStreak, currentStreak);
+      user.lastLoginDateKey = todayKey;
+      return;
+    }
+
+    if (dayGap === 1) {
+      currentStreak += 1;
+    } else {
+      currentStreak = 1;
+    }
+  }
+
+  longestStreak = Math.max(longestStreak, currentStreak);
+  user.loginStreakCurrent = currentStreak;
+  user.loginStreakLongest = longestStreak;
+  user.lastLoginDateKey = todayKey;
+}
+
+function isPublicBoardUser(user) {
+  if (!user) {
+    return false;
+  }
+
+  const resolvedRole = String(getRoleByEmail(user?.email, user?.role) || '').trim().toLowerCase();
+  const storedRole = String(user?.role || '').trim().toLowerCase();
+  const storedViewMode = String(user?.viewMode || '').trim().toLowerCase();
+  const privilegedByRole = NON_USER_ROLES_FOR_PUBLIC_BOARDS.has(resolvedRole) || NON_USER_ROLES_FOR_PUBLIC_BOARDS.has(storedRole);
+  const privilegedByEmail = isAdminEmail(user?.email);
+  const privilegedByViewMode = storedViewMode === 'admin';
+
+  return !privilegedByRole && !privilegedByEmail && !privilegedByViewMode;
+}
+
+function getPublicBoardUsers() {
+  return getStoredUsersSafe().filter(isPublicBoardUser);
+}
+
+function getUserLoginOrderingTimestamp(user) {
+  const explicitTimestamp = Number(user?.lastLoginAt ?? 0);
+  if (Number.isFinite(explicitTimestamp) && explicitTimestamp > 0) {
+    return explicitTimestamp;
+  }
+
+  const parsedLegacyTimestamp = Number(new Date(user?.lastLogin || '').getTime());
+  if (Number.isFinite(parsedLegacyTimestamp) && parsedLegacyTimestamp > 0) {
+    return parsedLegacyTimestamp;
+  }
+
+  // Unknown login time should sort after users with known login time.
+  return Number.POSITIVE_INFINITY;
+}
+
+let currentPublicBoardType = 'leaderboard';
+
+function updatePublicBoardTabs(boardType) {
+  const leaderboardTab = document.getElementById('publicBoardLeaderboardTab');
+  const rankingTab = document.getElementById('publicBoardRankingTab');
+  if (!leaderboardTab || !rankingTab) {
+    return;
+  }
+
+  const isLeaderboard = boardType !== 'ranking';
+  leaderboardTab.classList.toggle('active', isLeaderboard);
+  rankingTab.classList.toggle('active', !isLeaderboard);
+  leaderboardTab.setAttribute('aria-selected', isLeaderboard ? 'true' : 'false');
+  rankingTab.setAttribute('aria-selected', !isLeaderboard ? 'true' : 'false');
+}
+
+function switchPublicBoardType(boardType = 'leaderboard') {
+  currentPublicBoardType = boardType === 'ranking' ? 'ranking' : 'leaderboard';
+  renderPublicBoardList(currentPublicBoardType);
+}
+
+function renderPublicBoardList(boardType = 'leaderboard') {
+  const boardBody = document.getElementById('publicBoardBody');
+  const boardTitle = document.getElementById('publicBoardTitle');
+  const boardSubtitle = document.getElementById('publicBoardSubtitle');
+  if (!boardBody || !boardTitle || !boardSubtitle) {
+    return;
+  }
+
+  const users = getPublicBoardUsers().filter(isPublicBoardUser);
+  const isRanking = boardType === 'ranking';
+
+  updatePublicBoardTabs(boardType);
+
+  boardTitle.textContent = isRanking ? 'Ranking' : 'Leaderboard';
+  boardSubtitle.textContent = isRanking
+    ? 'Sorted by total tree progress points'
+    : 'Sorted by longest consecutive login streak';
+
+  const sortedUsers = [...users].sort((leftUser, rightUser) => {
+    if (isRanking) {
+      const leftValue = Math.floor(Number(leftUser?.treeProgress ?? 0) || 0);
+      const rightValue = Math.floor(Number(rightUser?.treeProgress ?? 0) || 0);
+      if (rightValue !== leftValue) {
+        return rightValue - leftValue;
+      }
+      return String(leftUser?.name || '').localeCompare(String(rightUser?.name || ''));
+    }
+
+    const leftValue = getUserLongestLoginStreak(leftUser);
+    const rightValue = getUserLongestLoginStreak(rightUser);
+    if (rightValue !== leftValue) {
+      return rightValue - leftValue;
+    }
+
+    const leftLoginTimestamp = getUserLoginOrderingTimestamp(leftUser);
+    const rightLoginTimestamp = getUserLoginOrderingTimestamp(rightUser);
+    if (leftLoginTimestamp !== rightLoginTimestamp) {
+      return leftLoginTimestamp - rightLoginTimestamp;
+    }
+
+    return String(leftUser?.name || '').localeCompare(String(rightUser?.name || ''));
+  });
+
+  if (sortedUsers.length === 0) {
+    boardBody.innerHTML = '<li class="public-board-empty">No users available for this board yet.</li>';
+    return;
+  }
+
+  boardBody.innerHTML = sortedUsers
+    .slice(0, 20)
+    .map((user, index) => {
+      const score = isRanking
+        ? Math.floor(Number(user?.treeProgress ?? 0) || 0)
+        : getUserLongestLoginStreak(user);
+      const scoreLabel = isRanking ? `${score} FP` : `${score} day${score === 1 ? '' : 's'}`;
+      const name = escapeHtml(String(user?.name || user?.email || 'Unknown'));
+      const rankClass = index < 3 ? `top-${index + 1}` : '';
+      const rankBadge = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+      return `
+        <li class="public-board-item ${rankClass}">
+          <span class="public-board-rank">${rankBadge}</span>
+          <span class="public-board-name">${name}</span>
+          <span class="public-board-score">${scoreLabel}</span>
+        </li>
+      `;
+    })
+    .join('');
+}
+
+function openLeaderboardModal(boardType = 'leaderboard') {
+  const modal = document.getElementById('leaderboardModal');
+  if (!modal) {
+    return;
+  }
+
+  currentPublicBoardType = boardType === 'ranking' ? 'ranking' : 'leaderboard';
+  renderPublicBoardList(currentPublicBoardType);
+  modal.style.display = 'flex';
+}
+
+function closeLeaderboardModal() {
+  const modal = document.getElementById('leaderboardModal');
+  if (!modal) {
+    return;
+  }
+
+  modal.style.display = 'none';
 }
 
 function goHomeTop() {
@@ -589,8 +1040,8 @@ function normalizeDailyLoginState(sourceState) {
 
   return {
     streakDay: safeStreakDay,
-    lastClaimDate: typeof input.lastClaimDate === 'string' ? input.lastClaimDate : '',
-    cycleStartDate: typeof input.cycleStartDate === 'string' ? input.cycleStartDate : '',
+    lastClaimDate: normalizeDateKey(input.lastClaimDate),
+    cycleStartDate: normalizeDateKey(input.cycleStartDate),
     claimedDays: Array.from(new Set(claimedDays)).sort((a, b) => a - b)
   };
 }
@@ -603,8 +1054,8 @@ function refreshDailyLoginState() {
   }
 
   const today = new Date();
-  const lastClaimDate = new Date(dailyLoginState.lastClaimDate);
-  if (Number.isNaN(lastClaimDate.getTime())) {
+  const lastClaimDate = parseDateKeyToDate(dailyLoginState.lastClaimDate);
+  if (!lastClaimDate) {
     dailyLoginState = normalizeDailyLoginState({});
     return;
   }
@@ -666,12 +1117,15 @@ function renderDailyLoginCalendar() {
   const nodeMarkup = DAILY_LOGIN_REWARDS.map((points, index) => {
     const dayNumber = index + 1;
     const dayClass = getDailyLoginDayClass(dayNumber);
+    const isClaimed = dayClass === 'claimed';
     const disabled = canClaimDailyLoginDay(dayNumber) ? '' : 'disabled';
     const iconMarkup = getDailyLoginStageSvgMarkup(dayNumber);
+    const checkMarkMarkup = isClaimed ? '<span class="daily-login-check" aria-hidden="true">✓</span>' : '';
     return `
       <div class="daily-login-node ${dayClass}">
-        <button class="daily-login-tile" data-day="${dayNumber}" ${disabled}>
+        <button class="daily-login-tile" data-day="${dayNumber}" ${disabled} aria-label="Day ${dayNumber}${isClaimed ? ' claimed' : ''}">
           <span class="daily-login-tile-icon">${iconMarkup}</span>
+          ${checkMarkMarkup}
         </button>
         <span class="daily-login-day-label">Day${dayNumber}</span>
         <span class="daily-login-day-points">+${points}</span>
@@ -820,8 +1274,34 @@ function closeDailyLoginModal() {
   }
 }
 
+function autoPromptDailyLoginIfPending() {
+  if (!currentUser || hasAutoPromptedDailyLogin) {
+    return;
+  }
+
+  refreshDailyLoginState();
+  if (hasClaimedDailyLoginToday()) {
+    hasAutoPromptedDailyLogin = true;
+    return;
+  }
+
+  hasAutoPromptedDailyLogin = true;
+  window.setTimeout(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    openDailyLoginModal();
+  }, 180);
+}
+
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
+}
+
+function getCorrectedEmail(email) {
+  const normalized = normalizeEmail(email);
+  return EMAIL_CORRECTIONS[normalized] || normalized;
 }
 
 function isAdminEmail(email) {
@@ -829,8 +1309,79 @@ function isAdminEmail(email) {
   return ADMIN_EMAILS.some(adminEmail => normalizeEmail(adminEmail) === normalizedEmail);
 }
 
-function getRoleByEmail(email) {
-  return isAdminEmail(email) ? 'admin' : 'user';
+function normalizeRole(role) {
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  return ALLOWED_ROLES.includes(normalizedRole) ? normalizedRole : 'user';
+}
+
+function getRoleByEmail(email, preferredRole = 'user') {
+  if (isAdminEmail(email)) {
+    return 'admin';
+  }
+
+  return normalizeRole(preferredRole);
+}
+
+function getCurrentUserRole() {
+  if (!currentUser) {
+    return 'user';
+  }
+
+  return getRoleByEmail(currentUser.email, currentUser.role);
+}
+
+function hasManagementAccess() {
+  const role = getCurrentUserRole();
+  return role === 'admin' || role === 'moderator';
+}
+
+function canManageAction(actionKey) {
+  const role = getCurrentUserRole();
+  if (role === 'admin') {
+    return true;
+  }
+
+  if (role === 'moderator') {
+    return actionKey !== 'resetProgress'
+      && actionKey !== 'openUi'
+      && actionKey !== 'changeRole'
+      && actionKey !== 'viewProgress'
+      && actionKey !== 'forceLogoutAll'
+      && actionKey !== 'resetAllProgress';
+  }
+
+  return false;
+}
+
+function updateAdminGlobalActionButtons() {
+  const forceLogoutAllBtn = document.getElementById('adminForceLogoutAllBtn');
+  const resetAllProgressBtn = document.getElementById('adminResetAllProgressBtn');
+  const canForceLogoutAll = canManageAction('forceLogoutAll');
+  const canResetAllProgress = canManageAction('resetAllProgress');
+
+  if (forceLogoutAllBtn) {
+    forceLogoutAllBtn.style.display = canForceLogoutAll ? '' : 'none';
+    forceLogoutAllBtn.disabled = !canForceLogoutAll;
+  }
+
+  if (resetAllProgressBtn) {
+    resetAllProgressBtn.style.display = canResetAllProgress ? '' : 'none';
+    resetAllProgressBtn.disabled = !canResetAllProgress;
+  }
+}
+
+function getDefaultViewModeForRole(role) {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'admin' || normalizedRole === 'moderator' ? 'admin' : 'user';
+}
+
+function ensureActionPermission(actionKey, deniedMessage) {
+  if (canManageAction(actionKey)) {
+    return true;
+  }
+
+  showNotification(deniedMessage || 'You do not have permission for this action.', { type: 'error' });
+  return false;
 }
 
 function isFirebaseConfigured() {
@@ -864,39 +1415,157 @@ function getCloudUsersCollection() {
   return cloudDb ? cloudDb.collection(CLOUD_USERS_COLLECTION) : null;
 }
 
-// Safe setter for currentUser: prefer canonical persistAllUserState if available,
-// otherwise fall back to direct localStorage write and update lastPersistAt.
-function safeSetCurrentUser(userObj) {
-  try {
-    if (typeof persistAllUserState === 'function' && typeof getStoredUsersSafe === 'function') {
-      persistAllUserState(getStoredUsersSafe(), userObj);
-      return;
-    }
-  } catch (e) {}
-  try {
-    localStorage.setItem('currentUser', JSON.stringify(userObj));
-    try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch(_) {}
-    try { console.debug('[persist] fallback wrote currentUser.faithPoints=', userObj && typeof userObj.faithPoints !== 'undefined' ? userObj.faithPoints : null, ' ts=', String(Date.now())); } catch(_) {}
-  } catch (e) {}
+// --- Force logout (admin action via Firestore) ---
+
+let forceLogoutPollIntervalId = null;
+
+function startForceLogoutListener() {
+  stopForceLogoutListener();
+  if (!currentUser?.email) return;
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection) return;
+  const normalizedEmail = normalizeEmail(currentUser.email);
+  const listenerStartedAt = Date.now();
+
+  function checkForceLogout() {
+    if (!currentUser) return;
+    usersCollection.doc(normalizedEmail).get().then(snapshot => {
+      if (!snapshot.exists || !currentUser) return;
+      const data = snapshot.data();
+      const cloudForceLogoutAt = Number(data.forceLogoutAt ?? 0) || 0;
+      if (cloudForceLogoutAt > 0 && cloudForceLogoutAt >= listenerStartedAt - 5000) {
+        usersCollection.doc(normalizedEmail).update({ forceLogoutAt: 0 }).catch(() => {});
+        performLogout({ auto: true, message: 'You have been logged out by an administrator.' });
+      }
+    }).catch(error => {
+      console.warn('Force logout poll error:', error);
+    });
+  }
+
+  // Check immediately, then every 5 seconds
+  checkForceLogout();
+  forceLogoutPollIntervalId = setInterval(checkForceLogout, 5000);
 }
 
-// Canonical persist: write `users` and `currentUser` together and update `lastPersistAt`.
-function persistAllUserState(users, currentUserObj) {
-  try {
-    // Normalize users array before writing
-    const normalized = Array.isArray(users) ? users.map(u => normalizeStoredUser(u, Date.now())) : [];
-    // Ensure currentUserObj is normalized
-    const normalizedCurrent = normalizeStoredUser(currentUserObj || {}, Date.now());
-
-    // Write users then currentUser to keep them in sync
-    try { localStorage.setItem('users', JSON.stringify(normalized)); } catch (e) {}
-    try { localStorage.setItem('currentUser', JSON.stringify(normalizedCurrent)); } catch (e) {}
-    try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch (e) {}
-
-    try { console.debug('[persist] persistAllUserState wrote users=', normalized.length, ' currentUser.faithPoints=', normalizedCurrent.faithPoints); } catch (e) {}
-  } catch (e) {
-    try { console.warn('persistAllUserState failed:', e); } catch (_) {}
+function stopForceLogoutListener() {
+  if (forceLogoutPollIntervalId) {
+    clearInterval(forceLogoutPollIntervalId);
+    forceLogoutPollIntervalId = null;
   }
+  if (typeof forceLogoutUnsubscribe === 'function') {
+    forceLogoutUnsubscribe();
+  }
+  forceLogoutUnsubscribe = null;
+}
+
+async function adminForceLogoutAll() {
+  if (!isAdminUser()) {
+    showNotification('Only admins can force logout all users.', { type: 'error' });
+    return;
+  }
+  if (!confirm('Are you sure you want to log out ALL users and moderators?\n\nThis will not affect admin accounts.')) return;
+
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection) {
+    showNotification('Cloud database not available. Cannot force logout remote users.', { type: 'error' });
+    return;
+  }
+  try {
+    const users = getStoredUsersSafe();
+    const nonAdminUsers = users.filter(u => getRoleByEmail(u.email, u.role) !== 'admin');
+    const now = Date.now();
+    await Promise.all(
+      nonAdminUsers.map(u =>
+        usersCollection.doc(normalizeEmail(u.email)).set({ forceLogoutAt: now }, { merge: true })
+      )
+    );
+    showNotification('Force logout signal sent. All users and moderators will be logged out.', { type: 'success' });
+  } catch (error) {
+    console.error('Force logout all failed:', error);
+    showNotification('Failed to send force logout signal.', { type: 'error' });
+  }
+}
+
+async function adminForceLogoutUser(userId) {
+  if (!isAdminUser()) {
+    showNotification('Only admins can force logout users.', { type: 'error' });
+    return;
+  }
+  const users = getStoredUsersSafe();
+  const targetUser = users.find(u => Number(u.id) === Number(userId));
+  if (!targetUser) {
+    showNotification('User not found.', { type: 'error' });
+    return;
+  }
+  const targetRole = getRoleByEmail(targetUser.email, targetUser.role);
+  if (targetRole === 'admin') {
+    showNotification('Cannot force logout an admin user.', { type: 'warning' });
+    return;
+  }
+  const targetName = escapeHtml(targetUser.name || targetUser.email);
+  if (!confirm(`Are you sure you want to log out ${targetUser.name || targetUser.email}?`)) return;
+
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection) {
+    showNotification('Cloud database not available. Cannot force logout remote users.', { type: 'error' });
+    return;
+  }
+  const normalizedTargetEmail = normalizeEmail(targetUser.email);
+  try {
+    await usersCollection.doc(normalizedTargetEmail).set({ forceLogoutAt: Date.now() }, { merge: true });
+    showNotification(`Force logout signal sent to ${targetName}.`, { type: 'success' });
+  } catch (error) {
+    console.error('Force logout user failed:', error);
+    showNotification('Failed to send force logout signal.', { type: 'error' });
+  }
+}
+
+async function adminResetAllProgress() {
+  if (!isAdminUser()) {
+    showNotification('Only admins can reset all users progress.', { type: 'error' });
+    return;
+  }
+  if (!confirm('Are you sure you want to reset progress for ALL users and moderators?\n\nThis will not affect admin accounts.\nThis action cannot be undone.')) return;
+
+  const users = getStoredUsersSafe();
+  let resetCount = 0;
+
+  for (let i = 0; i < users.length; i++) {
+    const role = getRoleByEmail(users[i].email, users[i].role);
+    if (role === 'admin') continue;
+
+    users[i].faithPoints = 0;
+    users[i].treeProgress = 0;
+    users[i].passiveRate = 1;
+    users[i].fruitCount = 0;
+    users[i].pointsForFruit = 0;
+    users[i].maxBloomReached = false;
+    users[i].taskCompletions = {};
+    users[i].dailyLoginState = normalizeDailyLoginState({});
+    resetCount++;
+  }
+
+  setStoredUsers(users);
+
+  // Sync each reset user to cloud
+  const usersCollection = getCloudUsersCollection();
+  if (usersCollection) {
+    try {
+      await Promise.all(
+        users
+          .filter(u => getRoleByEmail(u.email, u.role) !== 'admin')
+          .map(u => upsertUserInCloud(u))
+      );
+    } catch (error) {
+      console.warn('Cloud sync for reset all progress failed:', error);
+    }
+  }
+
+  // If the current admin session user got reset (shouldn't happen), sync session
+  users.forEach(u => syncCurrentSessionIfNeeded(u));
+
+  renderAdminDashboard();
+  showNotification(`Progress reset for ${resetCount} user${resetCount === 1 ? '' : 's'}.`, { type: 'success' });
 }
 
 function stopCurrentUserCloudSync() {
@@ -916,7 +1585,9 @@ function haveCloudUserStateDifferences(baseUser, incomingUser) {
     'treeProgress',
     'passiveRate',
     'fruitCount',
-    'pointsForFruit'
+    'pointsForFruit',
+    'loginStreakCurrent',
+    'loginStreakLongest'
   ];
 
   const hasNumericDiff = trackedNumberFields.some(field => {
@@ -939,7 +1610,29 @@ function haveCloudUserStateDifferences(baseUser, incomingUser) {
 
   const baseDailyLoginState = JSON.stringify(normalizeDailyLoginState(baseUser.dailyLoginState));
   const incomingDailyLoginState = JSON.stringify(normalizeDailyLoginState(incomingUser.dailyLoginState));
-  return baseDailyLoginState !== incomingDailyLoginState;
+  if (baseDailyLoginState !== incomingDailyLoginState) {
+    return true;
+  }
+
+  const baseRole = getRoleByEmail(baseUser.email, baseUser.role);
+  const incomingRole = getRoleByEmail(incomingUser.email, incomingUser.role);
+  if (baseRole !== incomingRole) {
+    return true;
+  }
+
+  const baseRoleUpdatedAt = Number(baseUser.roleUpdatedAt ?? 0);
+  const incomingRoleUpdatedAt = Number(incomingUser.roleUpdatedAt ?? 0);
+  if (baseRoleUpdatedAt !== incomingRoleUpdatedAt) {
+    return true;
+  }
+
+  const baseViewMode = String(baseUser.viewMode || 'user');
+  const incomingViewMode = String(incomingUser.viewMode || 'user');
+  if (baseViewMode !== incomingViewMode) {
+    return true;
+  }
+
+  return String(baseUser.lastLoginDateKey || '') !== String(incomingUser.lastLoginDateKey || '');
 }
 
 function startCurrentUserCloudSync() {
@@ -955,12 +1648,24 @@ function startCurrentUserCloudSync() {
   }
 
   const normalizedEmail = normalizeEmail(currentUser.email);
+  const syncStartedAt = Date.now();
   currentUserCloudUnsubscribe = usersCollection.doc(normalizedEmail).onSnapshot(snapshot => {
     if (!snapshot.exists || !currentUser) {
       return;
     }
 
-    const cloudUser = normalizeStoredUser(snapshot.data(), currentUser.id);
+    const rawData = snapshot.data();
+
+    // Check for admin-triggered force logout on the user's own document
+    const cloudForceLogoutAt = Number(rawData.forceLogoutAt ?? 0) || 0;
+    if (cloudForceLogoutAt > 0 && cloudForceLogoutAt >= syncStartedAt - 5000) {
+      // Clear the flag so user isn't logged out again on next login
+      usersCollection.doc(normalizedEmail).update({ forceLogoutAt: 0 }).catch(() => {});
+      performLogout({ auto: true, message: 'You have been logged out by an administrator.' });
+      return;
+    }
+
+    const cloudUser = normalizeStoredUser(rawData, currentUser.id);
     if (!cloudUser?.email || normalizeEmail(cloudUser.email) !== normalizeEmail(currentUser.email)) {
       return;
     }
@@ -968,23 +1673,81 @@ function startCurrentUserCloudSync() {
     // Ignore stale snapshots so recent local progress (like FP gains) is not rolled back.
     const localUpdatedAt = Number(currentUser.updatedAt ?? currentUser.lastActiveAt ?? 0);
     const cloudUpdatedAt = Number(cloudUser.updatedAt ?? cloudUser.lastActiveAt ?? 0);
-    if (
-      Number.isFinite(localUpdatedAt) &&
-      localUpdatedAt > 0 &&
-      Number.isFinite(cloudUpdatedAt) &&
-      cloudUpdatedAt > 0 &&
-      cloudUpdatedAt < localUpdatedAt
-    ) {
-      debugFpLog('cloud-snapshot-ignored-stale', {
+    const localRoleUpdatedAt = Number(currentUser.roleUpdatedAt ?? 0);
+    const cloudRoleUpdatedAt = Number(cloudUser.roleUpdatedAt ?? 0);
+    const rollbackMetrics = getRollbackMetrics(
+      {
+        ...currentUser,
+        faithPoints: Math.floor(Number(faithPoints ?? currentUser.faithPoints ?? 0) || 0),
+        dailyLoginState
+      },
+      cloudUser,
+      {
+        localDailyLoginState: dailyLoginState,
+        incomingDailyLoginState: cloudUser.dailyLoginState
+      }
+    );
+    const shouldApplyRoleUpdate = Number.isFinite(cloudRoleUpdatedAt)
+      && cloudRoleUpdatedAt > 0
+      && (!Number.isFinite(localRoleUpdatedAt) || cloudRoleUpdatedAt > localRoleUpdatedAt);
+    const hasCloudTimestamp = Number.isFinite(cloudUpdatedAt) && cloudUpdatedAt > 0;
+    const hasLocalTimestamp = Number.isFinite(localUpdatedAt) && localUpdatedAt > 0;
+    const isCloudClearlyNewer = hasCloudTimestamp && (!hasLocalTimestamp || cloudUpdatedAt > localUpdatedAt);
+    const isCloudStaleByTimestamp = hasLocalTimestamp && hasCloudTimestamp && cloudUpdatedAt < localUpdatedAt;
+    const shouldIgnoreRollback = rollbackMetrics.hasRollback && !isCloudClearlyNewer && !shouldApplyRoleUpdate;
+    let cloudUserToApply = cloudUser;
+
+    if (shouldApplyRoleUpdate && rollbackMetrics.hasRollback) {
+      // Apply role changes without allowing game progress to move backwards.
+      cloudUserToApply = {
+        ...cloudUser,
+        faithPoints: Math.floor(Number(faithPoints ?? currentUser.faithPoints ?? 0) || 0),
+        loginStreakCurrent: Math.max(
+          getUserCurrentLoginStreak(currentUser),
+          getLegacyDailyLoginStreak(dailyLoginState)
+        ),
+        loginStreakLongest: Math.max(
+          getUserLongestLoginStreak(currentUser),
+          getUserLongestLoginStreak(cloudUser)
+        ),
+        dailyLoginState: normalizeDailyLoginState(dailyLoginState),
+        updatedAt: Math.max(localUpdatedAt || 0, cloudUpdatedAt || 0)
+      };
+
+      debugFpLog('cloud-snapshot-role-update-without-rollback', {
         localUpdatedAt,
         cloudUpdatedAt,
+        localRoleUpdatedAt,
+        cloudRoleUpdatedAt,
+        fpRollbackAmount: rollbackMetrics.fpRollbackAmount,
+        streakRollbackDays: rollbackMetrics.streakRollbackDays
+      });
+    }
+    if (
+      !shouldApplyRoleUpdate
+      && (isCloudStaleByTimestamp || shouldIgnoreRollback)
+    ) {
+      const ignoredEventName = isCloudStaleByTimestamp
+        ? 'cloud-snapshot-ignored-stale'
+        : 'cloud-snapshot-ignored-rollback';
+      debugFpLog(ignoredEventName, {
+        localUpdatedAt,
+        cloudUpdatedAt,
+        localRoleUpdatedAt,
+        cloudRoleUpdatedAt,
+        fpRollbackAmount: rollbackMetrics.fpRollbackAmount,
+        streakRollbackDays: rollbackMetrics.streakRollbackDays,
+        dailyLoginRollbackDetected: rollbackMetrics.dailyLoginRollbackDetected,
         localFaithPoints: Math.floor(Number(currentUser.faithPoints ?? faithPoints ?? 0) || 0),
         cloudFaithPoints: Math.floor(Number(cloudUser.faithPoints ?? 0) || 0)
       });
+      if (rollbackMetrics.hasRollback) {
+        showNotification(formatRollbackPreventionMessage(rollbackMetrics), { type: 'warning', duration: 6500 });
+      }
       return;
     }
 
-    if (!haveCloudUserStateDifferences(currentUser, cloudUser)) {
+    if (!haveCloudUserStateDifferences(currentUser, cloudUserToApply)) {
       return;
     }
 
@@ -992,7 +1755,7 @@ function startCurrentUserCloudSync() {
       localUpdatedAt,
       cloudUpdatedAt,
       previousFaithPoints: Math.floor(Number(currentUser.faithPoints ?? faithPoints ?? 0) || 0),
-      incomingFaithPoints: Math.floor(Number(cloudUser.faithPoints ?? 0) || 0)
+      incomingFaithPoints: Math.floor(Number(cloudUserToApply.faithPoints ?? 0) || 0)
     });
 
     const users = getStoredUsersSafe();
@@ -1000,17 +1763,17 @@ function startCurrentUserCloudSync() {
     if (userIndex !== -1) {
       users[userIndex] = {
         ...users[userIndex],
-        ...cloudUser,
-        role: getRoleByEmail(cloudUser.email)
+        ...cloudUserToApply,
+        role: getRoleByEmail(cloudUserToApply.email, cloudUserToApply.role)
       };
       localStorage.setItem('users', JSON.stringify(users));
     }
 
     currentUser = {
       ...currentUser,
-      ...cloudUser,
-      role: getRoleByEmail(cloudUser.email),
-      viewMode: currentUser.viewMode ?? cloudUser.viewMode ?? 'user'
+      ...cloudUserToApply,
+      role: getRoleByEmail(cloudUserToApply.email, cloudUserToApply.role),
+      viewMode: currentUser.viewMode ?? cloudUserToApply.viewMode ?? 'user'
     };
     delete currentUser.password;
     safeSetCurrentUser(currentUser);
@@ -1028,14 +1791,27 @@ function normalizeStoredUser(user, fallbackId) {
     ? parsedUserId
     : (Number.isFinite(fallbackNumericId) ? fallbackNumericId : Date.now());
   const parsedLastActiveAt = Number(user?.lastActiveAt ?? user?.updatedAt ?? 0);
+  const parsedLastLoginAt = Number(user?.lastLoginAt ?? 0);
+  const parsedRoleUpdatedAt = Number(user?.roleUpdatedAt ?? 0);
+  const parsedLoginStreakCurrent = Number(user?.loginStreakCurrent ?? 0);
+  const parsedLoginStreakLongest = Number(user?.loginStreakLongest ?? 0);
 
   return {
     ...user,
     id: safeUserId,
-    email: normalizeEmail(user?.email),
-    role: getRoleByEmail(user?.email),
+    email: getCorrectedEmail(user?.email),
+    role: getRoleByEmail(user?.email, user?.role),
+    roleUpdatedAt: Number.isFinite(parsedRoleUpdatedAt) && parsedRoleUpdatedAt > 0 ? parsedRoleUpdatedAt : 0,
+    loginStreakCurrent: Number.isFinite(parsedLoginStreakCurrent) && parsedLoginStreakCurrent > 0
+      ? Math.floor(parsedLoginStreakCurrent)
+      : 0,
+    loginStreakLongest: Number.isFinite(parsedLoginStreakLongest) && parsedLoginStreakLongest > 0
+      ? Math.floor(parsedLoginStreakLongest)
+      : 0,
+    lastLoginDateKey: typeof user?.lastLoginDateKey === 'string' ? user.lastLoginDateKey : '',
     viewMode: user?.viewMode ?? 'user',
     lastLogin: user?.lastLogin ?? '',
+    lastLoginAt: Number.isFinite(parsedLastLoginAt) && parsedLastLoginAt > 0 ? parsedLastLoginAt : '',
     lastActiveAt: Number.isFinite(parsedLastActiveAt) && parsedLastActiveAt > 0 ? parsedLastActiveAt : '',
     taskCompletions: user?.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {},
     dailyLoginState: normalizeDailyLoginState(user?.dailyLoginState)
@@ -1065,6 +1841,26 @@ function getLastActiveTimestamp(user) {
   return Number.isFinite(candidate) && candidate > 0 ? candidate : 0;
 }
 
+function getUserLoginDateKeyForAnalytics(user) {
+  const explicitDateKey = normalizeDateKey(user?.lastLoginDateKey);
+  if (explicitDateKey) {
+    return explicitDateKey;
+  }
+
+  const parsedLastLoginDateKey = normalizeDateKey(user?.lastLogin);
+  if (parsedLastLoginDateKey) {
+    return parsedLastLoginDateKey;
+  }
+
+  // Legacy fallback for accounts without explicit login date fields.
+  const lastActive = getLastActiveTimestamp(user);
+  if (lastActive > 0) {
+    return getDateKeyFromDate(new Date(lastActive));
+  }
+
+  return '';
+}
+
 function sanitizeUserForCloud(user) {
   const normalizedUser = normalizeStoredUser(user, Date.now());
   return {
@@ -1081,7 +1877,16 @@ async function upsertUserInCloud(user) {
 
   try {
     const normalizedEmail = normalizeEmail(user.email);
-    await usersCollection.doc(normalizedEmail).set(sanitizeUserForCloud(user), { merge: true });
+    const cloudUser = sanitizeUserForCloud(user);
+    const {
+      taskCompletions = {},
+      dailyLoginState = normalizeDailyLoginState({}),
+      ...cloudUserFields
+    } = cloudUser;
+    const userDoc = usersCollection.doc(normalizedEmail);
+
+    await userDoc.set(cloudUserFields, { merge: true });
+    await userDoc.update({ taskCompletions, dailyLoginState });
   } catch (error) {
     console.warn('Cloud upsert failed:', error);
   }
@@ -1111,6 +1916,154 @@ function syncUsersToCloud(users) {
   });
 }
 
+function getRollbackRecoveryMap() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ROLLBACK_RECOVERY_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function hasRollbackRecoveryRunForEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return false;
+  }
+
+  const recoveryMap = getRollbackRecoveryMap();
+  return recoveryMap[normalizedEmail] === true;
+}
+
+function markRollbackRecoveryRunForEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return;
+  }
+
+  const recoveryMap = getRollbackRecoveryMap();
+  recoveryMap[normalizedEmail] = true;
+  localStorage.setItem(ROLLBACK_RECOVERY_KEY, JSON.stringify(recoveryMap));
+}
+
+async function runRollbackRecoveryForCurrentUserOnce() {
+  if (!currentUser?.email) {
+    return null;
+  }
+
+  const normalizedEmail = normalizeEmail(currentUser.email);
+  if (!normalizedEmail || hasRollbackRecoveryRunForEmail(normalizedEmail)) {
+    return null;
+  }
+
+  const users = getStoredUsersSafe();
+  const storedUser = users.find(user => normalizeEmail(user.email) === normalizedEmail) || null;
+  let cloudUser = null;
+
+  const usersCollection = getCloudUsersCollection();
+  if (usersCollection) {
+    try {
+      const snapshot = await usersCollection.doc(normalizedEmail).get();
+      if (snapshot.exists) {
+        cloudUser = normalizeStoredUser(snapshot.data(), currentUser.id);
+      }
+    } catch (error) {
+      debugFpLog('rollback-recovery-cloud-read-error', {
+        error: String(error?.message || error)
+      });
+    }
+  }
+
+  const currentUserState = {
+    ...currentUser,
+    faithPoints: Math.floor(Number(currentUser.faithPoints ?? 0) || 0),
+    dailyLoginState: normalizeDailyLoginState(currentUser.dailyLoginState ?? dailyLoginState)
+  };
+  const candidateUsers = [currentUserState, storedUser, cloudUser].filter(Boolean);
+  if (candidateUsers.length === 0) {
+    markRollbackRecoveryRunForEmail(normalizedEmail);
+    return null;
+  }
+
+  const bestFaithPoints = Math.max(...candidateUsers.map(user => Math.floor(Number(user.faithPoints ?? 0) || 0)));
+  const bestCurrentStreak = Math.max(...candidateUsers.map(user => getUserCurrentLoginStreak(user)));
+  const bestLongestStreak = Math.max(...candidateUsers.map(user => getUserLongestLoginStreak(user)));
+
+  const bestDailySource = candidateUsers.reduce((bestUser, candidateUser) => {
+    if (!bestUser) {
+      return candidateUser;
+    }
+
+    const bestScore = getLegacyDailyLoginStreak(bestUser.dailyLoginState);
+    const candidateScore = getLegacyDailyLoginStreak(candidateUser.dailyLoginState);
+    return candidateScore > bestScore ? candidateUser : bestUser;
+  }, null);
+
+  const recoveredFp = Math.max(0, bestFaithPoints - Math.floor(Number(currentUserState.faithPoints ?? 0) || 0));
+  const recoveredStreakDays = Math.max(0, bestCurrentStreak - getUserCurrentLoginStreak(currentUserState));
+
+  if (recoveredFp === 0 && recoveredStreakDays === 0) {
+    markRollbackRecoveryRunForEmail(normalizedEmail);
+    return {
+      recoveredFp: 0,
+      recoveredStreakDays: 0
+    };
+  }
+
+  const now = Date.now();
+  const recoveredDailyLoginState = normalizeDailyLoginState(bestDailySource?.dailyLoginState ?? dailyLoginState);
+
+  currentUser.faithPoints = bestFaithPoints;
+  currentUser.loginStreakCurrent = Math.max(bestCurrentStreak, 1);
+  currentUser.loginStreakLongest = Math.max(bestLongestStreak, currentUser.loginStreakCurrent);
+  currentUser.dailyLoginState = recoveredDailyLoginState;
+  currentUser.lastActiveAt = now;
+  currentUser.updatedAt = now;
+
+  const userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedEmail);
+  if (userIndex !== -1) {
+    users[userIndex] = {
+      ...users[userIndex],
+      faithPoints: bestFaithPoints,
+      loginStreakCurrent: currentUser.loginStreakCurrent,
+      loginStreakLongest: currentUser.loginStreakLongest,
+      dailyLoginState: recoveredDailyLoginState,
+      lastActiveAt: now,
+      updatedAt: now
+    };
+  } else {
+    users.push(normalizeStoredUser(currentUser, currentUser.id));
+  }
+
+  setStoredUsers(users);
+  faithPoints = bestFaithPoints;
+  dailyLoginState = recoveredDailyLoginState;
+  safeSetCurrentUser(currentUser);
+  await upsertUserInCloud(currentUser);
+
+  debugFpLog('rollback-recovery-applied', {
+    recoveredFp,
+    recoveredStreakDays,
+    restoredFaithPoints: bestFaithPoints,
+    restoredCurrentStreak: currentUser.loginStreakCurrent,
+    restoredLongestStreak: currentUser.loginStreakLongest
+  });
+
+  showNotification(
+    `Recovery applied: +${recoveredFp} FP, +${recoveredStreakDays} day(s) streak restored.`,
+    {
+      type: 'success',
+      duration: 7000
+    }
+  );
+
+  markRollbackRecoveryRunForEmail(normalizedEmail);
+  return {
+    recoveredFp,
+    recoveredStreakDays
+  };
+}
+
 function mergeUsersByLatestTimestamp(localUsers, cloudUsers) {
   const mergedByEmail = new Map();
 
@@ -1137,9 +2090,31 @@ function mergeUsersByLatestTimestamp(localUsers, cloudUsers) {
 
       const localUpdatedAt = Number(localUser.updatedAt ?? 0);
       const cloudUpdatedAt = Number(cloudUser.updatedAt ?? 0);
-      if (Number.isFinite(cloudUpdatedAt) && cloudUpdatedAt > localUpdatedAt) {
-        mergedByEmail.set(cloudUser.email, cloudUser);
-      }
+      const latestUser = Number.isFinite(cloudUpdatedAt) && cloudUpdatedAt > localUpdatedAt
+        ? cloudUser
+        : localUser;
+
+      // Resolve role independently from activity timestamps so progress saves do not overwrite role changes.
+      const localRoleUpdatedAt = Number(localUser.roleUpdatedAt ?? 0);
+      const cloudRoleUpdatedAt = Number(cloudUser.roleUpdatedAt ?? 0);
+      const localResolvedRole = getRoleByEmail(localUser.email, localUser.role);
+      const cloudResolvedRole = getRoleByEmail(cloudUser.email, cloudUser.role);
+      const shouldPreferCloudRole = cloudRoleUpdatedAt > localRoleUpdatedAt
+        || (
+          cloudRoleUpdatedAt === localRoleUpdatedAt
+          && localResolvedRole === 'user'
+          && cloudResolvedRole !== 'user'
+        );
+      const roleSource = shouldPreferCloudRole ? cloudUser : localUser;
+
+      mergedByEmail.set(cloudUser.email, {
+        ...latestUser,
+        role: getRoleByEmail(latestUser.email, roleSource.role),
+        roleUpdatedAt: Math.max(
+          Number.isFinite(localRoleUpdatedAt) ? localRoleUpdatedAt : 0,
+          Number.isFinite(cloudRoleUpdatedAt) ? cloudRoleUpdatedAt : 0
+        )
+      });
     });
 
   return Array.from(mergedByEmail.values());
@@ -1185,12 +2160,94 @@ async function migrateLocalUsersToCloudOnce() {
   localStorage.setItem(CLOUD_MIGRATION_KEY, 'done');
 }
 
+async function applyEmailCorrections() {
+  const corrections = Object.entries(EMAIL_CORRECTIONS);
+  if (corrections.length === 0) {
+    return;
+  }
+
+  const users = getStoredUsersSafe();
+  let usersChanged = false;
+
+  corrections.forEach(([fromEmailRaw, toEmailRaw]) => {
+    const fromEmail = normalizeEmail(fromEmailRaw);
+    const toEmail = normalizeEmail(toEmailRaw);
+    if (!fromEmail || !toEmail || fromEmail === toEmail) {
+      return;
+    }
+
+    const fromIndex = users.findIndex(user => normalizeEmail(user.email) === fromEmail);
+    if (fromIndex === -1) {
+      return;
+    }
+
+    const existingTargetIndex = users.findIndex(user => normalizeEmail(user.email) === toEmail);
+    const sourceUser = { ...users[fromIndex], email: toEmail, updatedAt: Date.now() };
+
+    if (existingTargetIndex !== -1 && existingTargetIndex !== fromIndex) {
+      const targetUser = users[existingTargetIndex];
+      const sourceUpdatedAt = Number(sourceUser.updatedAt ?? sourceUser.lastActiveAt ?? 0);
+      const targetUpdatedAt = Number(targetUser.updatedAt ?? targetUser.lastActiveAt ?? 0);
+      users[existingTargetIndex] = sourceUpdatedAt >= targetUpdatedAt ? sourceUser : targetUser;
+      users.splice(fromIndex, 1);
+    } else {
+      users[fromIndex] = sourceUser;
+    }
+
+    usersChanged = true;
+  });
+
+  if (usersChanged) {
+    setStoredUsers(users);
+  }
+
+  if (currentUser?.email) {
+    const correctedCurrentEmail = getCorrectedEmail(currentUser.email);
+    if (correctedCurrentEmail !== normalizeEmail(currentUser.email)) {
+      currentUser.email = correctedCurrentEmail;
+      safeSetCurrentUser(currentUser);
+    }
+  }
+
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection) {
+    return;
+  }
+
+  for (const [fromEmailRaw, toEmailRaw] of corrections) {
+    const fromEmail = normalizeEmail(fromEmailRaw);
+    const toEmail = normalizeEmail(toEmailRaw);
+    if (!fromEmail || !toEmail || fromEmail === toEmail) {
+      continue;
+    }
+
+    try {
+      const fromDocRef = usersCollection.doc(fromEmail);
+      const fromSnapshot = await fromDocRef.get();
+      if (!fromSnapshot.exists) {
+        continue;
+      }
+
+      const correctedCloudUser = {
+        ...normalizeStoredUser(fromSnapshot.data(), Date.now()),
+        email: toEmail,
+        updatedAt: Date.now()
+      };
+
+      await usersCollection.doc(toEmail).set(correctedCloudUser, { merge: true });
+      await fromDocRef.delete();
+    } catch (error) {
+      console.warn('Email correction sync failed:', error);
+    }
+  }
+}
+
 function enforceAdminRoleInStorage() {
   const safeUsers = getStoredUsersSafe();
   let usersChanged = false;
 
   const normalizedUsers = safeUsers.map(user => {
-    const expectedRole = getRoleByEmail(user.email);
+    const expectedRole = getRoleByEmail(user.email, user.role);
     if (user.role !== expectedRole) {
       usersChanged = true;
       return { ...user, role: expectedRole };
@@ -1206,7 +2263,7 @@ function enforceAdminRoleInStorage() {
   if (currentUserRaw) {
     try {
       const parsedCurrentUser = JSON.parse(currentUserRaw);
-      const expectedRole = getRoleByEmail(parsedCurrentUser.email);
+      const expectedRole = getRoleByEmail(parsedCurrentUser.email, parsedCurrentUser.role);
       if (parsedCurrentUser.role !== expectedRole) {
         parsedCurrentUser.role = expectedRole;
         safeSetCurrentUser(parsedCurrentUser);
@@ -1220,6 +2277,7 @@ function enforceAdminRoleInStorage() {
 // Initialize app
 async function initializeApp() {
   initializeCloudDatabase();
+  await applyEmailCorrections();
   await migrateLocalUsersToCloudOnce();
   await syncUsersFromCloudToLocal();
   enforceAdminRoleInStorage();
@@ -1227,16 +2285,37 @@ async function initializeApp() {
     setAppNotificationEnabled(true);
   }
   currentUser = localStorage.getItem('currentUser');
+  hasAutoPromptedDailyLogin = false;
   
   if (currentUser) {
     currentUser = JSON.parse(currentUser);
     hydrateCurrentUserFromStoredUsers();
+    const users = getStoredUsersSafe();
+    const currentIndex = findUserIndexForSession(users, currentUser);
+    if (currentIndex !== -1) {
+      updateConsecutiveLoginStats(users[currentIndex]);
+      users[currentIndex].lastActiveAt = Date.now();
+      users[currentIndex].updatedAt = Date.now();
+      setStoredUsers(users);
+      currentUser = {
+        ...currentUser,
+        ...users[currentIndex]
+      };
+      delete currentUser.password;
+      safeSetCurrentUser(currentUser);
+    }
+    await runRollbackRecoveryForCurrentUserOnce();
     showAppInterface();
     loadUserData();
     updateDisplay({ persist: false });
+    autoPromptDailyLoginIfPending();
     startCurrentUserCloudSync();
     startScheduledReminders();
+    startInactivityTimer();
+    startForceLogoutListener();
   } else {
+    stopInactivityTimer();
+    stopForceLogoutListener();
     stopCurrentUserCloudSync();
     resetGameState();
     showAuthInterface();
@@ -1258,7 +2337,7 @@ function showAppInterface() {
 }
 
 function isAdminUser() {
-  return currentUser?.role === 'admin' || getRoleByEmail(currentUser?.email) === 'admin';
+  return getCurrentUserRole() === 'admin';
 }
 
 function getCurrentViewMode() {
@@ -1266,7 +2345,7 @@ function getCurrentViewMode() {
     return 'user';
   }
 
-  if (!isAdminUser()) {
+  if (!hasManagementAccess()) {
     return 'user';
   }
 
@@ -1274,12 +2353,13 @@ function getCurrentViewMode() {
 }
 
 function applyViewModeUI() {
-  const isAdmin = isAdminUser();
+  const hasManagement = hasManagementAccess();
   const mode = getCurrentViewMode();
-  const isAdminView = isAdmin && mode === 'admin';
+  const isAdminView = hasManagement && mode === 'admin';
+  const currentRole = getCurrentUserRole();
 
-    if (isAdmin && currentUser && currentUser.role !== 'admin') {
-    currentUser.role = 'admin';
+  if (hasManagement && currentUser && currentUser.role !== currentRole) {
+    currentUser.role = currentRole;
     safeSetCurrentUser(currentUser);
   }
 
@@ -1296,9 +2376,9 @@ function applyViewModeUI() {
 
   const toggleBtn = document.getElementById('switchAdminViewBtn');
   if (toggleBtn) {
-    if (isAdmin) {
+    if (hasManagement) {
       toggleBtn.style.display = 'block';
-      toggleBtn.textContent = isAdminView ? 'Switch to User View' : 'Switch to Admin View';
+      toggleBtn.textContent = isAdminView ? 'Switch to User View' : 'Switch to Management View';
     } else {
       toggleBtn.style.display = 'none';
     }
@@ -1306,9 +2386,11 @@ function applyViewModeUI() {
 
   const modeIndicator = document.getElementById('viewModeIndicator');
   if (modeIndicator) {
-    modeIndicator.style.display = isAdmin ? 'inline-block' : 'none';
-    modeIndicator.textContent = isAdminView ? 'ADMIN VIEW' : 'USER VIEW';
+    modeIndicator.style.display = hasManagement ? 'inline-block' : 'none';
+    modeIndicator.textContent = isAdminView ? 'MANAGEMENT VIEW' : 'USER VIEW';
   }
+
+  updateAdminGlobalActionButtons();
 
   removeLegacyAdminFaithPointsCard();
   syncProfilePillVisibilityForViewport();
@@ -1316,6 +2398,25 @@ function applyViewModeUI() {
   if (isAdminView) {
     renderAdminDashboard();
   }
+}
+
+function switchToUserHome() {
+  if (!currentUser) {
+    return;
+  }
+
+  currentUser.viewMode = 'user';
+  applyViewModeUI();
+  saveUserData();
+}
+
+function scrollAdminSection(sectionId) {
+  const target = document.getElementById(sectionId);
+  if (!target) {
+    return;
+  }
+
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function removeLegacyAdminFaithPointsCard() {
@@ -1330,12 +2431,13 @@ function removeLegacyAdminFaithPointsCard() {
 }
 
 function toggleAdminView() {
-  if (getRoleByEmail(currentUser?.email) === 'admin' && currentUser?.role !== 'admin') {
-    currentUser.role = 'admin';
+  const roleFromEmail = getRoleByEmail(currentUser?.email, currentUser?.role);
+  if (roleFromEmail !== currentUser?.role) {
+    currentUser.role = roleFromEmail;
   }
 
-  if (!isAdminUser()) {
-    showNotification('Only admin users can switch to admin view.', { type: 'error' });
+  if (!hasManagementAccess()) {
+    showNotification('Only admin or moderator users can switch to management view.', { type: 'error' });
     return;
   }
 
@@ -1345,7 +2447,7 @@ function toggleAdminView() {
 }
 
 async function renderAdminDashboard(syncFromCloud = true) {
-  if (!isAdminUser() || getCurrentViewMode() !== 'admin') {
+  if (!hasManagementAccess() || getCurrentViewMode() !== 'admin') {
     return;
   }
 
@@ -1355,37 +2457,163 @@ async function renderAdminDashboard(syncFromCloud = true) {
 
   removeLegacyAdminFaithPointsCard();
 
-  const users = JSON.parse(localStorage.getItem('users') || '[]');
-  const safeUsers = Array.isArray(users) ? users : [];
+  const safeUsers = getStoredUsersSafe();
+  const roleOfCurrentUser = getCurrentUserRole();
+  const usersVisibleToCurrentUser = roleOfCurrentUser === 'moderator'
+    ? safeUsers.filter(user => getRoleByEmail(user.email, user.role) !== 'admin')
+    : safeUsers;
 
   const totalUsers = safeUsers.length;
-  const totalAdmins = safeUsers.filter(user => getRoleByEmail(user.email) === 'admin').length;
+  const totalAdmins = safeUsers.filter(user => getRoleByEmail(user.email, user.role) === 'admin').length;
+  const totalModerators = safeUsers.filter(user => getRoleByEmail(user.email, user.role) === 'moderator').length;
+
+  const now = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const activeUsers = safeUsers.filter(user => {
+    const lastActive = getLastActiveTimestamp(user);
+    return lastActive > 0 && (now - lastActive) <= oneDayMs;
+  }).length;
+  const inactiveUsers = Math.max(totalUsers - activeUsers, 0);
+
+  const taskKeys = Object.keys(taskRecurrenceRules);
+  const completedTaskCount = safeUsers.reduce((sum, user) => {
+    const userTaskCompletions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
+    return sum + taskKeys.filter(taskKey => {
+      const rule = taskRecurrenceRules[taskKey];
+      if (!rule) {
+        return false;
+      }
+
+      return userTaskCompletions[taskKey] === getCurrentPeriodKey(rule.unit);
+    }).length;
+  }, 0);
+  const totalTaskSlots = Math.max(totalUsers * taskKeys.length, 1);
+  const taskCompletionRate = Math.round((completedTaskCount / totalTaskSlots) * 100);
+
+  const trendDays = 7;
+  const trendCounts = [];
+  for (let dayOffset = trendDays - 1; dayOffset >= 0; dayOffset--) {
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    dayStart.setDate(dayStart.getDate() - dayOffset);
+    const dayKey = getDateKeyFromDate(dayStart);
+
+    const count = safeUsers.filter(user => {
+      return getUserLoginDateKeyForAnalytics(user) === dayKey;
+    }).length;
+
+    trendCounts.push({
+      label: dayStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      value: count
+    });
+  }
 
   const totalUsersEl = document.getElementById('adminTotalUsers');
   const totalAdminsEl = document.getElementById('adminTotalAdmins');
+  const totalModeratorsEl = document.getElementById('adminTotalModerators');
+  const activeUsersEl = document.getElementById('adminActiveUsers');
+  const inactiveUsersEl = document.getElementById('adminInactiveUsers');
+  const taskCompletionRateEl = document.getElementById('adminTaskCompletionRate');
   const taskRefreshEl = document.getElementById('adminTaskRefreshTime');
+  const dailyTrendEl = document.getElementById('adminDailyLoginTrend');
+  const taskSummaryEl = document.getElementById('adminTaskStatusSummary');
 
   if (totalUsersEl) totalUsersEl.textContent = String(totalUsers);
   if (totalAdminsEl) totalAdminsEl.textContent = String(totalAdmins);
+  if (totalModeratorsEl) totalModeratorsEl.textContent = String(totalModerators);
+  if (activeUsersEl) activeUsersEl.textContent = String(activeUsers);
+  if (inactiveUsersEl) inactiveUsersEl.textContent = String(inactiveUsers);
+  if (taskCompletionRateEl) taskCompletionRateEl.textContent = `${taskCompletionRate}%`;
   if (taskRefreshEl) taskRefreshEl.textContent = `Task refresh: ${getTaskRefreshTimeLabel()}`;
+
+  if (dailyTrendEl) {
+    const maxTrendValue = Math.max(...trendCounts.map(entry => entry.value), 1);
+    dailyTrendEl.innerHTML = trendCounts
+      .map(entry => {
+        const widthPct = Math.max(6, Math.round((entry.value / maxTrendValue) * 100));
+        return `
+          <div class="admin-bar-row">
+            <span class="admin-bar-label">${escapeHtml(entry.label)}</span>
+            <div class="admin-bar-track">
+              <div class="admin-bar-fill" style="width: ${widthPct}%;"></div>
+            </div>
+            <strong class="admin-bar-value">${entry.value}</strong>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  if (taskSummaryEl) {
+    const taskRows = taskKeys.map(taskKey => {
+      const doneCount = safeUsers.filter(user => {
+        const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
+        const rule = taskRecurrenceRules[taskKey];
+        return completions[taskKey] === getCurrentPeriodKey(rule.unit);
+      }).length;
+
+      return {
+        taskName: taskDisplayNames[taskKey] || taskKey,
+        doneCount,
+        rate: totalUsers > 0 ? Math.round((doneCount / totalUsers) * 100) : 0
+      };
+    });
+
+    taskSummaryEl.innerHTML = taskRows
+      .map(row => {
+        const widthPct = Math.max(6, row.rate);
+        return `
+          <div class="admin-bar-row">
+            <span class="admin-bar-label">${escapeHtml(row.taskName)}</span>
+            <div class="admin-bar-track">
+              <div class="admin-bar-fill task" style="width: ${widthPct}%;"></div>
+            </div>
+            <strong class="admin-bar-value">${row.doneCount}/${totalUsers} (${row.rate}%)</strong>
+          </div>
+        `;
+      })
+      .join('');
+  }
 
   const tbody = document.getElementById('adminUsersTableBody');
   if (!tbody) {
     return;
   }
 
-  if (safeUsers.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8">No users found.</td></tr>';
+  if (usersVisibleToCurrentUser.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="14">No users found.</td></tr>';
     return;
   }
 
-  const sortedUsers = [...safeUsers].sort((leftUser, rightUser) => {
-    return getLastActiveTimestamp(rightUser) - getLastActiveTimestamp(leftUser);
+  const sortSelect = document.getElementById('adminSortSelect');
+  const sortValue = sortSelect ? sortSelect.value : 'lastActiveDesc';
+  const sortedUsers = [...usersVisibleToCurrentUser].sort((leftUser, rightUser) => {
+    const leftName = String(leftUser.name || '').toLowerCase();
+    const rightName = String(rightUser.name || '').toLowerCase();
+    const leftRole = getRoleByEmail(leftUser.email, leftUser.role);
+    const rightRole = getRoleByEmail(rightUser.email, rightUser.role);
+    const leftFp = Math.floor(Number(leftUser.faithPoints ?? 0) || 0);
+    const rightFp = Math.floor(Number(rightUser.faithPoints ?? 0) || 0);
+    const leftStreak = Math.max(0, Number((leftUser.dailyLoginState && leftUser.dailyLoginState.claimedDays && leftUser.dailyLoginState.claimedDays.length) || 0));
+    const rightStreak = Math.max(0, Number((rightUser.dailyLoginState && rightUser.dailyLoginState.claimedDays && rightUser.dailyLoginState.claimedDays.length) || 0));
+    const leftLastActive = getLastActiveTimestamp(leftUser);
+    const rightLastActive = getLastActiveTimestamp(rightUser);
+
+    if (sortValue === 'nameAsc') return leftName.localeCompare(rightName);
+    if (sortValue === 'nameDesc') return rightName.localeCompare(leftName);
+    if (sortValue === 'faithPointsAsc') return leftFp - rightFp;
+    if (sortValue === 'faithPointsDesc') return rightFp - leftFp;
+    if (sortValue === 'streakAsc') return leftStreak - rightStreak;
+    if (sortValue === 'streakDesc') return rightStreak - leftStreak;
+    if (sortValue === 'lastActiveAsc') return leftLastActive - rightLastActive;
+    if (sortValue === 'roleAsc') return leftRole.localeCompare(rightRole);
+
+    return rightLastActive - leftLastActive;
   });
 
   tbody.innerHTML = sortedUsers
     .map(user => {
-      const role = getRoleByEmail(user.email);
+      const role = getRoleByEmail(user.email, user.role);
       const normalizedEmail = normalizeEmail(user.email || '');
       const name = escapeHtml(user.name || 'N/A');
       const lastLogin = escapeHtml(user.lastLogin || 'Never');
@@ -1393,23 +2621,55 @@ async function renderAdminDashboard(syncFromCloud = true) {
       const email = escapeHtml(user.email || 'N/A');
       const faithPoints = Math.floor(Number(user.faithPoints ?? 0) || 0);
       const treeProgress = Math.floor(Number(user.treeProgress ?? 0) || 0);
+      const streak = Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0));
+      const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
       const userId = Number.isFinite(Number(user.id)) ? Number(user.id) : Date.now();
+      const canEditTaskAndStreak = roleOfCurrentUser === 'admin';
+      const streakControl = canEditTaskAndStreak
+        ? `<input type="number" min="0" max="${DAILY_LOGIN_REWARDS.length}" value="${streak}" onchange="window.adminSetStreakDays(${userId}, this.value)" aria-label="Streak days for ${name}">`
+        : `${streak} day${streak === 1 ? '' : 's'}`;
+      const taskCheckbox = taskKey => {
+        const rule = taskRecurrenceRules[taskKey];
+        const checked = rule && completions[taskKey] === getCurrentPeriodKey(rule.unit);
+        if (!canEditTaskAndStreak) {
+          return `<input type="checkbox" disabled ${checked ? 'checked' : ''} aria-label="${taskDisplayNames[taskKey]} completion">`;
+        }
+
+        return `<input type="checkbox" ${checked ? 'checked' : ''} onchange="window.adminSetTaskCompletion(${userId}, '${taskKey}', this.checked, '${normalizedEmail}')" aria-label="${taskDisplayNames[taskKey]} completion">`;
+      };
+      const roleControl = roleOfCurrentUser === 'admin'
+        ? `<select class="admin-role-select" onchange="window.adminChangeUserRole(${userId}, this.value)">
+            <option value="user" ${role === 'user' ? 'selected' : ''}>user</option>
+            <option value="moderator" ${role === 'moderator' ? 'selected' : ''}>moderator</option>
+            <option value="admin" ${role === 'admin' ? 'selected' : ''}>admin</option>
+          </select>`
+        : `<span class="admin-role-badge ${role}">${role}</span>`;
+      const disableResetProgress = !canManageAction('resetProgress') ? 'disabled' : '';
+      const canViewProgress = canManageAction('viewProgress');
+      const disableOpenUi = !canManageAction('openUi') ? 'disabled' : '';
       return `
         <tr>
-          <td>${name}</td>
+          <td class="admin-cell-name">${name}</td>
+          <td>${streakControl}</td>
           <td>${lastLogin}</td>
           <td>${lastActive}</td>
           <td>${email}</td>
-          <td><span class="admin-role-badge ${role}">${role}</span></td>
+          <td>${roleControl}</td>
           <td>${faithPoints}</td>
           <td>${treeProgress}</td>
+          <td>${taskCheckbox('pray')}</td>
+          <td>${taskCheckbox('bible')}</td>
+          <td>${taskCheckbox('devotion')}</td>
+          <td>${taskCheckbox('smallgroup')}</td>
+          <td>${taskCheckbox('attendService')}</td>
           <td>
             <div class="admin-actions">
               <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
               <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
-              <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})">Reset Progress</button>
-              <button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>
-              <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})">Open UI</button>
+              <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})" ${disableResetProgress}>Reset Progress</button>
+              ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+              <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})" ${disableOpenUi}>Open UI</button>
+              ${roleOfCurrentUser === 'admin' && role !== 'admin' ? `<button class="admin-action-btn logout" onclick="window.adminForceLogoutUser(${userId})">Log Out</button>` : ''}
             </div>
           </td>
         </tr>
@@ -1419,8 +2679,8 @@ async function renderAdminDashboard(syncFromCloud = true) {
 }
 
 function assertAdminDashboardAccess() {
-  if (!isAdminUser()) {
-    showNotification('Admin dashboard access required.', { type: 'error' });
+  if (!hasManagementAccess()) {
+    showNotification('Management dashboard access required.', { type: 'error' });
     return false;
   }
 
@@ -1498,7 +2758,7 @@ function hydrateCurrentUserFromStoredUsers() {
 
   const mergedUser = {
     ...users[userIndex],
-    role: getRoleByEmail(users[userIndex].email),
+    role: getRoleByEmail(users[userIndex].email, users[userIndex].role),
     viewMode: currentUser.viewMode ?? users[userIndex].viewMode ?? 'user'
   };
 
@@ -1522,7 +2782,7 @@ function syncCurrentSessionIfNeeded(updatedUser, options = {}) {
     currentUser = {
       ...currentUser,
       ...updatedUser,
-      role: getRoleByEmail(updatedUser.email),
+      role: getRoleByEmail(updatedUser.email, updatedUser.role),
       viewMode: currentUser.viewMode ?? updatedUser.viewMode ?? 'user'
     };
     delete currentUser.password;
@@ -1534,6 +2794,7 @@ function syncCurrentSessionIfNeeded(updatedUser, options = {}) {
 
 function adminAddPoints(userId, userEmail = '') {
   if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('addPoints', 'You do not have permission to add points.')) return;
 
   const pointsInput = prompt('Enter points to add:', '10');
   if (pointsInput === null) return;
@@ -1568,6 +2829,7 @@ function adminAddPoints(userId, userEmail = '') {
 
 function adminResetPassword(userId) {
   if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('resetPassword', 'You do not have permission to reset passwords.')) return;
 
   const newPassword = prompt('Enter new password (min 6 characters):', 'password123');
   if (newPassword === null) return;
@@ -1591,6 +2853,7 @@ function adminResetPassword(userId) {
 
 function adminResetProgress(userId) {
   if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('resetProgress', 'Moderator cannot reset progress.')) return;
 
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
@@ -1620,6 +2883,7 @@ function adminResetProgress(userId) {
 
 function adminViewProgress(userId) {
   if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('viewProgress', 'You do not have permission to view progress.')) return;
 
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
@@ -1632,7 +2896,7 @@ function adminViewProgress(userId) {
   const progressMessage = [
     `Name: ${user.name || 'N/A'}`,
     `Email: ${user.email || 'N/A'}`,
-    `Role: ${getRoleByEmail(user.email)}`,
+    `Role: ${getRoleByEmail(user.email, user.role)}`,
     `Faith Points: ${Math.floor(Number(user.faithPoints ?? 0) || 0)}`,
     `Tree Progress: ${Math.floor(Number(user.treeProgress ?? 0) || 0)}`,
     `Fruits: ${Math.floor(Number(user.fruitCount ?? 0) || 0)}`
@@ -1643,6 +2907,7 @@ function adminViewProgress(userId) {
 
 function adminOpenUserUi(userId) {
   if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('openUi', 'Moderator cannot open user UI.')) return;
 
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
@@ -1657,7 +2922,7 @@ function adminOpenUserUi(userId) {
 
   const nextSessionUser = {
     ...selectedUser,
-    role: getRoleByEmail(selectedUser.email),
+    role: getRoleByEmail(selectedUser.email, selectedUser.role),
     viewMode: 'user'
   };
 
@@ -1670,6 +2935,7 @@ function adminOpenUserUi(userId) {
   loadUserData();
   updateDisplay();
   startCurrentUserCloudSync();
+  startForceLogoutListener();
   showNotification(`Now viewing user UI as ${selectedUser.email}.`, { type: 'info' });
 }
 
@@ -1678,6 +2944,144 @@ window.adminResetPassword = adminResetPassword;
 window.adminResetProgress = adminResetProgress;
 window.adminViewProgress = adminViewProgress;
 window.adminOpenUserUi = adminOpenUserUi;
+window.adminForceLogoutUser = adminForceLogoutUser;
+window.adminForceLogoutAll = adminForceLogoutAll;
+window.adminResetAllProgress = adminResetAllProgress;
+
+function adminChangeUserRole(userId, nextRole) {
+  if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('changeRole', 'Only admin can change user roles.')) return;
+
+  const normalizedNextRole = normalizeRole(nextRole);
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    showNotification('User not found.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const targetUser = users[userIndex];
+  const lockedToAdmin = isAdminEmail(targetUser.email);
+  const finalRole = lockedToAdmin ? 'admin' : normalizedNextRole;
+  const currentRole = getRoleByEmail(targetUser.email, targetUser.role);
+
+  if (currentRole === finalRole) {
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const confirmed = confirm(`Change role for ${targetUser.email} from ${currentRole} to ${finalRole}?`);
+  if (!confirmed) {
+    renderAdminDashboard(false);
+    return;
+  }
+
+  users[userIndex].role = finalRole;
+  users[userIndex].roleUpdatedAt = Date.now();
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+  showNotification(`Role updated to ${finalRole} for ${targetUser.email}.`, { type: 'success' });
+}
+
+window.adminChangeUserRole = adminChangeUserRole;
+
+function adminSetTaskCompletion(userId, taskKey, isCompleted, userEmail = '') {
+  if (!assertAdminDashboardAccess()) return;
+  if (getCurrentUserRole() !== 'admin') {
+    showNotification('Only admin can edit task completion.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const rule = taskRecurrenceRules[taskKey];
+  if (!rule) {
+    showNotification('Unknown task key.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const users = getStoredUsersSafe();
+  let userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1 && userEmail) {
+    const normalizedTargetEmail = normalizeEmail(userEmail);
+    userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedTargetEmail);
+  }
+
+  if (userIndex === -1) {
+    showNotification('User not found.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const currentCompletions = users[userIndex].taskCompletions && typeof users[userIndex].taskCompletions === 'object'
+    ? { ...users[userIndex].taskCompletions }
+    : {};
+
+  if (isCompleted) {
+    currentCompletions[taskKey] = getCurrentPeriodKey(rule.unit);
+  } else {
+    delete currentCompletions[taskKey];
+  }
+
+  users[userIndex].taskCompletions = currentCompletions;
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+}
+
+function adminSetStreakDays(userId, streakInput) {
+  if (!assertAdminDashboardAccess()) return;
+  if (getCurrentUserRole() !== 'admin') {
+    showNotification('Only admin can edit streak days.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const parsedStreak = Math.floor(Number(streakInput));
+  if (!Number.isFinite(parsedStreak) || parsedStreak < 0 || parsedStreak > DAILY_LOGIN_REWARDS.length) {
+    showNotification(`Streak days must be between 0 and ${DAILY_LOGIN_REWARDS.length}.`, { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) {
+    showNotification('User not found.', { type: 'error' });
+    renderAdminDashboard(false);
+    return;
+  }
+
+  if (parsedStreak === 0) {
+    users[userIndex].dailyLoginState = normalizeDailyLoginState({});
+  } else {
+    const claimedDays = Array.from({ length: parsedStreak }, (_, dayIndex) => dayIndex + 1);
+    users[userIndex].dailyLoginState = normalizeDailyLoginState({
+      streakDay: parsedStreak >= DAILY_LOGIN_REWARDS.length ? 1 : parsedStreak + 1,
+      lastClaimDate: '',
+      cycleStartDate: getTodayDateKey(),
+      claimedDays
+    });
+  }
+
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+}
+
+window.adminSetTaskCompletion = adminSetTaskCompletion;
+window.adminSetStreakDays = adminSetStreakDays;
 
 function escapeHtml(value) {
   return String(value)
@@ -1721,13 +3125,17 @@ async function handleLogin(event) {
   );
   
   if (user) {
+    hasAutoPromptedDailyLogin = false;
     stopCurrentUserCloudSync();
+    const loginTimestamp = Date.now();
 
     const userIndex = users.findIndex(u => Number(u.id) === Number(user.id));
     const normalizedUser = normalizeStoredUser(user, user.id);
+    updateConsecutiveLoginStats(normalizedUser);
     normalizedUser.lastLogin = new Date().toLocaleString();
-    normalizedUser.lastActiveAt = Date.now();
-    normalizedUser.viewMode = isAdminEmail(normalizedUser.email) ? 'admin' : (normalizedUser.viewMode ?? 'user');
+    normalizedUser.lastLoginAt = loginTimestamp;
+    normalizedUser.lastActiveAt = loginTimestamp;
+    normalizedUser.viewMode = normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role);
 
     if (userIndex !== -1) {
       users[userIndex] = normalizedUser;
@@ -1741,8 +3149,8 @@ async function handleLogin(event) {
 
     currentUser = {
       ...normalizedUser,
-      role: getRoleByEmail(normalizedUser.email),
-      viewMode: isAdminEmail(normalizedUser.email) ? 'admin' : (normalizedUser.viewMode ?? 'user'),
+      role: getRoleByEmail(normalizedUser.email, normalizedUser.role),
+      viewMode: normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role),
       faithPoints: normalizedUser.faithPoints ?? 0,
       treeProgress: normalizedUser.treeProgress ?? 0,
       passiveRate: normalizedUser.passiveRate ?? 1,
@@ -1756,12 +3164,16 @@ async function handleLogin(event) {
     };
     delete currentUser.password;
     safeSetCurrentUser(currentUser);
+    await runRollbackRecoveryForCurrentUserOnce();
     clearAuthErrors();
     showAppInterface();
     loadUserData();
     updateDisplay();
+    autoPromptDailyLoginIfPending();
     startCurrentUserCloudSync();
     startScheduledReminders();
+    startInactivityTimer();
+    startForceLogoutListener();
   } else {
     document.getElementById('loginError').textContent = 'Invalid email or password';
   }
@@ -1792,11 +3204,15 @@ function handleRegister(event) {
     id: Date.now(),
     name,
     email,
-    role: getRoleByEmail(email),
+    role: getRoleByEmail(email, 'user'),
     viewMode: 'user',
     password,
     joinedDate: new Date().toLocaleDateString(),
     lastLogin: new Date().toLocaleString(),
+    lastLoginAt: Date.now(),
+    lastLoginDateKey: getTodayDateKey(),
+    loginStreakCurrent: 1,
+    loginStreakLongest: 1,
     lastActiveAt: Date.now(),
     faithPoints: 0,
     treeProgress: 0,
@@ -1813,6 +3229,7 @@ function handleRegister(event) {
   stopCurrentUserCloudSync();
   
   currentUser = { ...newUser };
+  hasAutoPromptedDailyLogin = false;
   delete currentUser.password;
   safeSetCurrentUser(currentUser);
   
@@ -1823,6 +3240,8 @@ function handleRegister(event) {
   updateDisplay();
   startCurrentUserCloudSync();
   startScheduledReminders();
+  startInactivityTimer();
+  startForceLogoutListener();
 }
 
 function sendResetCode() {
@@ -1913,27 +3332,82 @@ function goBackToForgot() {
 
 function handleLogout() {
   if (confirm('Are you sure you want to logout?')) {
-    stopCurrentUserCloudSync();
-    // Ensure modal overlays do not persist when returning to auth screens.
-    document.querySelectorAll('.modal').forEach(modalEl => {
-      modalEl.style.display = 'none';
-    });
-    localStorage.removeItem('currentUser');
-    currentUser = null;
-    clearAuthErrors();
-    document.getElementById('loginForm').reset();
-    document.getElementById('registerForm').reset();
-    showAuthInterface();
-    switchToLogin();
-    stopScheduledReminders();
+    performLogout();
   }
 }
 
+function performLogout(options) {
+  const isAutoLogout = options?.auto === true;
+  const logoutMessage = options?.message || null;
+  stopInactivityTimer();
+  stopForceLogoutListener();
+  stopCurrentUserCloudSync();
+  // Ensure modal overlays do not persist when returning to auth screens.
+  document.querySelectorAll('.modal').forEach(modalEl => {
+    modalEl.style.display = 'none';
+  });
+  localStorage.removeItem('currentUser');
+  currentUser = null;
+  clearAuthErrors();
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  if (loginForm) loginForm.reset();
+  if (registerForm) registerForm.reset();
+  showAuthInterface();
+  switchToLogin();
+  stopScheduledReminders();
+  if (isAutoLogout) {
+    showNotification(logoutMessage || 'You have been logged out due to inactivity.', { type: 'info', duration: 6000 });
+  }
+}
+
+// --- Inactivity auto-logout (excludes admin users) ---
+
+function startInactivityTimer() {
+  stopInactivityTimer();
+  if (!currentUser) return;
+  // Admin users are exempt from inactivity logout
+  if (getCurrentUserRole() === 'admin') return;
+  const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+  activityEvents.forEach(eventType => {
+    document.addEventListener(eventType, resetInactivityTimer, { passive: true });
+  });
+  scheduleInactivityLogout();
+}
+
+function stopInactivityTimer() {
+  if (inactivityTimerId) { clearTimeout(inactivityTimerId); inactivityTimerId = null; }
+  if (inactivityWarningTimerId) { clearTimeout(inactivityWarningTimerId); inactivityWarningTimerId = null; }
+  const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+  activityEvents.forEach(eventType => {
+    document.removeEventListener(eventType, resetInactivityTimer);
+  });
+}
+
+function resetInactivityTimer() {
+  if (!currentUser) return;
+  if (getCurrentUserRole() === 'admin') return;
+  if (inactivityTimerId) clearTimeout(inactivityTimerId);
+  if (inactivityWarningTimerId) clearTimeout(inactivityWarningTimerId);
+  scheduleInactivityLogout();
+}
+
+function scheduleInactivityLogout() {
+  // Show warning 1 minute before logout
+  const warningTime = Math.max(INACTIVITY_TIMEOUT_MS - 60000, 0);
+  inactivityWarningTimerId = setTimeout(() => {
+    if (!currentUser || getCurrentUserRole() === 'admin') return;
+    showNotification('You will be logged out in 1 minute due to inactivity.', { type: 'warning', duration: 10000 });
+  }, warningTime);
+  inactivityTimerId = setTimeout(() => {
+    if (!currentUser || getCurrentUserRole() === 'admin') return;
+    performLogout({ auto: true });
+  }, INACTIVITY_TIMEOUT_MS);
+}
+
 function openProfileModal() {
-  if (isAdminEmail(currentUser?.email)) {
-    if (currentUser.role !== 'admin') {
-      currentUser.role = 'admin';
-    }
+  if (currentUser) {
+    currentUser.role = getRoleByEmail(currentUser.email, currentUser.role);
     safeSetCurrentUser(currentUser);
   }
 
@@ -1941,10 +3415,10 @@ function openProfileModal() {
 
   const toggleBtn = document.getElementById('switchAdminViewBtn');
   if (toggleBtn) {
-    const isAdmin = isAdminEmail(currentUser?.email);
-    toggleBtn.style.display = isAdmin ? 'block' : 'none';
-    if (isAdmin) {
-      toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Admin View';
+    const managementEnabled = hasManagementAccess();
+    toggleBtn.style.display = managementEnabled ? 'block' : 'none';
+    if (managementEnabled) {
+      toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Management View';
     }
   }
 
@@ -2373,6 +3847,8 @@ function applyTreeProgress(pointsToAdd, options = {}) {
   if (maxBloomReached && fruitEligiblePoints > 0) {
     addFruitIfNeeded(fruitEligiblePoints);
   }
+
+  showScripture();
 }
 
 function normalizeFruitProgressState() {
@@ -2428,22 +3904,20 @@ function updateDisplay(options = {}) {
   if (fpPillValueEl) fpPillValueEl.textContent = String(Math.floor(faithPoints));
 
   if (streakPillValueEl) {
-    const completedCount = Array.isArray(dailyLoginState.claimedDays)
-      ? dailyLoginState.claimedDays.length
-      : 0;
-    const streakDay = completedCount > 0 ? completedCount : 1;
-    streakPillValueEl.textContent = `Day ${streakDay}`;
+    const sessionStreak = getUserCurrentLoginStreak(currentUser);
+    const dailyClaimedStreak = getLegacyDailyLoginStreak(dailyLoginState);
+    const displayStreak = Math.max(sessionStreak, dailyClaimedStreak, 1);
+    streakPillValueEl.textContent = `${displayStreak} day${displayStreak === 1 ? '' : 's'}`;
   }
 
   if (dailyRewardStreakEl) {
-    const completedCount = Array.isArray(dailyLoginState.claimedDays)
-      ? dailyLoginState.claimedDays.length
-      : 0;
+    const sessionStreak = getUserCurrentLoginStreak(currentUser);
+    const dailyClaimedStreak = getLegacyDailyLoginStreak(dailyLoginState);
+    const loginStreak = Math.max(sessionStreak, dailyClaimedStreak, 1);
     const todayClaimed = hasClaimedDailyLoginToday();
-    const nextDay = Math.min(dailyLoginState.streakDay, DAILY_LOGIN_REWARDS.length);
     dailyRewardStreakEl.textContent = todayClaimed
-      ? `Checked in today. Next reward: Day ${nextDay}`
-      : `Day ${nextDay} reward ready`;
+      ? `Login streak: ${loginStreak} day${loginStreak === 1 ? '' : 's'} — Checked in today!`
+      : `Login streak: ${loginStreak} day${loginStreak === 1 ? '' : 's'} — Check in now!`;
   }
   
   updateTaskBadges();
@@ -2462,109 +3936,52 @@ function saveUserData() {
     const users = getStoredUsersSafe();
     const currentUserId = Number(currentUser.id);
     const normalizedCurrentEmail = normalizeEmail(currentUser.email);
+    let userIndex = users.findIndex(u => Number(u.id) === currentUserId);
 
-    // Prefer matching by normalized email since ids can be stale across devices.
-    let byEmailIndex = -1;
-    let byIdIndex = -1;
-    if (normalizedCurrentEmail) {
-      byEmailIndex = users.findIndex(u => normalizeEmail(u.email) === normalizedCurrentEmail);
-    }
-    if (Number.isFinite(currentUserId)) {
-      byIdIndex = users.findIndex(u => Number(u.id) === currentUserId);
-    }
-
-    let userIndex = -1;
-    if (byEmailIndex !== -1 && byIdIndex !== -1 && byEmailIndex !== byIdIndex) {
-      // If both found, prefer the one with the latest updatedAt (most-recent source)
-      const eUpdated = Number(users[byEmailIndex].updatedAt ?? users[byEmailIndex].lastActiveAt ?? 0);
-      const iUpdated = Number(users[byIdIndex].updatedAt ?? users[byIdIndex].lastActiveAt ?? 0);
-      userIndex = eUpdated >= iUpdated ? byEmailIndex : byIdIndex;
-    } else if (byEmailIndex !== -1) {
-      userIndex = byEmailIndex;
-    } else if (byIdIndex !== -1) {
-      userIndex = byIdIndex;
+    // Cross-device sessions can carry stale ids; fall back to email to keep sync reliable.
+    if (userIndex === -1 && normalizedCurrentEmail) {
+      userIndex = users.findIndex(u => normalizeEmail(u.email) === normalizedCurrentEmail);
     }
 
     if (userIndex === -1) {
-      // No existing user; create a normalized record
-      const newUser = normalizeStoredUser(currentUser, Date.now());
-      newUser.lastActiveAt = Date.now();
-      newUser.updatedAt = Date.now();
-      users.push(newUser);
+      users.push(normalizeStoredUser(currentUser, Date.now()));
       userIndex = users.length - 1;
     }
-
-    try {
-      console.debug('[probe] saveUserData: indices', { byEmailIndex, byIdIndex, chosenIndex: userIndex });
-      console.debug('[probe] saveUserData: sessionPrevUpdatedAt', Number(currentUser?.updatedAt ?? currentUser?.lastActiveAt ?? 0));
-      console.debug('[probe] saveUserData: storedUpdatedAt', Number(users[userIndex]?.updatedAt ?? users[userIndex]?.lastActiveAt ?? 0));
-    } catch (e) {}
-
+    
     if (userIndex !== -1) {
-      const now = Date.now();
-      const sessionPrevUpdatedAt = Number(currentUser?.updatedAt ?? currentUser?.lastActiveAt ?? 0) || 0;
-      const storedUpdatedAt = Number(users[userIndex]?.updatedAt ?? users[userIndex]?.lastActiveAt ?? 0) || 0;
-
-      // If the stored record is newer than our session, avoid blind overwrite.
-      if (storedUpdatedAt > sessionPrevUpdatedAt) {
-        // Merge safely: prefer the larger numeric progress values and union task completions.
-        users[userIndex].faithPoints = Math.max(Number(users[userIndex].faithPoints ?? 0), Math.floor(faithPoints));
-        users[userIndex].treeProgress = Math.max(Number(users[userIndex].treeProgress ?? 0), Math.floor(treeProgress));
-        users[userIndex].passiveRate = users[userIndex].passiveRate ?? passiveRate;
-        users[userIndex].fruitCount = Math.max(Number(users[userIndex].fruitCount ?? 0), fruitCount);
-        users[userIndex].pointsForFruit = Math.max(Number(users[userIndex].pointsForFruit ?? 0), pointsForFruit);
-        users[userIndex].maxBloomReached = Boolean(users[userIndex].maxBloomReached) || Boolean(maxBloomReached);
-        users[userIndex].taskCompletions = { ...(users[userIndex].taskCompletions || {}), ...(taskCompletions || {}) };
-        users[userIndex].dailyLoginState = normalizeDailyLoginState({ ...(users[userIndex].dailyLoginState || {}), ...(dailyLoginState || {}) });
-        users[userIndex].viewMode = users[userIndex].viewMode ?? getCurrentViewMode();
-        users[userIndex].lastActiveAt = now;
-        users[userIndex].updatedAt = Math.max(storedUpdatedAt, now);
-      } else {
-        // Stored record is older or equal — we can apply full session state.
-        users[userIndex].faithPoints = Math.floor(faithPoints);
-        users[userIndex].treeProgress = Math.floor(treeProgress);
-        users[userIndex].passiveRate = passiveRate;
-        users[userIndex].fruitCount = fruitCount;
-        users[userIndex].pointsForFruit = pointsForFruit;
-        users[userIndex].maxBloomReached = maxBloomReached;
-        users[userIndex].taskCompletions = taskCompletions;
-        users[userIndex].dailyLoginState = normalizeDailyLoginState(dailyLoginState);
-        users[userIndex].viewMode = getCurrentViewMode();
-        users[userIndex].lastActiveAt = now;
-        users[userIndex].updatedAt = now;
-      }
-
-      try {
-        console.debug('[probe] saveUserData: storing userIndex', userIndex, 'userBeforeStore=', JSON.parse(JSON.stringify(users[userIndex] || {})));
-      } catch (e) {}
+      users[userIndex].faithPoints = Math.floor(faithPoints);
+      users[userIndex].treeProgress = Math.floor(treeProgress);
+      users[userIndex].passiveRate = passiveRate;
+      users[userIndex].fruitCount = fruitCount;
+      users[userIndex].pointsForFruit = pointsForFruit;
+      users[userIndex].maxBloomReached = maxBloomReached;
+      users[userIndex].taskCompletions = taskCompletions;
+      users[userIndex].dailyLoginState = normalizeDailyLoginState(dailyLoginState);
+      users[userIndex].viewMode = getCurrentViewMode();
+      users[userIndex].lastActiveAt = Date.now();
+      users[userIndex].updatedAt = Date.now();
+      
       setStoredUsers(users);
-      try {
-        console.debug('[probe] saveUserData: after setStoredUsers readback usersCount=', JSON.parse(localStorage.getItem('users') || '[]').length, 'lastPersistAt=', localStorage.getItem('lastPersistAt'));
-      } catch (e) {}
-      try {
-        console.debug('[probe] saveUserData: upsert payload=', JSON.parse(JSON.stringify(users[userIndex] || {})));
-      } catch (e) {}
       upsertUserInCloud(users[userIndex]);
-
-      // Reflect authoritative fields back into the current session
-      currentUser = {
-        ...currentUser,
-        ...users[userIndex],
-        role: getRoleByEmail(users[userIndex].email),
-        viewMode: currentUser.viewMode ?? users[userIndex].viewMode ?? 'user'
-      };
-      delete currentUser.password;
-      try { safeSetCurrentUser(currentUser); } catch(e) {}
-
-      try {
-        console.debug('[probe] saveUserData: final currentUser readback=', JSON.parse(localStorage.getItem('currentUser') || '{}'));
-      } catch (e) {}
-
+      
+      // Also update current user session with all game data
+      currentUser.faithPoints = Math.floor(faithPoints);
+      currentUser.treeProgress = Math.floor(treeProgress);
+      currentUser.passiveRate = passiveRate;
+      currentUser.fruitCount = fruitCount;
+      currentUser.pointsForFruit = pointsForFruit;
+      currentUser.maxBloomReached = maxBloomReached;
+      currentUser.taskCompletions = taskCompletions;
+      currentUser.dailyLoginState = normalizeDailyLoginState(dailyLoginState);
+      currentUser.viewMode = getCurrentViewMode();
+      currentUser.id = users[userIndex].id;
+      currentUser.lastActiveAt = users[userIndex].lastActiveAt;
+      currentUser.updatedAt = users[userIndex].updatedAt;
+      safeSetCurrentUser(currentUser);
       debugFpLog('save-user-data', {
         savedFaithPoints: users[userIndex].faithPoints,
         savedUpdatedAt: users[userIndex].updatedAt,
-        savedTreeProgress: users[userIndex].treeProgress,
-        mergeStrategy: storedUpdatedAt > sessionPrevUpdatedAt ? 'merge-newer-stored' : 'overwrite-session'
+        savedTreeProgress: users[userIndex].treeProgress
       });
     }
   }
@@ -2823,7 +4240,6 @@ function shareGospel() {
   const pointsToAdd = actionRewards.sharegospel.fp;
   const previousFp = Math.floor(Number(faithPoints ?? 0) || 0);
   applyTreeProgress(pointsToAdd);
-  showScripture();
   updateDisplay();
   debugFpLog('share-gospel', {
     pointsToAdd,
@@ -2886,14 +4302,10 @@ function useAllPoints() {
 
     faithPoints = 0;
     applyTreeProgress(pointsUsed, { addFaithPoints: false });
-    
-    // Show success message
-    const message = maxBloomReached 
-      ? `Blessed! You distributed ${pointsUsed} Faith Points for the fruit of your tree! 🍎` 
+    const successMessage = maxBloomReached
+      ? `Blessed! You distributed ${pointsUsed} Faith Points for the fruit of your tree! 🍎`
       : `Blessed! You distributed ${pointsUsed} Faith Points for your growth! 🙏`;
-    document.getElementById("scriptureBox").textContent = message;
-    document.getElementById("scriptureBox").style.color = "#4CAF50";
-    document.getElementById("scriptureBox").style.fontWeight = "bold";
+    showNotification(successMessage, { type: 'success' });
     
     updateDisplay();
     closeUpgradeModal();
@@ -2902,12 +4314,6 @@ function useAllPoints() {
       fpAfter: Math.floor(Number(faithPoints ?? 0) || 0),
       treeProgressAfter: Math.floor(Number(treeProgress ?? 0) || 0)
     });
-    
-    // Reset message color after 3 seconds
-    setTimeout(() => {
-      document.getElementById("scriptureBox").style.color = "#555";
-      document.getElementById("scriptureBox").style.fontWeight = "normal";
-    }, 3000);
   } else {
     showNotification('Points must be divisible by 10 to use!', { type: 'warning' });
   }
@@ -3018,6 +4424,7 @@ if (photoInput) {
 window.addEventListener('click', function(event) {
   const uploadModal = document.getElementById('uploadModal');
   const dailyLoginModal = document.getElementById('dailyLoginModal');
+  const leaderboardModal = document.getElementById('leaderboardModal');
   
   if (uploadModal && event.target === uploadModal) {
     closeUploadModal();
@@ -3025,6 +4432,10 @@ window.addEventListener('click', function(event) {
 
   if (dailyLoginModal && event.target === dailyLoginModal) {
     closeDailyLoginModal();
+  }
+
+  if (leaderboardModal && event.target === leaderboardModal) {
+    closeLeaderboardModal();
   }
 });
 
