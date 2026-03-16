@@ -2679,20 +2679,20 @@ async function renderAdminDashboard(syncFromCloud = true) {
       // Remove all dynamic onclick handlers to guarantee no syntax errors
       const userRowHtml = `
         <tr>
-          <td class="admin-cell-name">${escapeHtml(user.name || 'N/A')}</td>
-          <td>${Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0))} day${Math.max(0, Number((user.dailyLoginState && user.dailyLoginState.claimedDays && user.dailyLoginState.claimedDays.length) || 0)) === 1 ? '' : 's'}</td>
-          <td>Day ${Array.isArray(user.dailyLoginState?.claimedDays) && user.dailyLoginState.claimedDays.length > 0 ? Math.max(...user.dailyLoginState.claimedDays) : 1}/${DAILY_LOGIN_REWARDS.length}</td>
-          <td>${escapeHtml(user.lastLogin || 'Never')}</td>
-          <td>${escapeHtml(formatDateTimeForDisplay(user.lastActiveAt ?? user.updatedAt))}</td>
-          <td>${escapeHtml(user.email || 'N/A')}</td>
-          <td><span class="admin-role-badge ${getRoleByEmail(user.email, user.role)}">${getRoleByEmail(user.email, user.role)}</span></td>
-          <td>${Math.floor(Number(user.faithPoints ?? 0) || 0)}</td>
-          <td>${Math.floor(Number(user.treeProgress ?? 0) || 0)}</td>
-          <td><input type="checkbox" disabled aria-label="${taskDisplayNames['pray']} completion"></td>
-          <td><input type="checkbox" disabled aria-label="${taskDisplayNames['bible']} completion"></td>
-          <td><input type="checkbox" disabled aria-label="${taskDisplayNames['devotion']} completion"></td>
-          <td><input type="checkbox" disabled aria-label="${taskDisplayNames['smallgroup']} completion"></td>
-          <td><input type="checkbox" disabled aria-label="${taskDisplayNames['attendService']} completion"></td>
+          <td class="admin-cell-name">User</td>
+          <td>0 days</td>
+          <td>Day 1/7</td>
+          <td>Never</td>
+          <td>Never</td>
+          <td>Email</td>
+          <td><span class="admin-role-badge">user</span></td>
+          <td>0</td>
+          <td>0</td>
+          <td><input type="checkbox" disabled></td>
+          <td><input type="checkbox" disabled></td>
+          <td><input type="checkbox" disabled></td>
+          <td><input type="checkbox" disabled></td>
+          <td><input type="checkbox" disabled></td>
           <td>
               <div class="admin-actions">
                 <button class="admin-action-btn password" disabled>Reset PW</button>
