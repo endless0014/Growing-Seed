@@ -2718,46 +2718,26 @@ async function renderAdminDashboard(syncFromCloud = true) {
           <td class="admin-cell-name">${name}</td>
           <td>${streakControl}</td>
           <td>${dailyCheckinProgress}</td>
-          // Admin handler to set daily check-in day
-          function adminSetDailyCheckinDay(userId, dayValue) {
-            if (!assertAdminDashboardAccess()) return;
-            const users = getStoredUsersSafe();
-            const userIndex = findUserIndexById(users, userId);
-            if (userIndex === -1) {
-              showNotification('User not found.', { type: 'error' });
-              return;
-            }
-            const day = Math.max(1, Math.min(Number(dayValue), DAILY_LOGIN_REWARDS.length));
-            users[userIndex].dailyLoginState = {
-              ...users[userIndex].dailyLoginState,
-              claimedDays: Array.from({length: day}, (_, i) => i + 1),
-              streakDay: day,
-            };
-            setStoredUsers(users);
-            // Also update currentUser if editing self
-            const currentUserRaw = localStorage.getItem('currentUser');
-            return `
-              <tr>
-                <td class="admin-cell-name">${name}</td>
-                <td>${streakControl}</td>
-                <td>${dailyCheckinProgress}</td>
-                <td>${lastLogin}</td>
-                <td>${lastActive}</td>
-                <td>${email}</td>
-                <td>${roleControl}</td>
-                <td>${faithPoints}</td>
-                <td>${treeProgress}</td>
-                <td>${taskCheckbox('pray')}</td>
-                <td>${taskCheckbox('bible')}</td>
-                <td>${taskCheckbox('devotion')}</td>
-                <td>${taskCheckbox('smallgroup')}</td>
-                <td>${taskCheckbox('attendService')}</td>
-                <td>
-                    <div class="admin-actions">
-                      <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
-                      <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
-                      <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
-                      ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+          <td>${lastLogin}</td>
+          <td>${lastActive}</td>
+          <td>${email}</td>
+          <td>${roleControl}</td>
+          <td>${faithPoints}</td>
+          <td>${treeProgress}</td>
+          <td>${taskCheckbox('pray')}</td>
+          <td>${taskCheckbox('bible')}</td>
+          <td>${taskCheckbox('devotion')}</td>
+          <td>${taskCheckbox('smallgroup')}</td>
+          <td>${taskCheckbox('attendService')}</td>
+          <td>
+              <div class="admin-actions">
+                <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
+                <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
+                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
+                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+              </div>
+          </td>
+        </tr>`;
                     </div>
                 </td>
               </tr>`;
