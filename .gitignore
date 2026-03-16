@@ -1,3 +1,8 @@
 notebooks/data
 notebooks/cifar_net.pth
 .ipynb_checkpoints/
+node_modules/
+android-sdk/
+android/.gradle/
+android/app/build/
+kingdom-roots/firebase.local.js

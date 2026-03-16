@@ -488,6 +488,42 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260309-logout-modal-close-fix-1"></script>
+  <!-- Public Leaderboard / Ranking Modal -->
+  <div id="leaderboardModal" class="modal" style="display: none;">
+    <div class="modal-content public-board-panel">
+      <span class="close" onclick="closeLeaderboardModal()">&times;</span>
+      <h2 id="publicBoardTitle">Leaderboard</h2>
+      <div class="public-board-switch" role="tablist" aria-label="Board type">
+        <button id="publicBoardLeaderboardTab" type="button" class="public-board-tab" onclick="switchPublicBoardType('leaderboard')" role="tab" aria-controls="publicBoardBody" aria-selected="true">🏆 Leaderboard</button>
+        <button id="publicBoardRankingTab" type="button" class="public-board-tab" onclick="switchPublicBoardType('ranking')" role="tab" aria-controls="publicBoardBody" aria-selected="false">📈 Ranking</button>
+      </div>
+      <p id="publicBoardSubtitle">Sorted by longest consecutive login streak</p>
+      <ul id="publicBoardBody" class="public-board-list"></ul>
+      <div class="modal-buttons">
+        <button type="button" onclick="closeLeaderboardModal()" class="auth-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (async function loadLocalFirebaseConfig(){
+      try {
+        const res = await fetch('kingdom-roots/firebase.local.js', {cache: 'no-store'});
+        if (!res.ok) return;
+        const txt = await res.text();
+        (0, eval)(txt);
+        console.log('[local-firebase] loaded kingdom-roots/firebase.local.js');
+      } catch (e) {
+        /* silent fallback when file absent or fetch fails */
+      }
+    })();
+  </script>
+  <script src="js-modular/config.js?v=20260315-release-2"></script>
+  <script src="js-modular/utils.js?v=20260315-release-2"></script>
+  <script src="js-modular/auth.js?v=20260315-release-2"></script>
+  <script src="js-modular/game.js?v=20260315-release-2"></script>
+  <script src="js-modular/admin.js?v=20260315-release-2"></script>
+  <script src="js-modular/services.js?v=20260315-release-2"></script>
+  <script type="module" src="script.js?v=20260315-release-2"></script>
 </body>
 </html>
