@@ -245,7 +245,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
   if (!tbody) return;
 
   if (usersVisibleToCurrentUser.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="14">No users found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11">No users found.</td></tr>';
     return;
   }
 
@@ -352,10 +352,11 @@ async function renderAdminDashboard(syncFromCloud = true) {
 
     return `
       <tr>
+        <td>${name}</td>
         <td>${realLoginStreakControl}</td>
         <td>${dailyRewardProgressControl}</td>
-        <td>${lastLogin}</td>
-        <td>${lastActive}</td>
+        <td title="${escapeHtml(formatDateTimeForDisplay(user.lastLogin || ''))}">${lastLogin}</td>
+        <td title="${escapeHtml(formatDateTimeForDisplay(user.lastActiveAt ?? user.updatedAt))}">${lastActive}</td>
         <td>${email}</td>
         <td>${roleControl}</td>
         <td>${faithControl}</td>
