@@ -2952,7 +2952,8 @@ function attachAuthEventListeners() {
       try {
         const onclickAttr = el.getAttribute && el.getAttribute('onclick');
         const match = onclickAttr && onclickAttr.match(/openLeaderboardModal\(['"]?(leaderboard|ranking)['"]?\)/);
-        const boardType = match ? match[1] : 'leaderboard';
+        if (!match) return; // only attach to elements that explicitly call openLeaderboardModal
+        const boardType = match[1];
         el.addEventListener('click', (ev) => {
           ev.preventDefault();
           if (typeof window.openLeaderboardModal === 'function') {
