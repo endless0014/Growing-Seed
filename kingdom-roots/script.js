@@ -1,3 +1,5 @@
+import { handleLogin } from './js-modular/auth.js';
+window.handleLogin = handleLogin;
 // Authentication System
 let currentUser = null;
 const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
