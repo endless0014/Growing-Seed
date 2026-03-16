@@ -3321,6 +3321,7 @@ function switchToForgotPassword() {
 }
 
 async function handleLogin(event) {
+  window.handleLogin = handleLogin;
   event.preventDefault();
   const email = document.getElementById('loginEmail').value;
   const password = document.getElementById('loginPassword').value;
@@ -3362,30 +3363,30 @@ async function handleLogin(event) {
     if (userIndex !== -1) {
       users[userIndex] = normalizedUser;
       setStoredUsers(users);
-    } else {
-      users.push(normalizedUser);
-      setStoredUsers(users);
-    }
-
-    upsertUserInCloud(normalizedUser);
-
-    currentUser = {
-      ...normalizedUser,
-      role: getRoleByEmail(normalizedUser.email, normalizedUser.role),
-      viewMode: normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role),
-      faithPoints: normalizedUser.faithPoints ?? 0,
-      treeProgress: normalizedUser.treeProgress ?? 0,
-      passiveRate: normalizedUser.passiveRate ?? 1,
-      fruitCount: normalizedUser.fruitCount ?? 0,
-      pointsForFruit: normalizedUser.pointsForFruit ?? 0,
-      maxBloomReached: normalizedUser.maxBloomReached ?? false,
-      lastLogin: normalizedUser.lastLogin ?? '',
-      lastActiveAt: normalizedUser.lastActiveAt ?? '',
-      taskCompletions: normalizedUser.taskCompletions ?? {},
-      dailyLoginState: normalizeDailyLoginState(normalizedUser.dailyLoginState)
-    };
-    delete currentUser.password;
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        <tr>
+          <td class="admin-cell-name">${name}</td>
+          <td>${streakControl}</td>
+          <td>${dailyCheckinProgress}</td>
+          <td>${lastLogin}</td>
+          <td>${lastActive}</td>
+          <td>${email}</td>
+          <td>${roleControl}</td>
+          <td>${faithPoints}</td>
+          <td>${treeProgress}</td>
+          <td>${taskCheckbox('pray')}</td>
+          <td>${taskCheckbox('bible')}</td>
+          <td>${taskCheckbox('devotion')}</td>
+          <td>${taskCheckbox('smallgroup')}</td>
+          <td>${taskCheckbox('attendService')}</td>
+          <td>
+              <div class="admin-actions">
+                <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
+                <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
+                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
+                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+              </div>
+          </td>
+        </tr>`;
     await runRollbackRecoveryForCurrentUserOnce();
     clearAuthErrors();
     showAppInterface();
