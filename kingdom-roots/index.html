@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Growing Seed</title>
-  <link rel="stylesheet" href="style.css?v=20260308-home-upgrade-mobile-profile-1" />
+  <link rel="stylesheet" href="style.css?v=20260310-board-popup-1" />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
@@ -27,7 +27,7 @@
              <span class="logo-fallback-text">Pulse</span>
           </div>
         </div>
-        <h1>🌱 Growing Seed</h1>
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
         <p class="auth-subtitle">Grow your faith journey</p>
         <form id="loginForm" onsubmit="handleLogin(event)">
           <div class="form-group">
@@ -49,7 +49,7 @@
     <!-- Registration Screen -->
     <div id="registerScreen" class="auth-screen">
       <div class="auth-card">
-        <h1>🌱 Growing Seed</h1>
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
         <p class="auth-subtitle">Create your account</p>
         <form id="registerForm" onsubmit="handleRegister(event)">
           <div class="form-group">
@@ -136,7 +136,7 @@
     </div>
 
     <div id="userMainContainer" class="container">
-    <h1 class="main-title">🌱 Growing Seed</h1>
+    <h1 class="main-title gs-brand-title">🌱 Growing Seed</h1>
     <p class="main-fp">Faith Points: <span id="faithPoints">0</span></p>
     <div class="gs-stats-row">
       <div class="gs-pill fp">⭐ <span id="fpPillValue">0</span> FP</div>
@@ -357,6 +357,30 @@
           <div class="admin-stat-label">Admins</div>
           <div id="adminTotalAdmins" class="admin-stat-value">0</div>
         </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Moderators</div>
+          <div id="adminTotalModerators" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Active (24h)</div>
+          <div id="adminActiveUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Inactive</div>
+          <div id="adminInactiveUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Task Completion</div>
+          <div id="adminTaskCompletionRate" class="admin-stat-value">0%</div>
+        </div>
+      </div>
+      <div class="admin-trend-row" style="margin-top: 12px; text-align: left;">
+        <h4>Daily Sign-ins (7d)</h4>
+        <div id="adminDailyLoginTrend" style="display: flex; gap: 8px; align-items: flex-end;"></div>
+      </div>
+      <div class="admin-task-summary" style="margin-top: 12px; text-align: left;">
+        <h4>Task Summary</h4>
+        <div id="adminTaskStatusSummary"></div>
       </div>
 
       <div class="admin-users-section">

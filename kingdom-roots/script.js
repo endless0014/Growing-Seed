@@ -1,6 +1,11 @@
 // Authentication System
 let currentUser = null;
 const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
+const ALLOWED_ROLES = ['admin', 'moderator', 'user'];
+const EMAIL_CORRECTIONS = {
+  'nicolenavarrosa27@gmailc.com': 'nicolenavarrosa27@gmail.com'
+};
+const ROLLBACK_RECOVERY_KEY = 'growingSeedRollbackRecoveryDoneByEmailV1';
 const FIREBASE_CONFIG = {
   apiKey: 'AIzaSyDXPQnVHn9ux9Je5vGASWKig3AdBvnlOIk',
   authDomain: 'growing-seed-fc973.firebaseapp.com',
@@ -10,6 +15,7 @@ const FIREBASE_CONFIG = {
   appId: '1:154122860320:web:90f610016b49ad25ef0945'
 };
 const CLOUD_USERS_COLLECTION = 'users';
+const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';
 const NOTIFICATION_PREFERENCE_KEY = 'growingSeedNotificationsEnabled';
 const REMINDER_LOG_KEY = 'growingSeedReminderLogV1';
@@ -1396,13 +1402,15 @@ async function renderAdminDashboard(syncFromCloud = true) {
       const userId = Number.isFinite(Number(user.id)) ? Number(user.id) : Date.now();
       return `
         <tr>
-          <td>${name}</td>
+          <td>${/* login streak placeholder */ 0}</td>
+          <td>${/* daily checkin progress placeholder */ 0}</td>
           <td>${lastLogin}</td>
           <td>${lastActive}</td>
           <td>${email}</td>
           <td><span class="admin-role-badge ${role}">${role}</span></td>
           <td>${faithPoints}</td>
           <td>${treeProgress}</td>
+          <td><!-- activity placeholder --></td>
           <td>
             <div class="admin-actions">
               <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
