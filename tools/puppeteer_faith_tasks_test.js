@@ -25,9 +25,7 @@ const puppeteer = require('puppeteer');
 
   // Seed localStorage with the test user and set a flag to disable cloud sync during tests
   await page.evaluate(user => {
-    try {
-      localStorage.setItem('TEST_DISABLE_CLOUD_SYNC', '1');
-    } catch (e) { }
+    // Do NOT disable cloud sync here; allow cloud sync to run so we can test server interactions
     localStorage.setItem('users', JSON.stringify([user]));
     localStorage.setItem('currentUser', JSON.stringify(user));
   }, testUser);
@@ -91,7 +89,7 @@ const puppeteer = require('puppeteer');
     console.log('Completed', taskKey, res);
     // Wait briefly for persistence to be observable via `lastPersistAt`
     try {
-      await page.waitForFunction(prev => Number(localStorage.getItem('lastPersistAt') || 0) > prev, { timeout: 2000 }, prevPersist);
+      await page.waitForFunction(prev => Number(localStorage.getItem('lastPersistAt') || 0) > prev, { timeout: 8000 }, prevPersist);
     } catch (e) {
       // ignore timestamp timeout; continue to poll actual persisted FP
     }
@@ -104,7 +102,7 @@ const puppeteer = require('puppeteer');
           const cur = JSON.parse(localStorage.getItem('currentUser') || '{}');
           return Number(cur.faithPoints || 0) === Number(exp);
         },
-        { timeout: 2000 },
+        { timeout: 8000 },
         expectedFp
       );
     } catch (e) {
@@ -142,6 +140,8 @@ const puppeteer = require('puppeteer');
   });
 
   await page.reload({ waitUntil: 'networkidle2' });
+  // Ensure cloud sync is active after reload if available
+  try { await page.evaluate(() => { if (typeof startCurrentUserCloudSync === 'function') startCurrentUserCloudSync(); }); } catch (e) { }
   await new Promise(res => setTimeout(res, 500));
 
   // Check task badges after simulated day rollover

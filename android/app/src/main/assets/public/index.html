@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Growing Seed</title>
-  <link rel="stylesheet" href="style.css?v=20260308-home-upgrade-mobile-profile-1" />
+  <link rel="stylesheet" href="style.css?v=20260315-release-1" />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
@@ -27,7 +27,7 @@
              <span class="logo-fallback-text">Pulse</span>
           </div>
         </div>
-        <h1>🌱 Growing Seed</h1>
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
         <p class="auth-subtitle">Grow your faith journey</p>
         <form id="loginForm" onsubmit="handleLogin(event)">
           <div class="form-group">
@@ -49,7 +49,7 @@
     <!-- Registration Screen -->
     <div id="registerScreen" class="auth-screen">
       <div class="auth-card">
-        <h1>🌱 Growing Seed</h1>
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
         <p class="auth-subtitle">Create your account</p>
         <form id="registerForm" onsubmit="handleRegister(event)">
           <div class="form-group">
@@ -78,7 +78,7 @@
     <!-- Forgot Password Screen -->
     <div id="forgotPasswordScreen" class="auth-screen">
       <div class="auth-card">
-        <h1>🌱 Growing Seed</h1>
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
         <p class="auth-subtitle">Reset your password</p>
         <div id="forgotStep1">
           <p>Enter your email to receive a reset code</p>
@@ -117,7 +117,7 @@
     <!-- Header with User Info and Logout -->
     <div class="app-header">
       <div class="title-with-logos">
-        <h1>Growing Seed</h1>
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
         <div class="mobile-header-logos" aria-label="Header logos">
           <div class="mobile-logo-wrap">
             <img src="assets/ABCF.png?v=20260225-logo-refresh-2" data-logo-file="ABCF.png" alt="ABCF logo" class="mobile-header-logo">
@@ -136,12 +136,12 @@
     </div>
 
     <div id="userMainContainer" class="container">
-    <h1 class="main-title">🌱 Growing Seed</h1>
+    <h1 class="main-title gs-brand-title">🌱 Growing Seed</h1>
     <p class="main-fp">Faith Points: <span id="faithPoints">0</span></p>
     <div class="gs-stats-row">
       <div class="gs-pill fp">⭐ <span id="fpPillValue">0</span> FP</div>
-      <div class="gs-pill streak">🔥 <span id="streakPillValue">Day 1</span></div>
-      <button type="button" class="gs-pill leaderboard" onclick="showNotification('Leaderboard coming soon.', { type: 'info' })">🏆 Leaderboard</button>
+      <div class="gs-pill streak">🔥 <span id="streakPillValue">1 day</span></div>
+      <button type="button" class="gs-pill leaderboard" onclick="openLeaderboardModal('leaderboard')">🏆 Leaderboard</button>
       <button id="profileAccessPill" type="button" class="gs-pill profile-access" onclick="openProfileModal()">👤 Profile</button>
     </div>
 
@@ -151,7 +151,7 @@
         <button id="dailyLoginBtn" onclick="openDailyLoginModal()" class="daily-login-btn">Claim Reward</button>
       </div>
       <p class="daily-reward-text">Come back daily for streak rewards and bonus points.</p>
-      <p id="dailyRewardStreakText" class="daily-reward-streak">Day 1 ready</p>
+      <p id="dailyRewardStreakText" class="daily-reward-streak">Login streak: 1 day</p>
     </div>
 
     <div class="gs-card seed-growth-card">
@@ -305,6 +305,7 @@
       </div>
       <p id="progressText" class="progress-text">📈 0/50 points to Germination</p>
     </div>
+    <div id="scriptureBox"></div>
     </div>
 
     <div id="faithActivitiesSection" class="gs-card activities-card">
@@ -330,13 +331,12 @@
       </button>
       <button id="shareGospelBtn" onclick="openUploadModal('sharegospel')" style="display: none;">Share Gospel (+10 FP)</button>
     </div>
-    <div id="scriptureBox"></div>
     </div>
 
     <div class="bottom-nav" aria-label="Bottom navigation">
       <button type="button" class="bottom-nav-item active" onclick="goHomeTop()">🌱<span>Home</span></button>
       <button type="button" class="bottom-nav-item" onclick="goToFaithActivities()">✅<span>Tasks</span></button>
-      <button type="button" class="bottom-nav-item" onclick="showRankingComingSoon()">🏆<span>Ranking</span></button>
+      <button type="button" class="bottom-nav-item" onclick="openLeaderboardModal('ranking')">🏆<span>Ranking</span></button>
       <button type="button" class="bottom-nav-item" onclick="openProfileModal()">👤<span>Profile</span></button>
     </div>
 
@@ -344,11 +344,18 @@
 
     <div id="adminDashboard" class="container admin-dashboard" style="display: none;">
       <h1>🛡️ Admin Dashboard</h1>
-      <p>Admin-only overview and user insights.</p>
-      <button type="button" class="settings-btn" onclick="openProfileModal()">Open Profile</button>
+      <p>Management overview and user insights.</p>
+      <div class="admin-nav-buttons" aria-label="Admin navigation">
+        <button type="button" class="admin-nav-btn" onclick="switchToUserHome()">Home</button>
+        <button type="button" class="admin-nav-btn" onclick="scrollAdminSection('adminOverviewSection')">Dashboard</button>
+        <button type="button" class="admin-nav-btn" onclick="scrollAdminSection('adminUsersSection')">Registered User</button>
+        <button type="button" class="admin-nav-btn" onclick="openProfileModal()">Profile</button>
+        <button id="adminForceLogoutAllBtn" type="button" class="admin-nav-btn admin-logout-all-btn" onclick="adminForceLogoutAll()">🚪 Log Out All Users</button>
+        <button id="adminResetAllProgressBtn" type="button" class="admin-nav-btn admin-logout-all-btn" onclick="adminResetAllProgress()">🔄 Reset All Users Progress</button>
+      </div>
       <p id="adminTaskRefreshTime">Task refresh: 24:00</p>
 
-      <div class="admin-stats-grid">
+      <div id="adminOverviewSection" class="admin-stats-grid">
         <div class="admin-stat-card">
           <div class="admin-stat-label">Total Users</div>
           <div id="adminTotalUsers" class="admin-stat-value">0</div>
@@ -357,24 +364,71 @@
           <div class="admin-stat-label">Admins</div>
           <div id="adminTotalAdmins" class="admin-stat-value">0</div>
         </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Moderators</div>
+          <div id="adminTotalModerators" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Active Users (24h)</div>
+          <div id="adminActiveUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Inactive Users (24h)</div>
+          <div id="adminInactiveUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Task Completion</div>
+          <div id="adminTaskCompletionRate" class="admin-stat-value">0%</div>
+        </div>
       </div>
 
-      <div class="admin-users-section">
+      <div class="admin-analytics-grid">
+        <div class="admin-analytics-card">
+          <h3>Daily Login Trend (7 days)</h3>
+          <div id="adminDailyLoginTrend" class="admin-trend-list"></div>
+        </div>
+        <div class="admin-analytics-card">
+          <h3>Task Status Completion</h3>
+          <div id="adminTaskStatusSummary" class="admin-trend-list"></div>
+        </div>
+      </div>
+
+      <div id="adminUsersSection" class="admin-users-section">
         <div class="admin-users-header">
           <h3>Registered Users</h3>
-          <button onclick="renderAdminDashboard()" class="settings-btn">Refresh</button>
+          <div class="admin-users-controls">
+            <label for="adminSortSelect">Sort by</label>
+            <select id="adminSortSelect" onchange="renderAdminDashboard(false)">
+              <option value="lastActiveDesc">Last Active (Newest)</option>
+              <option value="lastActiveAsc">Last Active (Oldest)</option>
+              <option value="nameAsc">Name (A-Z)</option>
+              <option value="nameDesc">Name (Z-A)</option>
+              <option value="faithPointsDesc">Faith Points (High-Low)</option>
+              <option value="faithPointsAsc">Faith Points (Low-High)</option>
+              <option value="streakDesc">Streak (High-Low)</option>
+              <option value="streakAsc">Streak (Low-High)</option>
+              <option value="roleAsc">Role</option>
+            </select>
+            <button onclick="renderAdminDashboard()" class="settings-btn">Refresh</button>
+          </div>
         </div>
         <div class="admin-table-wrap">
           <table class="admin-table">
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Streak</th>
                 <th>Last Login</th>
                 <th>Last Active</th>
                 <th>Email</th>
                 <th>Role</th>
                 <th>Faith Points</th>
                 <th>Tree Progress</th>
+                <th><span class="task-head-logo" title="Prayer Time">🙏</span></th>
+                <th><span class="task-head-logo" title="Bible Reading">📘</span></th>
+                <th><span class="task-head-logo" title="Daily Devotion">🕊️</span></th>
+                <th><span class="task-head-logo" title="Small Group">🧑‍🤝‍🧑</span></th>
+                <th><span class="task-head-logo" title="Worship Attendance">🏠</span></th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -505,25 +559,6 @@
     </div>
   </div>
 
-  <script>
-    (async function loadLocalFirebaseConfig(){
-      try {
-        const res = await fetch('kingdom-roots/firebase.local.js', {cache: 'no-store'});
-        if (!res.ok) return;
-        const txt = await res.text();
-        (0, eval)(txt);
-        console.log('[local-firebase] loaded kingdom-roots/firebase.local.js');
-      } catch (e) {
-        /* silent fallback when file absent or fetch fails */
-      }
-    })();
-  </script>
-  <script src="js-modular/config.js?v=20260315-release-2"></script>
-  <script src="js-modular/utils.js?v=20260315-release-2"></script>
-  <script src="js-modular/auth.js?v=20260315-release-2"></script>
-  <script src="js-modular/game.js?v=20260315-release-2"></script>
-  <script src="js-modular/admin.js?v=20260315-release-2"></script>
-  <script src="js-modular/services.js?v=20260315-release-2"></script>
-  <script type="module" src="script.js?v=20260315-release-2"></script>
+  <script src="script.js?v=20260315-release-2"></script>
 </body>
 </html>

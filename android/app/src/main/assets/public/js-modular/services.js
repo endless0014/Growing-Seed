@@ -4,14 +4,6 @@ let cloudDb = null;
 let reminderIntervalId = null;
 let currentUserCloudUnsubscribe = null;
 
-function isCloudSyncDisabled() {
-  try {
-    return localStorage.getItem('TEST_DISABLE_CLOUD_SYNC') === '1' || sessionStorage.getItem('TEST_DISABLE_CLOUD_SYNC') === '1';
-  } catch (e) {
-    return false;
-  }
-}
-
 // --- Firebase Auth ---
 
 function isFirebaseAuthAvailable() {
@@ -30,6 +22,21 @@ function initializeFirebaseAuth() {
     console.warn('Firebase Auth init failed:', error);
     return false;
   }
+}
+
+// Compatibility helper for Android asset builds: prefer canonical persist, fallback to direct write.
+function safeSetCurrentUser(userObj) {
+  try {
+    if (typeof persistAllUserState === 'function' && typeof getStoredUsersSafe === 'function') {
+      persistAllUserState(getStoredUsersSafe(), userObj);
+      return;
+    }
+  } catch (e) {}
+  try {
+    try { if (window.safeSetCurrentUser) { window.safeSetCurrentUser(userObj); } else { localStorage.setItem('currentUser', JSON.stringify(userObj)); } } catch(e) {}
+    try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch(_) {}
+    try { console.debug('[persist] fallback wrote currentUser.faithPoints=', userObj && typeof userObj.faithPoints !== 'undefined' ? userObj.faithPoints : null, ' ts=', String(Date.now())); } catch(_) {}
+  } catch (e) {}
 }
 
 async function migrateUserToFirebaseAuth(email, password) {
@@ -205,29 +212,9 @@ function getCloudUsersCollection() {
   return cloudDb ? cloudDb.collection(CLOUD_USERS_COLLECTION) : null;
 }
 
-// Lightweight debug helper: compare server record timestamps with local lastPersistAt
-async function debugServerSyncCompare(docRef, context) {
-  try {
-    if (!docRef) return;
-    const snap = await docRef.get();
-    if (!snap.exists) return;
-    const data = snap.data() || {};
-    const serverUpdatedAt = Number(data.updatedAt ?? data.lastActiveAt ?? 0);
-    const lastPersistAt = Number(localStorage.getItem('lastPersistAt') || 0);
-    try { console.debug('[cloud-debug] ' + context + ': doc=', docRef.id || '[doc]', ' serverUpdatedAt=', serverUpdatedAt, ' lastPersistAt=', lastPersistAt, ' serverIsStale=', serverUpdatedAt > 0 && serverUpdatedAt < lastPersistAt); } catch(e) {}
-  } catch (e) {
-    try { console.warn('[cloud-debug] debugServerSyncCompare failed:', e); } catch(_) {}
-  }
-}
-
 // --- Cloud CRUD ---
 
 async function upsertUserInCloud(user) {
-  if (isCloudSyncDisabled()) {
-    try { console.debug('[cloud] upsertUserInCloud: skipped (TEST_DISABLE_CLOUD_SYNC) for', user && user.email); } catch (e) {}
-    return Promise.resolve();
-  }
-
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection || !user?.email) return;
   try {
@@ -242,8 +229,6 @@ async function upsertUserInCloud(user) {
 
     await userDoc.set(cloudUserFields, { merge: true });
     await userDoc.update({ taskCompletions, dailyLoginState });
-    // Debug: read back server doc and compare timestamps with local persistence
-    try { debugServerSyncCompare(userDoc, 'upsertUserInCloud'); } catch (e) { /* ignore */ }
   } catch (error) {
     console.warn('Cloud upsert failed:', error);
   }
@@ -260,11 +245,6 @@ async function deleteUserFromCloud(email) {
 }
 
 function syncUsersToCloud(users) {
-  if (isCloudSyncDisabled()) {
-    try { console.debug('[cloud] syncUsersToCloud: skipped (TEST_DISABLE_CLOUD_SYNC) usersCount=', Array.isArray(users) ? users.length : 0); } catch (e) {}
-    return;
-  }
-
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection || !Array.isArray(users)) return;
   Promise.all(users.map(user => upsertUserInCloud(user))).catch(error => {
@@ -333,7 +313,7 @@ function startCurrentUserCloudSync() {
       cloudUserToApply = {
         ...cloudUser,
         faithPoints: Math.floor(Number(faithPoints ?? currentUser.faithPoints ?? 0) || 0),
-        loginStreakCurrent: Math.max(getUserCurrentLoginStreak(currentUser), getUserCurrentLoginStreak(cloudUser)),
+        loginStreakCurrent: Math.max(getUserCurrentLoginStreak(currentUser), getLegacyDailyLoginStreak(dailyLoginState)),
         loginStreakLongest: Math.max(getUserLongestLoginStreak(currentUser), getUserLongestLoginStreak(cloudUser)),
         dailyLoginState: normalizeDailyLoginState(dailyLoginState),
         updatedAt: Math.max(localUpdatedAt || 0, cloudUpdatedAt || 0)
@@ -369,7 +349,6 @@ function startCurrentUserCloudSync() {
     const userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedEmail);
     if (userIndex !== -1) {
       users[userIndex] = { ...users[userIndex], ...cloudUserToApply, role: getRoleByEmail(cloudUserToApply.email, cloudUserToApply.role) };
-      try { console.debug('[persist][mod] set users (cloud apply) count=', Array.isArray(users) ? users.length : 0, ' currentUser.faithPoints=', currentUser && typeof currentUser.faithPoints !== 'undefined' ? currentUser.faithPoints : null); } catch (e) {}
       localStorage.setItem('users', JSON.stringify(users));
     }
     currentUser = {
@@ -378,9 +357,7 @@ function startCurrentUserCloudSync() {
       viewMode: currentUser.viewMode ?? cloudUserToApply.viewMode ?? 'user'
     };
     delete currentUser.password;
-    try { persistAllUserState(users, currentUser); } catch (e) {
-      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
-    }
+    safeSetCurrentUser(currentUser);
     loadUserData();
     updateDisplay({ persist: false });
   }, error => {
@@ -425,34 +402,15 @@ function mergeUsersByLatestTimestamp(localUsers, cloudUsers) {
 }
 
 async function syncUsersFromCloudToLocal() {
-  if (isCloudSyncDisabled()) {
-    try { console.debug('[cloud] syncUsersFromCloudToLocal: skipped (TEST_DISABLE_CLOUD_SYNC)'); } catch (e) {}
-    return false;
-  }
-
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection) return false;
   try {
     const localUsers = getStoredUsersSafe();
     const snapshot = await usersCollection.get();
-    const lastPersistAt = Number(localStorage.getItem('lastPersistAt') || 0);
-    // Log any server records that appear older than our last local persist
-    try {
-      snapshot.docs.forEach(doc => {
-        try {
-          const d = doc.data() || {};
-          const serverUpdatedAt = Number(d.updatedAt ?? d.lastActiveAt ?? 0);
-          if (serverUpdatedAt > 0 && lastPersistAt > 0 && serverUpdatedAt < lastPersistAt) {
-            try { console.debug('[cloud-debug] syncUsersFromCloudToLocal: server record stale doc=', doc.id, ' serverUpdatedAt=', serverUpdatedAt, ' lastPersistAt=', lastPersistAt); } catch(e) {}
-          }
-        } catch(e) { /* ignore per-doc errors */ }
-      });
-    } catch(e) { /* ignore snapshot iterate errors */ }
     const cloudUsers = snapshot.docs
       .map((doc, index) => normalizeStoredUser(doc.data(), Date.now() + index))
       .filter(user => Boolean(user.email));
     const mergedUsers = mergeUsersByLatestTimestamp(localUsers, cloudUsers);
-    try { console.debug('[persist][mod] set users (cloud read) count=', Array.isArray(mergedUsers) ? mergedUsers.length : 0); } catch (e) {}
     localStorage.setItem('users', JSON.stringify(mergedUsers));
     return true;
   } catch (error) {
@@ -469,29 +427,6 @@ async function migrateLocalUsersToCloudOnce() {
     await Promise.all(localUsers.map(user => upsertUserInCloud(user)));
   }
   localStorage.setItem(CLOUD_MIGRATION_KEY, 'done');
-}
-
-function migrateLoginStreaksFromLegacyOnce() {
-  if (localStorage.getItem(STREAK_MIGRATION_KEY) === 'done') return;
-  const users = getStoredUsersSafe();
-  let changed = false;
-  users.forEach(user => {
-    const currentStreak = Math.floor(Number(user.loginStreakCurrent ?? 0) || 0);
-    const longestStreak = Math.floor(Number(user.loginStreakLongest ?? 0) || 0);
-    const legacyStreak = getLegacyDailyLoginStreak(user.dailyLoginState);
-    if (legacyStreak > 0 && currentStreak === 0) {
-      user.loginStreakCurrent = legacyStreak;
-      changed = true;
-    }
-    if (legacyStreak > longestStreak) {
-      user.loginStreakLongest = legacyStreak;
-      changed = true;
-    }
-  });
-  if (changed) {
-    setStoredUsers(users);
-  }
-  localStorage.setItem(STREAK_MIGRATION_KEY, 'done');
 }
 
 async function applyEmailCorrections() {
@@ -521,11 +456,9 @@ async function applyEmailCorrections() {
   if (usersChanged) setStoredUsers(users);
   if (currentUser?.email) {
     const correctedCurrentEmail = getCorrectedEmail(currentUser.email);
-      if (correctedCurrentEmail !== normalizeEmail(currentUser.email)) {
+    if (correctedCurrentEmail !== normalizeEmail(currentUser.email)) {
       currentUser.email = correctedCurrentEmail;
-      try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
-        try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
-      }
+      safeSetCurrentUser(currentUser);
     }
   }
   const usersCollection = getCloudUsersCollection();
@@ -563,9 +496,7 @@ function enforceAdminRoleInStorage() {
       const expectedRole = getRoleByEmail(parsedCurrentUser.email, parsedCurrentUser.role);
       if (parsedCurrentUser.role !== expectedRole) {
         parsedCurrentUser.role = expectedRole;
-        try { persistAllUserState(getStoredUsersSafe(), parsedCurrentUser); } catch (e) {
-          try { safeSetCurrentUser(parsedCurrentUser); } catch(__e2) { /* ignore */ }
-        }
+        safeSetCurrentUser(parsedCurrentUser);
       }
     } catch { localStorage.removeItem('currentUser'); }
   }
@@ -656,9 +587,7 @@ async function runRollbackRecoveryForCurrentUserOnce() {
   setStoredUsers(users);
   faithPoints = bestFaithPoints;
   dailyLoginState = recoveredDailyLoginState;
-  try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
-    try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
-  }
+  safeSetCurrentUser(currentUser);
   await upsertUserInCloud(currentUser);
 
   debugFpLog('rollback-recovery-applied', {

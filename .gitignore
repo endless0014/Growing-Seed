@@ -5,3 +5,4 @@ node_modules/
 android-sdk/
 android/.gradle/
 android/app/build/
+kingdom-roots/firebase.local.js
