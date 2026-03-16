@@ -2701,7 +2701,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
           return `<input type="checkbox" disabled ${checked ? 'checked' : ''} aria-label="${taskDisplayNames[taskKey]} completion">`;
         }
 
-        return `<input type="checkbox" ${checked ? 'checked' : ''} onchange="window.adminSetTaskCompletion(${userId}, '${taskKey}', this.checked, '${normalizedEmail}')" aria-label="${taskDisplayNames[taskKey]} completion">`;
+        return `<input type="checkbox" ${checked ? 'checked' : ''} onchange="window.adminSetTaskCompletion(${userId}, '${taskKey}', this.checked, \"${normalizedEmail.replace(/"/g, '\\"')}\")" aria-label="${taskDisplayNames[taskKey]} completion">`;
       };
       const roleControl = roleOfCurrentUser === 'admin'
         ? `<select class="admin-role-select" onchange="window.adminChangeUserRole(${userId}, this.value)">
