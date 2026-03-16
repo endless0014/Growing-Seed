@@ -1835,10 +1835,10 @@ function openProfileModal() {
 
   const toggleBtn = document.getElementById('switchAdminViewBtn');
   if (toggleBtn) {
-    const isAdmin = isAdminEmail(currentUser?.email);
-    toggleBtn.style.display = isAdmin ? 'block' : 'none';
-    if (isAdmin) {
-      toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Admin View';
+    const hasMgmt = hasManagementAccess();
+    toggleBtn.style.display = hasMgmt ? 'block' : 'none';
+    if (hasMgmt) {
+      toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Management View';
     }
   }
 
