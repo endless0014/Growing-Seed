@@ -471,10 +471,23 @@ function normalizeDailyLoginState(sourceState) {
         .filter(day => Number.isFinite(day) && day >= 1 && day <= DAILY_LOGIN_REWARDS.length)
     : [];
 
+  // Normalize date-like strings into the internal date-key format (YYYY-M-D)
+  const normalizeDateValue = raw => {
+    if (raw === null || raw === undefined) return '';
+    const s = String(raw).trim();
+    if (!s) return '';
+    // If already in date-key form, try to parse via getDateKeyFromDate fallback
+    const tryParse = new Date(s);
+    if (!Number.isNaN(tryParse.getTime())) {
+      return getDateKeyFromDate(tryParse);
+    }
+    return '';
+  };
+
   return {
     streakDay: safeStreakDay,
-    lastClaimDate: typeof input.lastClaimDate === 'string' ? input.lastClaimDate : '',
-    cycleStartDate: typeof input.cycleStartDate === 'string' ? input.cycleStartDate : '',
+    lastClaimDate: typeof input.lastClaimDate === 'string' ? normalizeDateValue(input.lastClaimDate) : '',
+    cycleStartDate: typeof input.cycleStartDate === 'string' ? normalizeDateValue(input.cycleStartDate) : '',
     claimedDays: Array.from(new Set(claimedDays)).sort((a, b) => a - b)
   };
 }
@@ -2778,5 +2791,93 @@ window.addEventListener('DOMContentLoaded', function() {
   resolveLogoSources();
   ensureDailyLoginUi();
   removeLegacyAdminFaithPointsCard();
+  // Expose legacy inline handlers to the global window so the module can keep `type="module"`
+  try {
+    if (typeof exposeGlobalHandlers === 'function') exposeGlobalHandlers();
+  } catch (e) {
+    console.warn('Failed to expose global handlers:', e);
+  }
+  // Attach programmatic auth listeners (prefer over inline handlers)
+  try {
+    if (typeof attachAuthEventListeners === 'function') attachAuthEventListeners();
+  } catch (e) {
+    console.warn('Failed to attach auth listeners:', e);
+  }
   initializeApp();
 });
+
+// Expose commonly-used UI handlers to `window` so inline `onclick`/`onsubmit` attrs work
+function exposeGlobalHandlers() {
+  const handlerNames = [
+    'handleLogin','handleRegister','handleChangePassword',
+    'switchToRegister','switchToLogin','switchToForgotPassword',
+    'sendResetCode','resetPasswordWithCode','goBackToForgot',
+    'openLeaderboardModal','openProfileModal','openDailyLoginModal',
+    'toggleDailyLoginReminder','handleUpgradeRootsClick','openUploadModal',
+    'goHomeTop','goToFaithActivities','switchToUserHome','scrollAdminSection',
+    'adminForceLogoutAll','adminResetAllProgress','restoreUserLoginStreaksFromBackup',
+    'renderAdminDashboard','closeProfileModal','toggleAdminView','enableBrowserNotificationsFromProfile',
+    'openChangePasswordModal','downloadUserData','handleLogout','deleteAccountConfirm',
+    'closeChangePasswordModal','closeUploadModal','submitPhoto','closeUpgradeModal',
+    'confirmUpgrade','useAllPoints','closeDailyLoginModal','closeLeaderboardModal',
+    'switchPublicBoardType','openDailyLoginModal'
+  ];
+
+  handlerNames.forEach(name => {
+    try {
+      if (typeof window[name] === 'undefined') {
+        const fn = eval(name);
+        if (typeof fn === 'function') window[name] = fn;
+      }
+    } catch (e) {
+      // ignore missing handlers
+    }
+  });
+
+  // Expose admin helpers that are referenced via window.admin* in templates
+  try { if (typeof adminAddPoints === 'function') window.adminAddPoints = adminAddPoints; } catch(e){}
+  try { if (typeof adminResetPassword === 'function') window.adminResetPassword = adminResetPassword; } catch(e){}
+  try { if (typeof adminResetProgress === 'function') window.adminResetProgress = adminResetProgress; } catch(e){}
+  try { if (typeof adminViewProgress === 'function') window.adminViewProgress = adminViewProgress; } catch(e){}
+  try { if (typeof adminOpenUserUi === 'function') window.adminOpenUserUi = adminOpenUserUi; } catch(e){}
+}
+
+// Attach programmatic listeners for core auth UI elements
+function attachAuthEventListeners() {
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) loginForm.addEventListener('submit', handleLogin);
+
+  const registerForm = document.getElementById('registerForm');
+  if (registerForm) registerForm.addEventListener('submit', handleRegister);
+
+  const sendResetBtn = document.getElementById('sendResetCodeBtn');
+  if (sendResetBtn) sendResetBtn.addEventListener('click', sendResetCode);
+
+  const resetPwdBtn = document.getElementById('resetPasswordBtn');
+  if (resetPwdBtn) resetPwdBtn.addEventListener('click', resetPasswordWithCode);
+
+  const forgotBackBtn = document.getElementById('forgotBackBtn');
+  if (forgotBackBtn) forgotBackBtn.addEventListener('click', goBackToForgot);
+
+  const registerLink = document.getElementById('registerLink');
+  if (registerLink) registerLink.addEventListener('click', e => { e.preventDefault(); switchToRegister(); });
+
+  const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+  if (forgotPasswordLink) forgotPasswordLink.addEventListener('click', e => { e.preventDefault(); switchToForgotPassword(); });
+
+  const loginLink = document.getElementById('loginLink');
+  if (loginLink) loginLink.addEventListener('click', e => { e.preventDefault(); switchToLogin(); });
+
+  const forgotToLoginLink = document.getElementById('forgotToLoginLink');
+  if (forgotToLoginLink) forgotToLoginLink.addEventListener('click', e => { e.preventDefault(); switchToLogin(); });
+}
+
+// Expose daily-login helpers for debugging and console-driven tests
+try {
+  if (typeof claimDailyLogin === 'function') window.claimDailyLogin = claimDailyLogin;
+  if (typeof renderDailyLoginCalendar === 'function') window.renderDailyLoginCalendar = renderDailyLoginCalendar;
+  if (typeof canClaimDailyLoginDay === 'function') window.canClaimDailyLoginDay = canClaimDailyLoginDay;
+  if (typeof hasClaimedDailyLoginToday === 'function') window.hasClaimedDailyLoginToday = hasClaimedDailyLoginToday;
+} catch (e) {
+  // ignore
+}

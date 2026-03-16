@@ -47,6 +47,7 @@ function isAdminUser() {
 }
 
 function hasManagementAccess() {
+  // Management access is limited to moderators and admins only.
   const role = getCurrentUserRole();
   return role === 'admin' || role === 'moderator';
 }
@@ -55,7 +56,9 @@ function canManageAction(actionKey) {
   const role = getCurrentUserRole();
   if (role === 'admin') return true;
   if (role === 'moderator') {
-    return actionKey !== 'resetProgress' && actionKey !== 'openUi' && actionKey !== 'changeRole' && actionKey !== 'viewProgress';
+    // Moderators are allowed to add points, reset passwords, and view progress only.
+    const allowedForModerator = new Set(['addPoints', 'resetPassword', 'viewProgress']);
+    return allowedForModerator.has(actionKey);
   }
   return false;
 }

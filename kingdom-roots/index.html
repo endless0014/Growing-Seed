@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="style.css?v=20260315-release-1" />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 </head>
 <body>
   <!-- Authentication Screens -->
@@ -41,8 +42,8 @@
           <button type="submit" class="auth-btn">Login</button>
           <p id="loginError" class="error-message"></p>
         </form>
-        <p class="auth-link">Don't have an account? <a href="#" onclick="switchToRegister()">Register here</a></p>
-        <p class="auth-link"><a href="#" onclick="switchToForgotPassword()">Forgot password?</a></p>
+        <p class="auth-link">Don't have an account? <a href="#" onclick="switchToRegister()" id="registerLink">Register here</a></p>
+        <p class="auth-link"><a href="#" onclick="switchToForgotPassword()" id="forgotPasswordLink">Forgot password?</a></p>
       </div>
     </div>
 
@@ -71,7 +72,7 @@
           <button type="submit" class="auth-btn">Register</button>
           <p id="registerError" class="error-message"></p>
         </form>
-        <p class="auth-link">Already have an account? <a href="#" onclick="switchToLogin()">Login here</a></p>
+        <p class="auth-link">Already have an account? <a href="#" onclick="switchToLogin()" id="loginLink">Login here</a></p>
       </div>
     </div>
 
@@ -86,7 +87,7 @@
             <label for="forgotEmail">Email</label>
             <input type="email" id="forgotEmail" placeholder="Enter your email" required>
           </div>
-          <button onclick="sendResetCode()" class="auth-btn">Send Reset Code</button>
+          <button onclick="sendResetCode()" id="sendResetCodeBtn" type="button" class="auth-btn">Send Reset Code</button>
           <p id="forgotError" class="error-message"></p>
         </div>
         <div id="forgotStep2" style="display: none;">
@@ -103,11 +104,11 @@
             <label for="confirmNewPassword">Confirm Password</label>
             <input type="password" id="confirmNewPassword" placeholder="Confirm new password" required>
           </div>
-          <button onclick="resetPasswordWithCode()" class="auth-btn">Reset Password</button>
-          <button onclick="goBackToForgot()" class="auth-btn secondary">Back</button>
+          <button onclick="resetPasswordWithCode()" id="resetPasswordBtn" type="button" class="auth-btn">Reset Password</button>
+          <button onclick="goBackToForgot()" id="forgotBackBtn" type="button" class="auth-btn secondary">Back</button>
           <p id="resetError" class="error-message"></p>
         </div>
-        <p class="auth-link"><a href="#" onclick="switchToLogin()">Back to Login</a></p>
+        <p class="auth-link"><a href="#" onclick="switchToLogin()" id="forgotToLoginLink">Back to Login</a></p>
       </div>
     </div>
   </div>
@@ -419,19 +420,15 @@
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Login Streak</th>
-                <th>Daily Check-in Progress</th>
+                <th>Log In Streak</th>
+                <th>Daily Checkin Progress</th>
                 <th>Last Login</th>
                 <th>Last Active</th>
                 <th>Email</th>
                 <th>Role</th>
                 <th>Faith Points</th>
                 <th>Tree Progress</th>
-                <th><span class="task-head-logo" title="Prayer Time">🙏</span></th>
-                <th><span class="task-head-logo" title="Bible Reading">📘</span></th>
-                <th><span class="task-head-logo" title="Daily Devotion">🕊️</span></th>
-                <th><span class="task-head-logo" title="Small Group">🧑‍🤝‍🧑</span></th>
-                <th><span class="task-head-logo" title="Worship Attendance">🏠</span></th>
+                <th>Activity</th>
                 <th>Actions</th>
               </tr>
             </thead>

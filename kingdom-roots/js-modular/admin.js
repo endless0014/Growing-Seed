@@ -7,6 +7,70 @@ function getCurrentViewMode() {
   return currentUser.viewMode === 'admin' ? 'admin' : 'user';
 }
 
+window.adminSetTaskCompletion = adminSetTaskCompletion;
+window.adminSetStreakDays = adminSetStreakDays;
+window.adminSetJoinedDate = adminSetJoinedDate;
+function adminSetEmail(userId, emailValue) {
+  if (!assertAdminDashboardAccess()) return;
+  if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit email.', { type: 'error' }); renderAdminDashboard(false); return; }
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); renderAdminDashboard(false); return; }
+  if (!emailValue || typeof emailValue !== 'string') { showNotification('Invalid email.', { type: 'error' }); return; }
+  const normalized = normalizeEmail(emailValue);
+  // Prevent duplicate emails
+  if (users.some((u, idx) => idx !== userIndex && normalizeEmail(u.email) === normalized)) {
+    showNotification('Another user already has that email.', { type: 'error' }); return;
+  }
+  users[userIndex].email = normalized;
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+  showNotification(`Email updated for ${users[userIndex].name}.`, { type: 'success' });
+}
+
+function adminSetFaithPoints(userId, pointsValue) {
+  if (!assertAdminDashboardAccess()) return;
+  if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit faith points.', { type: 'error' }); renderAdminDashboard(false); return; }
+  const parsed = Math.floor(Number(pointsValue));
+  if (!Number.isFinite(parsed) || parsed < 0) { showNotification('Invalid points value.', { type: 'error' }); return; }
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); renderAdminDashboard(false); return; }
+  users[userIndex].faithPoints = parsed;
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+  showNotification(`Faith Points updated for ${users[userIndex].email}.`, { type: 'success' });
+}
+
+function adminSetTreeProgress(userId, progressValue) {
+  if (!assertAdminDashboardAccess()) return;
+  if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit tree progress.', { type: 'error' }); renderAdminDashboard(false); return; }
+  const parsed = Math.floor(Number(progressValue));
+  if (!Number.isFinite(parsed) || parsed < 0) { showNotification('Invalid tree progress value.', { type: 'error' }); return; }
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); renderAdminDashboard(false); return; }
+  users[userIndex].treeProgress = parsed;
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+  showNotification(`Tree Progress updated for ${users[userIndex].email}.`, { type: 'success' });
+}
+
+window.adminSetEmail = adminSetEmail;
+window.adminSetFaithPoints = adminSetFaithPoints;
+window.adminSetTreeProgress = adminSetTreeProgress;
 function applyViewModeUI() {
   const hasManagement = hasManagementAccess();
   const mode = getCurrentViewMode();
@@ -222,17 +286,11 @@ async function renderAdminDashboard(syncFromCloud = true) {
     if (user.dailyLoginState && Array.isArray(user.dailyLoginState.claimedDays)) {
       dailyRewardProgress = user.dailyLoginState.claimedDays.length;
     }
-    // Ensure dailyRewardProgressControl is always a number, not a date
-    let dailyRewardProgressControl;
-    if (canEditTaskAndStreak) {
-      dailyRewardProgressControl = `<input type="number" min="0" max="${DAILY_LOGIN_REWARDS.length}" value="${dailyRewardProgress}" onchange="window.adminSetStreakDays(${userId}, this.value)" aria-label="Daily reward days for ${name}">`;
-    } else {
-      dailyRewardProgressControl = `${dailyRewardProgress} day${dailyRewardProgress === 1 ? '' : 's'}`;
-    }
     const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
     const userId = Number.isFinite(Number(user.id)) ? Number(user.id) : Date.now();
     const canEditTaskAndStreak = roleOfCurrentUser === 'admin';
 
+    // Render controls for login streak and daily reward progress
     let realLoginStreakControl, dailyRewardProgressControl;
     if (canEditTaskAndStreak) {
       realLoginStreakControl = `<input type="number" min="0" value="${realLoginStreak}" onchange="window.adminSetRealLoginStreak(${userId}, this.value)" aria-label="Login streak days for ${name}">`;
@@ -241,6 +299,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
       realLoginStreakControl = `${realLoginStreak} day${realLoginStreak === 1 ? '' : 's'}`;
       dailyRewardProgressControl = `${dailyRewardProgress} day${dailyRewardProgress === 1 ? '' : 's'}`;
     }
+
 
     const taskCheckbox = taskKey => {
       const rule = taskRecurrenceRules[taskKey];
@@ -261,6 +320,24 @@ async function renderAdminDashboard(syncFromCloud = true) {
     const canViewProgress = canManageAction('viewProgress');
     const disableOpenUi = !canManageAction('openUi') ? 'disabled' : '';
 
+    // Email control (editable for admin)
+    const emailControl = roleOfCurrentUser === 'admin'
+      ? `<input type="email" value="${escapeHtml(user.email || '')}" onchange="window.adminSetEmail(${userId}, this.value)" aria-label="Email for ${name}">`
+      : `${escapeHtml(user.email || 'N/A')}`;
+
+    // Faith points control (editable for admin)
+    const faithControl = roleOfCurrentUser === 'admin'
+      ? `<input type="number" min="0" value="${fp}" onchange="window.adminSetFaithPoints(${userId}, this.value)" aria-label="Faith points for ${name}">`
+      : `${fp}`;
+
+    // Tree progress control (editable for admin)
+    const treeControl = roleOfCurrentUser === 'admin'
+      ? `<input type="number" min="0" value="${tp}" onchange="window.adminSetTreeProgress(${userId}, this.value)" aria-label="Tree progress for ${name}">`
+      : `${tp}`;
+
+    // Activity cell: show task checkboxes (editable for admin), collapsed into one column
+    const activityCell = `<div class="admin-activity-cell">${taskKeys.map(k => taskCheckbox(k)).join(' ')}</div>`;
+
     return `
       <tr>
         <td class="admin-cell-name">${name}</td>
@@ -270,13 +347,9 @@ async function renderAdminDashboard(syncFromCloud = true) {
         <td>${lastActive}</td>
         <td>${email}</td>
         <td>${roleControl}</td>
-        <td>${fp}</td>
-        <td>${tp}</td>
-        <td>${taskCheckbox('pray')}</td>
-        <td>${taskCheckbox('bible')}</td>
-        <td>${taskCheckbox('devotion')}</td>
-        <td>${taskCheckbox('smallgroup')}</td>
-        <td>${taskCheckbox('attendService')}</td>
+        <td>${faithControl}</td>
+        <td>${treeControl}</td>
+        <td>${activityCell}</td>
         <td>
           <div class="admin-actions">
             <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
@@ -429,6 +502,134 @@ window.adminResetProgress = adminResetProgress;
 window.adminViewProgress = adminViewProgress;
 window.adminOpenUserUi = adminOpenUserUi;
 
+// --- Restore actions (per-user and batch) ---
+async function adminRestoreUser(userId) {
+  if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('restore', 'Only admin can restore user data.')) return;
+
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); return; }
+
+  const target = users[userIndex];
+  const email = normalizeEmail(target.email || '');
+  if (!email) { showNotification('User has no email to restore from.', { type: 'error' }); return; }
+
+  if (!confirm(`Restore data for ${target.email}? This will attempt to recover Faith Points, Tree Progress, and Daily login state from backups.`)) return;
+
+  // Gather candidates: local stored user and cloud snapshot
+  let cloudUser = null;
+  const usersCollection = getCloudUsersCollection();
+  if (usersCollection) {
+    try {
+      const snapshot = await usersCollection.doc(email).get();
+      if (snapshot.exists) cloudUser = normalizeStoredUser(snapshot.data(), target.id);
+    } catch (err) {
+      console.warn('Cloud read failed for restore:', err);
+    }
+  }
+
+  const localUser = users[userIndex];
+  const candidateUsers = [localUser, cloudUser].filter(Boolean);
+  if (candidateUsers.length === 0) { showNotification('No candidate records found to restore from.', { type: 'error' }); return; }
+
+  const bestFaithPoints = Math.max(...candidateUsers.map(u => Math.floor(Number(u.faithPoints ?? 0) || 0)));
+  const bestTreeProgress = Math.max(...candidateUsers.map(u => Math.floor(Number(u.treeProgress ?? 0) || 0)));
+  const bestCurrentStreak = Math.max(...candidateUsers.map(u => getUserCurrentLoginStreak(u)));
+  const bestLongestStreak = Math.max(...candidateUsers.map(u => getUserLongestLoginStreak(u)));
+  const bestDailySource = candidateUsers.reduce((best, cu) => {
+    if (!best) return cu;
+    return getLegacyDailyLoginStreak(cu.dailyLoginState) > getLegacyDailyLoginStreak(best.dailyLoginState) ? cu : best;
+  }, null);
+
+  const recoveredFp = Math.max(0, bestFaithPoints - Math.floor(Number(localUser.faithPoints ?? 0) || 0));
+  const recoveredTree = Math.max(0, bestTreeProgress - Math.floor(Number(localUser.treeProgress ?? 0) || 0));
+  const recoveredStreakDays = Math.max(0, bestCurrentStreak - getUserCurrentLoginStreak(localUser));
+
+  // Apply
+  const now = Date.now();
+  users[userIndex] = {
+    ...users[userIndex],
+    faithPoints: bestFaithPoints,
+    treeProgress: bestTreeProgress,
+    loginStreakCurrent: Math.max(bestCurrentStreak, 1),
+    loginStreakLongest: Math.max(bestLongestStreak, Math.max(bestCurrentStreak, 1)),
+    dailyLoginState: normalizeDailyLoginState(bestDailySource?.dailyLoginState ?? {}),
+    taskCompletions: bestDailySource?.taskCompletions ?? users[userIndex].taskCompletions ?? {},
+    lastActiveAt: now,
+    updatedAt: now
+  };
+
+  setStoredUsers(users);
+  try { await upsertUserInCloud(users[userIndex]); } catch (e) { console.warn('Cloud upsert failed after restore:', e); }
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+  showNotification(`Restored ${target.email}: +${recoveredFp} FP, +${recoveredTree} TP, +${recoveredStreakDays} streak day(s).`, { type: 'success', duration: 7000 });
+}
+
+async function restoreUserLoginStreaksFromBackup() {
+  if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('restore', 'Only admin can restore user data.')) return;
+  if (!confirm('Restore FP, Tree Progress and Daily login state for ALL users from backups? This may overwrite local data.')) return;
+
+  const users = getStoredUsersSafe();
+  const usersCollection = getCloudUsersCollection();
+  let totalRecoveredFp = 0;
+  let totalRecoveredTree = 0;
+  let totalRecoveredStreaks = 0;
+
+  for (let i = 0; i < users.length; i++) {
+    const u = users[i];
+    const email = normalizeEmail(u.email || '');
+    if (!email) continue;
+    let cloudUser = null;
+    if (usersCollection) {
+      try {
+        const snap = await usersCollection.doc(email).get();
+        if (snap.exists) cloudUser = normalizeStoredUser(snap.data(), u.id);
+      } catch (err) { console.warn('Cloud read failed for', email, err); }
+    }
+    const candidateUsers = [u, cloudUser].filter(Boolean);
+    if (candidateUsers.length === 0) continue;
+    const bestFaithPoints = Math.max(...candidateUsers.map(x => Math.floor(Number(x.faithPoints ?? 0) || 0)));
+    const bestTreeProgress = Math.max(...candidateUsers.map(x => Math.floor(Number(x.treeProgress ?? 0) || 0)));
+    const bestCurrentStreak = Math.max(...candidateUsers.map(x => getUserCurrentLoginStreak(x)));
+    const bestLongestStreak = Math.max(...candidateUsers.map(x => getUserLongestLoginStreak(x)));
+    const bestDailySource = candidateUsers.reduce((best, cu) => {
+      if (!best) return cu;
+      return getLegacyDailyLoginStreak(cu.dailyLoginState) > getLegacyDailyLoginStreak(best.dailyLoginState) ? cu : best;
+    }, null);
+
+    const recoveredFp = Math.max(0, bestFaithPoints - Math.floor(Number(u.faithPoints ?? 0) || 0));
+    const recoveredTree = Math.max(0, bestTreeProgress - Math.floor(Number(u.treeProgress ?? 0) || 0));
+    const recoveredStreakDays = Math.max(0, bestCurrentStreak - getUserCurrentLoginStreak(u));
+
+    users[i] = {
+      ...users[i],
+      faithPoints: bestFaithPoints,
+      treeProgress: bestTreeProgress,
+      loginStreakCurrent: Math.max(bestCurrentStreak, 1),
+      loginStreakLongest: Math.max(bestLongestStreak, Math.max(bestCurrentStreak, 1)),
+      dailyLoginState: normalizeDailyLoginState(bestDailySource?.dailyLoginState ?? {}),
+      taskCompletions: bestDailySource?.taskCompletions ?? users[i].taskCompletions ?? {},
+      lastActiveAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    totalRecoveredFp += recoveredFp;
+    totalRecoveredTree += recoveredTree;
+    totalRecoveredStreaks += recoveredStreakDays;
+  }
+
+  setStoredUsers(users);
+  try { await syncUsersToCloud(users); } catch (e) { console.warn('Cloud sync failed after bulk restore:', e); }
+  renderAdminDashboard(false);
+  showNotification(`Bulk restore complete. Restored +${totalRecoveredFp} FP, +${totalRecoveredTree} TP, +${totalRecoveredStreaks} streak day(s) across users.`, { type: 'success', duration: 8000 });
+}
+
+window.adminRestoreUser = adminRestoreUser;
+window.restoreUserLoginStreaksFromBackup = restoreUserLoginStreaksFromBackup;
+
 function adminChangeUserRole(userId, nextRole) {
   if (!assertAdminDashboardAccess()) return;
   if (!ensureActionPermission('changeRole', 'Only admin can change user roles.')) return;
@@ -505,3 +706,31 @@ function adminSetStreakDays(userId, streakInput) {
 
 window.adminSetTaskCompletion = adminSetTaskCompletion;
 window.adminSetStreakDays = adminSetStreakDays;
+
+function adminSetJoinedDate(userId, dateValue) {
+  if (!assertAdminDashboardAccess()) return;
+  if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit registration date.', { type: 'error' }); renderAdminDashboard(false); return; }
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); renderAdminDashboard(false); return; }
+  // dateValue expected in YYYY-MM-DD from input[type=date]
+  if (typeof dateValue === 'string' && dateValue.length > 0) {
+    const parsed = new Date(dateValue);
+    if (Number.isNaN(parsed.getTime())) {
+      showNotification('Invalid date provided.', { type: 'error' }); return;
+    }
+    users[userIndex].joinedDate = parsed.toLocaleDateString();
+  } else {
+    users[userIndex].joinedDate = '';
+  }
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+  showNotification(`Registered date updated for ${users[userIndex].email}.`, { type: 'success' });
+}
+
+window.adminSetJoinedDate = adminSetJoinedDate;
+// Note: registered/joined date editing removed from table per UI requirements.
