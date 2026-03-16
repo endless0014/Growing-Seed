@@ -2737,9 +2737,9 @@ async function renderAdminDashboard(syncFromCloud = true) {
           <td>${taskCheckbox('attendService')}</td>
           <td>
               <div class="admin-actions">
-                <button class="admin-action-btn password" onclick="window.adminResetPassword(\"${userId}\")">Reset PW</button>
-                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(\"${userId}\")" ${disableRestoreProgress}>Restore</button>
-                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(\"${userId}\")">View</button>` : ''}
+                <button class="admin-action-btn password" onclick="window.adminResetPassword('${userId}')">Reset PW</button>
+                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress('${userId}')"${disableRestoreProgress ? ' disabled' : ''}>Restore</button>
+                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress('${userId}')">View</button>` : ''}
               </div>
           </td>
         </tr>`;
