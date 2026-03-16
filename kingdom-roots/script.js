@@ -3561,47 +3561,31 @@ function scheduleInactivityLogout() {
 }
 
 function openProfileModal() {
-  if (currentUser) {
-    currentUser.role = getRoleByEmail(currentUser.email, currentUser.role);
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-  }
-
-  applyViewModeUI();
-
-  const toggleBtn = document.getElementById('switchAdminViewBtn');
-  if (toggleBtn) {
-    const managementEnabled = hasManagementAccess();
-    toggleBtn.style.display = managementEnabled ? 'block' : 'none';
-    if (managementEnabled) {
-      toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Management View';
-    }
-  }
-
-  document.getElementById('profileName').textContent = currentUser.name;
-  document.getElementById('profileEmail').textContent = currentUser.email;
-  document.getElementById('profileJoined').textContent = currentUser.joinedDate;
-  ensureProfileNotificationControls();
-  updateProfileNotificationControls();
-  updateProfileDebugControls();
-  document.getElementById('profileModal').style.display = 'flex';
-}
-
-function closeProfileModal() {
-  document.getElementById('profileModal').style.display = 'none';
-}
-
-function openChangePasswordModal() {
-  document.getElementById('changePasswordModal').style.display = 'flex';
-  document.getElementById('changePassError').textContent = '';
-}
-
-function closeChangePasswordModal() {
-  document.getElementById('changePasswordModal').style.display = 'none';
-  document.getElementById('changePasswordForm').reset();
-  document.getElementById('changePassError').textContent = '';
-}
-
-function handleChangePassword(event) {
+      return `
+        <tr>
+          <td class="admin-cell-name">${name}</td>
+          <td>${streakControl}</td>
+          <td>${dailyCheckinProgress}</td>
+          <td>${lastLogin}</td>
+          <td>${lastActive}</td>
+          <td>${email}</td>
+          <td>${roleControl}</td>
+          <td>${faithPoints}</td>
+          <td>${treeProgress}</td>
+          <td>${taskCheckbox('pray')}</td>
+          <td>${taskCheckbox('bible')}</td>
+          <td>${taskCheckbox('devotion')}</td>
+          <td>${taskCheckbox('smallgroup')}</td>
+          <td>${taskCheckbox('attendService')}</td>
+          <td>
+              <div class="admin-actions">
+                <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
+                <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
+                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
+                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+              </div>
+          </td>
+        </tr>`;
   event.preventDefault();
   
   const currentPassword = document.getElementById('currentPassword').value;
