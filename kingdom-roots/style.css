@@ -266,6 +266,30 @@
 .admin-table th:nth-child(10), .admin-table td:nth-child(10) { width: 10%; }
 .admin-table th:nth-child(11), .admin-table td:nth-child(11) { width: 10%; }
 
+/* Activity badges for admin table */
+.admin-activity-cell { display: flex; gap: 6px; align-items: center; justify-content: flex-start; flex-wrap: wrap; }
+.admin-activity-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  cursor: default;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.admin-activity-badge.done { background: linear-gradient(90deg,#2ecc71,#27ae60); }
+.admin-activity-badge.pending { background: linear-gradient(90deg,#e67e22,#d35400); }
+.admin-activity-badge.disabled { opacity: 0.6; cursor: default; }
+.admin-activity-badge:hover { transform: translateY(-1px); }
+
+/* Simple tooltip via title attribute is used; ensure pointer cursor for clickable badges */
+.admin-activity-badge[onclick] { cursor: pointer; }
+
 #oldTreeStageImg.active .bird-a {
   animation: birdFlyAcrossA 8s linear infinite;
 }

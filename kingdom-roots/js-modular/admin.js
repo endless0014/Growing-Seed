@@ -305,11 +305,19 @@ async function renderAdminDashboard(syncFromCloud = true) {
     }
 
 
-    const taskCheckbox = taskKey => {
+    // Activity badges: compact visual indicators for task completion.
+    const taskBadge = taskKey => {
       const rule = taskRecurrenceRules[taskKey];
       const checked = rule && completions[taskKey] === getCurrentPeriodKey(rule.unit);
-      if (!canEditTaskAndStreak) return `<input type="checkbox" disabled ${checked ? 'checked' : ''} aria-label="${taskDisplayNames[taskKey]} completion">`;
-      return `<input type="checkbox" ${checked ? 'checked' : ''} onchange="window.adminSetTaskCompletion(${userId}, '${taskKey}', this.checked)" aria-label="${taskDisplayNames[taskKey]} completion">`;
+      const label = escapeHtml(taskDisplayNames[taskKey] || taskKey);
+      const badgeClass = checked ? 'admin-activity-badge done' : 'admin-activity-badge pending';
+      if (canEditTaskAndStreak) {
+        // Admin may toggle completion
+        const toggleAction = `window.adminSetTaskCompletion(${userId}, '${taskKey}', ${!checked})`;
+        return `<span class="${badgeClass}" title="${label} - ${checked ? 'Completed' : 'Not completed'}" onclick="${toggleAction}">${label[0] || ''}</span>`;
+      }
+      // Read-only badge for non-admins (moderator / viewer)
+      return `<span class="${badgeClass} disabled" title="${label} - ${checked ? 'Completed' : 'Not completed'}">${label[0] || ''}</span>`;
     };
 
     const roleControl = roleOfCurrentUser === 'admin'
@@ -339,12 +347,11 @@ async function renderAdminDashboard(syncFromCloud = true) {
       ? `<input type="number" min="0" value="${tp}" onchange="window.adminSetTreeProgress(${userId}, this.value)" aria-label="Tree progress for ${name}">`
       : `${tp}`;
 
-    // Activity cell: show task checkboxes (editable for admin), collapsed into one column
-    const activityCell = `<div class="admin-activity-cell">${taskKeys.map(k => taskCheckbox(k)).join(' ')}</div>`;
+    // Activity cell: show compact badges for tasks
+    const activityCell = `<div class="admin-activity-cell">${taskKeys.map(k => taskBadge(k)).join(' ')}</div>`;
 
     return `
       <tr>
-        <td class="admin-cell-name">${name}</td>
         <td>${realLoginStreakControl}</td>
         <td>${dailyRewardProgressControl}</td>
         <td>${lastLogin}</td>
