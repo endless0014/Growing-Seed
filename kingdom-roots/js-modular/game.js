@@ -228,7 +228,9 @@ function refreshDailyLoginState() {
       if (typeof currentUser !== 'undefined' && currentUser) {
         currentUser.dailyLoginState = normalized;
         currentUser.updatedAt = Date.now();
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+          try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+        }
         const users = getStoredUsersSafe();
         const idx = findUserIndexForSession(users, currentUser);
         if (idx !== -1) {
@@ -248,7 +250,9 @@ function refreshDailyLoginState() {
     if (typeof currentUser !== 'undefined' && currentUser) {
       currentUser.dailyLoginState = normalized;
       currentUser.updatedAt = Date.now();
-      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+        try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+      }
     }
     const users = getStoredUsersSafe();
     const idx = findUserIndexForSession(users, currentUser);
@@ -752,7 +756,14 @@ function saveUserData() {
     currentUser.id = users[userIndex].id;
     currentUser.lastActiveAt = users[userIndex].lastActiveAt;
     currentUser.updatedAt = users[userIndex].updatedAt;
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(users, currentUser); } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
+    try {
+      localStorage.setItem('lastPersistAt', String(Date.now()));
+    } catch (e) {
+      // ignore
+    }
     debugFpLog('save-user-data', {
       savedFaithPoints: users[userIndex].faithPoints,
       savedUpdatedAt: users[userIndex].updatedAt,

@@ -137,7 +137,9 @@ async function initializeApp() {
       setStoredUsers(users);
       currentUser = { ...currentUser, ...users[currentIndex] };
       delete currentUser.password;
-      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+        try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+      }
     }
     await runRollbackRecoveryForCurrentUserOnce();
     showAppInterface();

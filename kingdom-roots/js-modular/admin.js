@@ -79,7 +79,9 @@ function applyViewModeUI() {
 
   if (hasManagement && currentUser && currentUser.role !== currentRole) {
     currentUser.role = currentRole;
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
   }
 
   document.body.classList.toggle('admin-view', isAdminView);
@@ -371,7 +373,9 @@ function assertAdminDashboardAccess() {
   }
   if (getCurrentViewMode() !== 'admin' && currentUser) {
     currentUser.viewMode = 'admin';
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
   }
   return true;
 }
@@ -487,7 +491,9 @@ function adminOpenUserUi(userId) {
   stopCurrentUserCloudSync();
   delete nextSessionUser.password;
   currentUser = nextSessionUser;
-  localStorage.setItem('currentUser', JSON.stringify(nextSessionUser));
+  try { persistAllUserState(getStoredUsersSafe(), nextSessionUser); } catch (e) {
+    try { safeSetCurrentUser(nextSessionUser); } catch(__e2) { /* ignore */ }
+  }
   closeProfileModal();
   showAppInterface();
   loadUserData();

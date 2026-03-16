@@ -187,7 +187,9 @@ async function handleLogin(event) {
     dailyLoginState: normalizeDailyLoginState(normalizedUser.dailyLoginState)
   };
   delete currentUser.password;
-  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+    try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+  }
   await runRollbackRecoveryForCurrentUserOnce();
   clearAuthErrors();
   showAppInterface();
@@ -274,7 +276,9 @@ async function handleRegister(event) {
   currentUser = { ...newUser };
   hasAutoPromptedDailyLogin = false;
   delete currentUser.password;
-  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+    try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+  }
 
   clearAuthErrors();
   document.getElementById('registerForm').reset();
@@ -425,7 +429,9 @@ async function handleChangePassword(event) {
 function openProfileModal() {
   if (currentUser) {
     currentUser.role = getRoleByEmail(currentUser.email, currentUser.role);
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
   }
   applyViewModeUI();
   const toggleBtn = document.getElementById('switchAdminViewBtn');
@@ -525,7 +531,9 @@ function hydrateCurrentUserFromStoredUsers() {
   };
   delete mergedUser.password;
   currentUser = mergedUser;
-  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+    try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+  }
   return true;
 }
 
@@ -541,7 +549,9 @@ function syncCurrentSessionIfNeeded(updatedUser, options) {
       viewMode: currentUser.viewMode ?? updatedUser.viewMode ?? 'user'
     };
     delete currentUser.password;
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
     loadUserData();
     updateDisplay({ persist: persist });
   }

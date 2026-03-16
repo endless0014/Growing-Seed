@@ -4,6 +4,14 @@ let cloudDb = null;
 let reminderIntervalId = null;
 let currentUserCloudUnsubscribe = null;
 
+function isCloudSyncDisabled() {
+  try {
+    return localStorage.getItem('TEST_DISABLE_CLOUD_SYNC') === '1' || sessionStorage.getItem('TEST_DISABLE_CLOUD_SYNC') === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
 // --- Firebase Auth ---
 
 function isFirebaseAuthAvailable() {
@@ -200,6 +208,11 @@ function getCloudUsersCollection() {
 // --- Cloud CRUD ---
 
 async function upsertUserInCloud(user) {
+  if (isCloudSyncDisabled()) {
+    try { console.debug('[cloud] upsertUserInCloud: skipped (TEST_DISABLE_CLOUD_SYNC) for', user && user.email); } catch (e) {}
+    return Promise.resolve();
+  }
+
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection || !user?.email) return;
   try {
@@ -230,6 +243,11 @@ async function deleteUserFromCloud(email) {
 }
 
 function syncUsersToCloud(users) {
+  if (isCloudSyncDisabled()) {
+    try { console.debug('[cloud] syncUsersToCloud: skipped (TEST_DISABLE_CLOUD_SYNC) usersCount=', Array.isArray(users) ? users.length : 0); } catch (e) {}
+    return;
+  }
+
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection || !Array.isArray(users)) return;
   Promise.all(users.map(user => upsertUserInCloud(user))).catch(error => {
@@ -334,6 +352,7 @@ function startCurrentUserCloudSync() {
     const userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedEmail);
     if (userIndex !== -1) {
       users[userIndex] = { ...users[userIndex], ...cloudUserToApply, role: getRoleByEmail(cloudUserToApply.email, cloudUserToApply.role) };
+      try { console.debug('[persist][mod] set users (cloud apply) count=', Array.isArray(users) ? users.length : 0, ' currentUser.faithPoints=', currentUser && typeof currentUser.faithPoints !== 'undefined' ? currentUser.faithPoints : null); } catch (e) {}
       localStorage.setItem('users', JSON.stringify(users));
     }
     currentUser = {
@@ -342,7 +361,9 @@ function startCurrentUserCloudSync() {
       viewMode: currentUser.viewMode ?? cloudUserToApply.viewMode ?? 'user'
     };
     delete currentUser.password;
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(users, currentUser); } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
     loadUserData();
     updateDisplay({ persist: false });
   }, error => {
@@ -387,6 +408,11 @@ function mergeUsersByLatestTimestamp(localUsers, cloudUsers) {
 }
 
 async function syncUsersFromCloudToLocal() {
+  if (isCloudSyncDisabled()) {
+    try { console.debug('[cloud] syncUsersFromCloudToLocal: skipped (TEST_DISABLE_CLOUD_SYNC)'); } catch (e) {}
+    return false;
+  }
+
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection) return false;
   try {
@@ -396,6 +422,7 @@ async function syncUsersFromCloudToLocal() {
       .map((doc, index) => normalizeStoredUser(doc.data(), Date.now() + index))
       .filter(user => Boolean(user.email));
     const mergedUsers = mergeUsersByLatestTimestamp(localUsers, cloudUsers);
+    try { console.debug('[persist][mod] set users (cloud read) count=', Array.isArray(mergedUsers) ? mergedUsers.length : 0); } catch (e) {}
     localStorage.setItem('users', JSON.stringify(mergedUsers));
     return true;
   } catch (error) {
@@ -464,9 +491,11 @@ async function applyEmailCorrections() {
   if (usersChanged) setStoredUsers(users);
   if (currentUser?.email) {
     const correctedCurrentEmail = getCorrectedEmail(currentUser.email);
-    if (correctedCurrentEmail !== normalizeEmail(currentUser.email)) {
+      if (correctedCurrentEmail !== normalizeEmail(currentUser.email)) {
       currentUser.email = correctedCurrentEmail;
-      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+        try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+      }
     }
   }
   const usersCollection = getCloudUsersCollection();
@@ -504,7 +533,9 @@ function enforceAdminRoleInStorage() {
       const expectedRole = getRoleByEmail(parsedCurrentUser.email, parsedCurrentUser.role);
       if (parsedCurrentUser.role !== expectedRole) {
         parsedCurrentUser.role = expectedRole;
-        localStorage.setItem('currentUser', JSON.stringify(parsedCurrentUser));
+        try { persistAllUserState(getStoredUsersSafe(), parsedCurrentUser); } catch (e) {
+          try { safeSetCurrentUser(parsedCurrentUser); } catch(__e2) { /* ignore */ }
+        }
       }
     } catch { localStorage.removeItem('currentUser'); }
   }
@@ -595,7 +626,9 @@ async function runRollbackRecoveryForCurrentUserOnce() {
   setStoredUsers(users);
   faithPoints = bestFaithPoints;
   dailyLoginState = recoveredDailyLoginState;
-  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+    try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+  }
   await upsertUserInCloud(currentUser);
 
   debugFpLog('rollback-recovery-applied', {

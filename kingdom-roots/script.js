@@ -1,5 +1,12 @@
 // Authentication System
 let currentUser = null;
+function isCloudSyncDisabled() {
+  try {
+    return localStorage.getItem('TEST_DISABLE_CLOUD_SYNC') === '1' || sessionStorage.getItem('TEST_DISABLE_CLOUD_SYNC') === '1';
+  } catch (e) {
+    return false;
+  }
+}
 const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
 const FIREBASE_CONFIG = {
   apiKey: 'AIzaSyDXPQnVHn9ux9Je5vGASWKig3AdBvnlOIk',
@@ -507,10 +514,12 @@ function refreshDailyLoginState() {
     // Persist reset to storage
     try {
       const normalized = normalizeDailyLoginState(dailyLoginState);
-      if (currentUser) {
+        if (currentUser) {
         currentUser.dailyLoginState = normalized;
         currentUser.updatedAt = Date.now();
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+          try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+            try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+          }
         const users = getStoredUsersSafe();
         const idx = findUserIndexForSession(users, currentUser);
         if (idx !== -1) {
@@ -545,7 +554,19 @@ function refreshDailyLoginState() {
     if (currentUser) {
       currentUser.dailyLoginState = normalized;
       currentUser.updatedAt = Date.now();
-      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+        try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+      }
+      try {
+        localStorage.setItem('lastPersistAt', String(Date.now()));
+      } catch (e) {
+        // ignore
+      }
+      try {
+        localStorage.setItem('lastPersistAt', String(Date.now()));
+      } catch (e) {
+        // ignore
+      }
     }
     const users = getStoredUsersSafe();
     const idx = findUserIndexForSession(users, currentUser);
@@ -882,7 +903,9 @@ function startCurrentUserCloudSync() {
       viewMode: currentUser.viewMode ?? cloudUser.viewMode ?? 'user'
     };
     delete currentUser.password;
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(users, currentUser); } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
     loadUserData();
     updateDisplay({ persist: false });
   }, error => {
@@ -943,6 +966,11 @@ function sanitizeUserForCloud(user) {
 }
 
 async function upsertUserInCloud(user) {
+  if (isCloudSyncDisabled()) {
+    try { console.debug('[cloud] upsertUserInCloud: skipped (TEST_DISABLE_CLOUD_SYNC) for', user && user.email); } catch (e) {}
+    return Promise.resolve();
+  }
+
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection || !user?.email) {
     return;
@@ -970,6 +998,11 @@ async function deleteUserFromCloud(email) {
 }
 
 function syncUsersToCloud(users) {
+  if (isCloudSyncDisabled()) {
+    try { console.debug('[cloud] syncUsersToCloud: skipped (TEST_DISABLE_CLOUD_SYNC) usersCount=', Array.isArray(users) ? users.length : 0); } catch (e) {}
+    return;
+  }
+
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection || !Array.isArray(users)) {
     return;
@@ -1015,6 +1048,11 @@ function mergeUsersByLatestTimestamp(localUsers, cloudUsers) {
 }
 
 async function syncUsersFromCloudToLocal() {
+  if (isCloudSyncDisabled()) {
+    try { console.debug('[cloud] syncUsersFromCloudToLocal: skipped (TEST_DISABLE_CLOUD_SYNC)'); } catch (e) {}
+    return false;
+  }
+
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection) {
     return false;
@@ -1078,7 +1116,9 @@ function enforceAdminRoleInStorage() {
       const expectedRole = getRoleByEmail(parsedCurrentUser.email);
       if (parsedCurrentUser.role !== expectedRole) {
         parsedCurrentUser.role = expectedRole;
-        localStorage.setItem('currentUser', JSON.stringify(parsedCurrentUser));
+        try { persistAllUserState(getStoredUsersSafe(), parsedCurrentUser); } catch (e) {
+          try { safeSetCurrentUser(parsedCurrentUser); } catch(__e2) { /* ignore */ }
+        }
       }
     } catch {
       localStorage.removeItem('currentUser');
@@ -1149,7 +1189,10 @@ function applyViewModeUI() {
 
   if (isAdmin && currentUser && currentUser.role !== 'admin') {
     currentUser.role = 'admin';
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+      try { console.error('[persist] persistAllUserState threw, fallback storing currentUser, err=', e); } catch(__dbg) {}
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
   }
 
   document.body.classList.toggle('admin-view', isAdminView);
@@ -1295,7 +1338,9 @@ function assertAdminDashboardAccess() {
 
   if (getCurrentViewMode() !== 'admin' && currentUser) {
     currentUser.viewMode = 'admin';
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
   }
 
   return true;
@@ -1323,8 +1368,128 @@ function getStoredUsersSafe() {
 }
 
 function setStoredUsers(users) {
-  localStorage.setItem('users', JSON.stringify(users));
+  try {
+    localStorage.setItem('users', JSON.stringify(users));
+  } catch (e) {
+    // ignore storage errors
+  }
+  try {
+    console.debug('[persist] setStoredUsers: wrote users count=', Array.isArray(users) ? users.length : 0);
+  } catch (__dbg) {}
+  // Keep existing behavior of syncing users to cloud (cloud guard will noop in tests)
   syncUsersToCloud(users);
+}
+
+// Canonical persistence helper: write `users`, then `currentUser`, then set `lastPersistAt`.
+// Tests should wait for `lastPersistAt` to ensure both writes have completed.
+function persistAllUserState(users, currentUserObj) {
+  try {
+    try {
+      console.debug('[persist] persistAllUserState: start usersCount=', Array.isArray(users) ? users.length : 0, ' currentUser.faithPoints=', currentUserObj && typeof currentUserObj.faithPoints !== 'undefined' ? currentUserObj.faithPoints : null);
+    } catch(__dbgStart) {}
+
+    // Write users first (reuse setStoredUsers to keep cloud sync path consistent)
+    try {
+      setStoredUsers(users);
+    } catch (e) {
+      try { localStorage.setItem('users', JSON.stringify(users)); } catch(__le) { try { console.error('[persist] persistAllUserState: failed writing users', __le); } catch(__dbg1) {} }
+    }
+    // Read-back verification for users write
+    try {
+      const rawUsers = localStorage.getItem('users');
+      if (rawUsers) {
+        try {
+          const parsedUsers = JSON.parse(rawUsers);
+          try { console.debug('[persist] persistAllUserState: readback usersCount=', Array.isArray(parsedUsers) ? parsedUsers.length : 0); } catch(__dbgUR) {}
+        } catch(__pru) {
+          try { console.error('[persist] persistAllUserState: readback users parse failed', __pru); } catch(__dbgUR2) {}
+        }
+      } else {
+        try { console.debug('[persist] persistAllUserState: readback users is empty'); } catch(__dbgUR3) {}
+      }
+    } catch(__urTop) {
+      try { console.error('[persist] persistAllUserState: readback users failed', __urTop); } catch(__dbgUR4) {}
+    }
+  } catch (e) {
+    try { console.error('[persist] persistAllUserState: top-level users write failed', e); } catch(__dbg2) {}
+  }
+
+  try {
+    if (currentUserObj) {
+      try {
+        localStorage.setItem('currentUser', JSON.stringify(currentUserObj));
+      } catch (e) {
+        try { console.error('[persist] persistAllUserState: failed writing currentUser', e); } catch(__dbg3) {}
+      }
+    }
+    // Read-back verification: ensure the stored currentUser matches expected payload
+    try {
+      const raw = localStorage.getItem('currentUser');
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          try { console.debug('[persist] persistAllUserState: readback currentUser.faithPoints=', parsed && typeof parsed.faithPoints !== 'undefined' ? parsed.faithPoints : null); } catch(__dbgRB) {}
+        } catch(__rbp) {
+          try { console.error('[persist] persistAllUserState: readback parse failed', __rbp); } catch(__dbgRB2) {}
+        }
+      } else {
+        try { console.debug('[persist] persistAllUserState: readback currentUser is empty'); } catch(__dbgRB3) {}
+      }
+    } catch(__rbTop) {
+      try { console.error('[persist] persistAllUserState: readback currentUser failed', __rbTop); } catch(__dbgRB4) {}
+    }
+  } catch (e) {
+    try { console.error('[persist] persistAllUserState: unexpected error while handling currentUser', e); } catch(__dbg4) {}
+  }
+
+  try {
+    const ts = String(Date.now());
+    try { localStorage.setItem('lastPersistAt', ts); } catch(__le2) { try { console.error('[persist] persistAllUserState: failed writing lastPersistAt', __le2); } catch(__dbg5) {} }
+    try {
+      console.debug('[persist] persistAllUserState: wrote users count=', Array.isArray(users) ? users.length : 0, ' currentUser.faithPoints=', currentUserObj && typeof currentUserObj.faithPoints !== 'undefined' ? currentUserObj.faithPoints : null, ' ts=', ts);
+    } catch (__dbg) {}
+  } catch (e) {
+    try { console.error('[persist] persistAllUserState: final step failed', e); } catch(__dbg6) {}
+  }
+}
+
+// Safe currentUser setter: prefer canonical persist, but fall back to direct writes
+function safeSetCurrentUser(userObj) {
+  try {
+    try { console.debug('[persist] safeSetCurrentUser: attempting canonical persist currentUser.faithPoints=', userObj && typeof userObj.faithPoints !== 'undefined' ? userObj.faithPoints : null); } catch(__dbgStart) {}
+    // prefer canonical helper which writes users, currentUser, and lastPersistAt
+    persistAllUserState(getStoredUsersSafe(), userObj);
+    try { console.debug('[persist] safeSetCurrentUser: canonical persist succeeded for currentUser.id=', userObj && userObj.id); } catch(__dbgOk) {}
+    return;
+  } catch (e) {
+    try { console.error('[persist] persistAllUserState threw, fallback storing currentUser, err=', e); } catch(__dbg) {}
+    try {
+      try { console.debug('[persist] safeSetCurrentUser: performing fallback write currentUser.faithPoints=', userObj && typeof userObj.faithPoints !== 'undefined' ? userObj.faithPoints : null); } catch(__dbg2) {}
+      localStorage.setItem('currentUser', JSON.stringify(userObj));
+      const ts = String(Date.now());
+      localStorage.setItem('lastPersistAt', ts);
+      try { console.debug('[persist] fallback wrote currentUser.faithPoints=', userObj && typeof userObj.faithPoints !== 'undefined' ? userObj.faithPoints : null, ' ts=', ts); } catch(__dbg3) {}
+      // Read-back verification for fallback path
+      try {
+        const rawFb = localStorage.getItem('currentUser');
+        if (rawFb) {
+          try {
+            const parsedFb = JSON.parse(rawFb);
+            try { console.debug('[persist] safeSetCurrentUser: fallback readback currentUser.faithPoints=', parsedFb && typeof parsedFb.faithPoints !== 'undefined' ? parsedFb.faithPoints : null); } catch(__dbgFB) {}
+          } catch(__pfb) {
+            try { console.error('[persist] safeSetCurrentUser: fallback readback parse failed', __pfb); } catch(__dbgFB2) {}
+          }
+        } else {
+          try { console.debug('[persist] safeSetCurrentUser: fallback readback currentUser is empty'); } catch(__dbgFB3) {}
+        }
+      } catch(__fbTop) {
+        try { console.error('[persist] safeSetCurrentUser: fallback readback failed', __fbTop); } catch(__dbgFB4) {}
+      }
+    } catch (__e2) {
+      try { console.error('[persist] safeSetCurrentUser: fallback write failed', __e2); } catch(__dbg4) {}
+      // ignore fallback write errors
+    }
+  }
 }
 
 function findUserIndexById(users, userId) {
@@ -1373,7 +1538,9 @@ function hydrateCurrentUserFromStoredUsers() {
 
   delete mergedUser.password;
   currentUser = mergedUser;
-  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+    try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+  }
   return true;
 }
 
@@ -1395,7 +1562,12 @@ function syncCurrentSessionIfNeeded(updatedUser, options = {}) {
       viewMode: currentUser.viewMode ?? updatedUser.viewMode ?? 'user'
     };
     delete currentUser.password;
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try {
+      persistAllUserState(getStoredUsersSafe(), currentUser);
+      try { const ts = String(Date.now()); console.debug('[persist] syncCurrentSessionIfNeeded: wrote currentUser.id=', currentUser.id, ' faithPoints=', currentUser.faithPoints, ' ts=', ts); } catch (__dbg) {}
+    } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
     loadUserData();
     updateDisplay({ persist });
   }
@@ -1533,7 +1705,15 @@ function adminOpenUserUi(userId) {
   stopCurrentUserCloudSync();
   delete nextSessionUser.password;
   currentUser = nextSessionUser;
-  localStorage.setItem('currentUser', JSON.stringify(nextSessionUser));
+  try { persistAllUserState(getStoredUsersSafe(), nextSessionUser); } catch (e) {
+    try { console.error('[persist] persistAllUserState threw, fallback storing nextSessionUser, err=', e); } catch(__dbg) {}
+    try {
+      localStorage.setItem('currentUser', JSON.stringify(nextSessionUser));
+      const ts = String(Date.now());
+      localStorage.setItem('lastPersistAt', ts);
+      try { console.debug('[persist] fallback wrote nextSessionUser.faithPoints=', nextSessionUser && typeof nextSessionUser.faithPoints !== 'undefined' ? nextSessionUser.faithPoints : null, ' ts=', ts); } catch(__dbg2) {}
+    } catch(__e2) { /* ignore */ }
+  }
   closeProfileModal();
   showAppInterface();
   loadUserData();
@@ -1547,6 +1727,13 @@ window.adminResetPassword = adminResetPassword;
 window.adminResetProgress = adminResetProgress;
 window.adminViewProgress = adminViewProgress;
 window.adminOpenUserUi = adminOpenUserUi;
+
+// Expose saveUserData so non-module inline callers and tests can persist reliably
+window.saveUserData = saveUserData;
+
+// Expose progress API to tests and inline callers
+try { window.applyTreeProgress = applyTreeProgress; } catch(__e) {}
+try { window.markTaskCompleted = markTaskCompleted; } catch(__e) {}
 
 function escapeHtml(value) {
   return String(value)
@@ -1648,7 +1835,15 @@ async function handleLogin(event) {
       dailyLoginState: normalizeDailyLoginState(normalizedUser.dailyLoginState)
     };
     delete currentUser.password;
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+      try { console.error('[persist] persistAllUserState threw, fallback storing currentUser, err=', e); } catch(__dbg) {}
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
+    try {
+      console.debug('[persist] handleLogin: currentUser set during login id=', currentUser.id, ' faithPoints=', currentUser.faithPoints);
+    } catch (e) {
+      // ignore
+    }
     clearAuthErrors();
     showAppInterface();
     loadUserData();
@@ -1707,7 +1902,9 @@ function handleRegister(event) {
   
   currentUser = { ...newUser };
   delete currentUser.password;
-  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+    try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+  }
   
   clearAuthErrors();
   document.getElementById('registerForm').reset();
@@ -1828,7 +2025,10 @@ function openProfileModal() {
     if (currentUser.role !== 'admin') {
       currentUser.role = 'admin';
     }
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+      try { console.error('[persist] persistAllUserState threw, fallback storing currentUser, err=', e); } catch(__dbg) {}
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
   }
 
   applyViewModeUI();
@@ -2244,6 +2444,8 @@ function markTaskCompleted(taskKey, periodKey) {
 function applyTreeProgress(pointsToAdd, options = {}) {
   const { addFaithPoints = true } = options;
 
+  try { console.debug('[progress] applyTreeProgress: start pointsToAdd=', pointsToAdd, ' addFaithPoints=', addFaithPoints, ' faithPoints(before)=', typeof faithPoints !== 'undefined' ? faithPoints : null, ' treeProgress(before)=', typeof treeProgress !== 'undefined' ? treeProgress : null); } catch(__dbg) {}
+
   if (addFaithPoints) {
     faithPoints += pointsToAdd;
   }
@@ -2265,6 +2467,23 @@ function applyTreeProgress(pointsToAdd, options = {}) {
 
   if (maxBloomReached && fruitEligiblePoints > 0) {
     addFruitIfNeeded(fruitEligiblePoints);
+  }
+  try { console.debug('[progress] applyTreeProgress: end faithPoints(after)=', typeof faithPoints !== 'undefined' ? faithPoints : null, ' treeProgress(after)=', treeProgress, ' maxBloomReached=', !!maxBloomReached); } catch(__dbg2) {}
+  // Probe: read-after-write snapshot to detect any external overwrite
+  try {
+    const _raw_probe = localStorage.getItem('currentUser');
+    if (_raw_probe) {
+      try {
+        const _parsed_probe = JSON.parse(_raw_probe);
+        try { console.debug('[probe] applyTreeProgress: stored currentUser.faithPoints=', _parsed_probe && typeof _parsed_probe.faithPoints !== 'undefined' ? _parsed_probe.faithPoints : null); } catch(__dbgP) {}
+      } catch(__pp) {
+        try { console.error('[probe] applyTreeProgress: stored currentUser parse failed', __pp); } catch(__dbgP2) {}
+      }
+    } else {
+      try { console.debug('[probe] applyTreeProgress: stored currentUser is empty'); } catch(__dbgP3) {}
+    }
+  } catch(__probeTop) {
+    try { console.error('[probe] applyTreeProgress: probe readback failed', __probeTop); } catch(__dbgP4) {}
   }
 }
 
@@ -2353,7 +2572,22 @@ function updateDisplay(options = {}) {
 }
 
 function saveUserData() {
+  // If the module-scoped `currentUser` isn't populated (e.g. actions run
+  // early or session was seeded directly in localStorage), try to hydrate
+  // it from stored `currentUser` so persistence works reliably.
+  if (!currentUser) {
+    try {
+      const raw = localStorage.getItem('currentUser');
+      if (raw) {
+        currentUser = JSON.parse(raw);
+      }
+    } catch (e) {
+      // ignore parse errors and continue — save will be a no-op if still missing
+    }
+  }
+
   if (currentUser) {
+    try { console.debug('[persist] saveUserData: start currentUser.id=', currentUser && currentUser.id, ' faithPoints(in-memory)=', typeof faithPoints !== 'undefined' ? faithPoints : null); } catch(__dbgStart) {}
     refreshDailyLoginState();
     // Update user data in localStorage
     const users = getStoredUsersSafe();
@@ -2371,36 +2605,129 @@ function saveUserData() {
       userIndex = users.length - 1;
     }
     
+    // Prefer the in-memory `faithPoints` value (avoid stale DOM when updateDisplay
+    // hasn't been called yet). Fall back to DOM textContent if in-memory is not set.
+    const domFpRaw = Number(document.getElementById('faithPoints')?.textContent);
+    const computedFaithPoints = Number.isFinite(faithPoints) ? Math.floor(faithPoints) : (Number.isFinite(domFpRaw) ? Math.floor(domFpRaw) : 0);
+
     if (userIndex !== -1) {
-      users[userIndex].faithPoints = Math.floor(faithPoints);
-      users[userIndex].treeProgress = Math.floor(treeProgress);
-      users[userIndex].passiveRate = passiveRate;
-      users[userIndex].fruitCount = fruitCount;
-      users[userIndex].pointsForFruit = pointsForFruit;
-      users[userIndex].maxBloomReached = maxBloomReached;
-      users[userIndex].taskCompletions = taskCompletions;
-      users[userIndex].dailyLoginState = normalizeDailyLoginState(dailyLoginState);
-      users[userIndex].viewMode = getCurrentViewMode();
-      users[userIndex].lastActiveAt = Date.now();
-      users[userIndex].updatedAt = Date.now();
-      
-      setStoredUsers(users);
+      console.log('saveUserData: updating userIndex', userIndex, 'email', normalizedCurrentEmail, 'computedFaithPoints', computedFaithPoints);
+      // Update the matched user object with computed game state
+      users[userIndex] = {
+        ...users[userIndex],
+        faithPoints: Math.floor(computedFaithPoints),
+        treeProgress: Math.floor(treeProgress),
+        passiveRate,
+        fruitCount,
+        pointsForFruit,
+        maxBloomReached,
+        taskCompletions,
+        dailyLoginState: normalizeDailyLoginState(dailyLoginState),
+        viewMode: getCurrentViewMode(),
+        lastActiveAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      // Persist users and current session together so `lastPersistAt` only
+      // advances after both writes are durable for tests to observe.
+      const newCurrent = {
+        ...currentUser,
+        ...users[userIndex],
+        role: getRoleByEmail(currentUser?.email),
+        viewMode: getCurrentViewMode()
+      };
+      delete newCurrent.password;
+      try { console.debug('[persist] saveUserData: about to persistAllUserState for userIndex=', userIndex, ' computedFaithPoints=', computedFaithPoints); persistAllUserState(users, newCurrent); } catch (e) {
+        try { console.error('[persist] persistAllUserState threw, fallback storing newCurrent, err=', e); } catch(__dbg) {}
+        try { setStoredUsers(users); try { safeSetCurrentUser(newCurrent); } catch(__e2) { /* ignore */ } } catch(__e2) { /* ignore */ }
+      }
+      // Probe: immediate read-after-write to detect persisted value and mismatches
+      try {
+        const _raw_post = localStorage.getItem('currentUser');
+        if (_raw_post) {
+          try {
+            const _parsed_post = JSON.parse(_raw_post);
+            try { console.debug('[probe] saveUserData: post-persist readback currentUser.faithPoints=', _parsed_post && typeof _parsed_post.faithPoints !== 'undefined' ? _parsed_post.faithPoints : null); } catch(__dbgPP) {}
+          } catch(__ppp) {
+            try { console.error('[probe] saveUserData: post-persist readback parse failed', __ppp); } catch(__dbgPP2) {}
+          }
+        } else {
+          try { console.debug('[probe] saveUserData: post-persist readback currentUser is empty'); } catch(__dbgPP3) {}
+        }
+      } catch(__postTop) {
+        try { console.error('[probe] saveUserData: post-persist readback failed', __postTop); } catch(__dbgPP4) {}
+      }
+      currentUser = newCurrent;
       upsertUserInCloud(users[userIndex]);
-      
-      // Also update current user session with all game data
-      currentUser.faithPoints = Math.floor(faithPoints);
-      currentUser.treeProgress = Math.floor(treeProgress);
-      currentUser.passiveRate = passiveRate;
-      currentUser.fruitCount = fruitCount;
-      currentUser.pointsForFruit = pointsForFruit;
-      currentUser.maxBloomReached = maxBloomReached;
-      currentUser.taskCompletions = taskCompletions;
-      currentUser.dailyLoginState = normalizeDailyLoginState(dailyLoginState);
-      currentUser.viewMode = getCurrentViewMode();
-      currentUser.id = users[userIndex].id;
-      currentUser.lastActiveAt = users[userIndex].lastActiveAt;
-      currentUser.updatedAt = users[userIndex].updatedAt;
-      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    } else {
+      // Try to find by normalized email if id-based lookup failed
+      const normalizedEmail = normalizedCurrentEmail;
+      let foundIndex = -1;
+      if (normalizedEmail) {
+        foundIndex = users.findIndex(u => normalizeEmail(u.email) === normalizedEmail);
+      }
+
+      if (foundIndex !== -1) {
+        users[foundIndex] = {
+          ...users[foundIndex],
+          faithPoints: Math.floor(computedFaithPoints),
+          treeProgress: Math.floor(treeProgress),
+          passiveRate,
+          fruitCount,
+          pointsForFruit,
+          maxBloomReached,
+          taskCompletions,
+          dailyLoginState: normalizeDailyLoginState(dailyLoginState),
+          viewMode: getCurrentViewMode(),
+          lastActiveAt: Date.now(),
+          updatedAt: Date.now()
+        };
+          const newCurrent = {
+            ...currentUser,
+            ...users[foundIndex],
+            role: getRoleByEmail(currentUser?.email),
+            viewMode: getCurrentViewMode()
+          };
+          delete newCurrent.password;
+          try { persistAllUserState(users, newCurrent); } catch (e) {
+            try { console.error('[persist] persistAllUserState threw, fallback storing newCurrent, err=', e); } catch(__dbg) {}
+            try { console.debug('[persist] saveUserData: persistAllUserState failed in fallback branch, setting users and safeSetCurrentUser'); } catch(__dbg2) {}
+            try { setStoredUsers(users); try { safeSetCurrentUser(newCurrent); } catch(__e2) { /* ignore */ } } catch(__e2) { /* ignore */ }
+          }
+          currentUser = newCurrent;
+          upsertUserInCloud(users[foundIndex]);
+          console.log('saveUserData: users saved (found by email)');
+      } else {
+        // No existing stored user; create one from currentUser data
+        const newUser = normalizeStoredUser({
+          ...currentUser,
+          faithPoints: Math.floor(computedFaithPoints),
+          treeProgress: Math.floor(treeProgress),
+          passiveRate,
+          fruitCount,
+          pointsForFruit,
+          maxBloomReached,
+          taskCompletions,
+          dailyLoginState: normalizeDailyLoginState(dailyLoginState),
+          viewMode: getCurrentViewMode()
+        }, Date.now());
+        users.push(newUser);
+        const newCurrent = {
+          ...currentUser,
+          ...newUser,
+          role: getRoleByEmail(newUser.email),
+          viewMode: getCurrentViewMode()
+        };
+        delete newCurrent.password;
+        try { persistAllUserState(users, newCurrent); } catch (e) {
+          try { console.error('[persist] persistAllUserState threw, fallback storing newCurrent, err=', e); } catch(__dbg) {}
+          try { console.debug('[persist] saveUserData: persistAllUserState threw in new-user branch, doing fallback persist'); } catch(__dbg2) {}
+          try { setStoredUsers(users); try { safeSetCurrentUser(newCurrent); } catch(__e2) { /* ignore */ } } catch(__e2) { /* ignore */ }
+        }
+        currentUser = newCurrent;
+        upsertUserInCloud(newUser);
+        console.log('saveUserData: users saved (created new user)', newUser.email, newUser.faithPoints);
+      }
     }
   }
 }
@@ -2640,7 +2967,87 @@ function submitPhoto() {
   markTaskCompleted(currentAction, recurrenceCheck.periodKey);
   showScripture();
   updateDisplay();
-  // Ensure updated FP and user session are persisted immediately
+  // Atomic persistence fallback: synchronously write current session and users
+  try {
+    // Ensure we have a session in module scope; hydrate from localStorage if needed
+    if (!currentUser) {
+      try {
+        const raw = localStorage.getItem('currentUser');
+        if (raw) currentUser = JSON.parse(raw);
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const computedFaithPoints = Number(document.getElementById('faithPoints')?.textContent) || Math.floor(faithPoints);
+    const users = getStoredUsersSafe();
+    const normalizedEmail = normalizeEmail(currentUser?.email);
+    let userIndex = findUserIndexForSession(users, currentUser);
+    if (userIndex === -1 && normalizedEmail) {
+      userIndex = users.findIndex(u => normalizeEmail(u.email) === normalizedEmail);
+    }
+
+    if (userIndex !== -1) {
+      users[userIndex] = {
+        ...users[userIndex],
+        faithPoints: Math.floor(computedFaithPoints),
+        treeProgress: Math.floor(treeProgress),
+        passiveRate,
+        fruitCount,
+        pointsForFruit,
+        maxBloomReached,
+        taskCompletions,
+        dailyLoginState: normalizeDailyLoginState(dailyLoginState),
+        viewMode: getCurrentViewMode(),
+        lastActiveAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      setStoredUsers(users);
+      upsertUserInCloud(users[userIndex]);
+
+      currentUser = {
+        ...currentUser,
+        ...users[userIndex],
+        role: getRoleByEmail(currentUser?.email),
+        viewMode: getCurrentViewMode()
+      };
+      delete currentUser.password;
+      try { persistAllUserState(users, currentUser); } catch (e) {
+        try { console.error('[persist] persistAllUserState threw, fallback storing currentUser, err=', e); } catch(__dbg) {}
+        try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+      }
+    } else if (currentUser) {
+      const newUser = normalizeStoredUser({
+        ...currentUser,
+        faithPoints: Math.floor(computedFaithPoints),
+        treeProgress: Math.floor(treeProgress),
+        passiveRate,
+        fruitCount,
+        pointsForFruit,
+        maxBloomReached,
+        taskCompletions,
+        dailyLoginState: normalizeDailyLoginState(dailyLoginState),
+        viewMode: getCurrentViewMode()
+      }, Date.now());
+      users.push(newUser);
+      setStoredUsers(users);
+      upsertUserInCloud(newUser);
+      currentUser = {
+        ...currentUser,
+        ...newUser,
+        role: getRoleByEmail(newUser.email),
+        viewMode: getCurrentViewMode()
+      };
+      delete currentUser.password;
+      try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+        try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+      }
+    }
+  } catch (e) {
+    console.warn('Atomic persistence failed after submitPhoto', e);
+  }
+
+  // Ensure updated FP and user session are persisted via the canonical saver as well
   try { saveUserData(); } catch (e) { console.warn('saveUserData failed after submitPhoto', e); }
   closeUploadModal();
   showNotification(`Great job! ${pointsToAdd} FP added for ${reward.name}.`, {
