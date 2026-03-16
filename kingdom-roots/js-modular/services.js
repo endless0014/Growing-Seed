@@ -453,7 +453,42 @@ async function syncUsersFromCloudToLocal() {
       .filter(user => Boolean(user.email));
     const mergedUsers = mergeUsersByLatestTimestamp(localUsers, cloudUsers);
     try { console.debug('[persist][mod] set users (cloud read) count=', Array.isArray(mergedUsers) ? mergedUsers.length : 0); } catch (e) {}
-    localStorage.setItem('users', JSON.stringify(mergedUsers));
+
+    // Persist merged users and ensure currentUser is synchronized with the canonical record
+    try {
+      // Write users first
+      localStorage.setItem('users', JSON.stringify(mergedUsers));
+
+      // If we have a stored currentUser, try to find the canonical record in mergedUsers
+      const currentRaw = localStorage.getItem('currentUser');
+      if (currentRaw) {
+        try {
+          const parsedCurrent = JSON.parse(currentRaw || '{}');
+          const normalizedEmail = normalizeEmail(parsedCurrent.email || '');
+          const matched = mergedUsers.find(u => normalizeEmail(u.email || '') === normalizedEmail);
+          if (matched) {
+            // Persist users + matched current user together (atomic canonical persist)
+            try { persistAllUserState(mergedUsers, matched); } catch (e) {
+              // Fallback: write currentUser and lastPersistAt separately
+              try { localStorage.setItem('currentUser', JSON.stringify(matched)); } catch (_) {}
+              try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch (_) {}
+            }
+          } else {
+            // No matched user in merged set — leave existing currentUser untouched
+            try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch (_) {}
+          }
+        } catch (e) {
+          try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch (_) {}
+        }
+      } else {
+        // No current user stored, still update lastPersistAt to mark the sync
+        try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch (_) {}
+      }
+    } catch (e) {
+      // If anything fails, at least ensure users were written
+      try { localStorage.setItem('users', JSON.stringify(mergedUsers)); } catch (_) {}
+    }
+
     return true;
   } catch (error) {
     console.warn('Cloud read failed:', error);

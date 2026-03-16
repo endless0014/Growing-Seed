@@ -1258,7 +1258,10 @@ function showAuthInterface() {
 function showAppInterface() {
   document.getElementById('authContainer').style.display = 'none';
   document.getElementById('appContainer').style.display = 'block';
-  document.getElementById('userGreeting').textContent = `Welcome, ${currentUser.name}!`;
+  const greetingEl = document.getElementById('userGreeting');
+  if (greetingEl) {
+    greetingEl.textContent = currentUser ? `Welcome, ${currentUser.name || ''}!` : '';
+  }
   ensureDailyLoginUi();
   applyViewModeUI();
 }
@@ -1272,7 +1275,8 @@ function getCurrentViewMode() {
     return 'user';
   }
 
-  if (!isAdminUser()) {
+  // Allow both admins and moderators to use the management (admin) view
+  if (!hasManagementAccess()) {
     return 'user';
   }
 
@@ -1280,15 +1284,11 @@ function getCurrentViewMode() {
 }
 
 function applyViewModeUI() {
-  const isAdmin = isAdminUser();
+  const canManage = typeof hasManagementAccess === 'function' ? hasManagementAccess() : isAdminUser();
   const mode = getCurrentViewMode();
-  const isAdminView = isAdmin && mode === 'admin';
+  const isAdminView = canManage && mode === 'admin';
 
-    if (isAdmin && currentUser && currentUser.role !== 'admin') {
-    currentUser.role = 'admin';
-    safeSetCurrentUser(currentUser);
-  }
-
+  // Do not coerce moderator -> admin here; keep role intact and only control the view mode.
   document.body.classList.toggle('admin-view', isAdminView);
 
   const userMainContainer = document.getElementById('userMainContainer');
@@ -1302,7 +1302,7 @@ function applyViewModeUI() {
 
   const toggleBtn = document.getElementById('switchAdminViewBtn');
   if (toggleBtn) {
-    if (isAdmin) {
+    if (canManage) {
       toggleBtn.style.display = 'block';
       toggleBtn.textContent = isAdminView ? 'Switch to User View' : 'Switch to Admin View';
     } else {
@@ -1958,9 +1958,18 @@ function openProfileModal() {
     }
   }
 
-  document.getElementById('profileName').textContent = currentUser.name;
-  document.getElementById('profileEmail').textContent = currentUser.email;
-  document.getElementById('profileJoined').textContent = currentUser.joinedDate;
+  const profileNameEl = document.getElementById('profileName');
+  const profileEmailEl = document.getElementById('profileEmail');
+  const profileJoinedEl = document.getElementById('profileJoined');
+  if (currentUser) {
+    if (profileNameEl) profileNameEl.textContent = currentUser.name || '';
+    if (profileEmailEl) profileEmailEl.textContent = currentUser.email || '';
+    if (profileJoinedEl) profileJoinedEl.textContent = currentUser.joinedDate || '';
+  } else {
+    if (profileNameEl) profileNameEl.textContent = '';
+    if (profileEmailEl) profileEmailEl.textContent = '';
+    if (profileJoinedEl) profileJoinedEl.textContent = '';
+  }
   ensureProfileNotificationControls();
   updateProfileNotificationControls();
   updateProfileDebugControls();
@@ -1990,7 +1999,10 @@ function handleChangePassword(event) {
   const confirmPassword = document.getElementById('confirmPassChange').value;
   
   document.getElementById('changePassError').textContent = '';
-  
+  if (!currentUser) {
+    document.getElementById('changePassError').textContent = 'No active user session';
+    return;
+  }
   const users = JSON.parse(localStorage.getItem('users') || '[]');
   const user = users.find(u => u.id === currentUser.id);
   
@@ -2018,6 +2030,7 @@ function handleChangePassword(event) {
 }
 
 function downloadUserData() {
+  if (!currentUser) { showNotification('No active user.', { type: 'error' }); return; }
   const userData = {
     profile: {
       name: currentUser.name,
@@ -2044,6 +2057,7 @@ function downloadUserData() {
 }
 
 function deleteAccountConfirm() {
+  if (!currentUser) { showNotification('No active user.', { type: 'error' }); return; }
   if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
     if (confirm('This will permanently delete all your data. Type your email to confirm: ' + currentUser.email)) {
       const users = JSON.parse(localStorage.getItem('users') || '[]');
@@ -2451,9 +2465,8 @@ function updateDisplay(options = {}) {
       : 0;
     const todayClaimed = hasClaimedDailyLoginToday();
     const nextDay = Math.min(dailyLoginState.streakDay, DAILY_LOGIN_REWARDS.length);
-    dailyRewardStreakEl.textContent = todayClaimed
-      ? `Checked in today. Next reward: Day ${nextDay}`
-      : `Day ${nextDay} reward ready`;
+    // Display as Day X/7 to match the daily check-in modal
+    dailyRewardStreakEl.textContent = `Day ${nextDay}/${DAILY_LOGIN_REWARDS.length}`;
   }
   
   updateTaskBadges();
@@ -2596,7 +2609,8 @@ function loadUserData() {
     ? currentUser.taskCompletions
     : {};
   dailyLoginState = normalizeDailyLoginState(currentUser.dailyLoginState);
-  currentUser.viewMode = currentUser.viewMode ?? (isAdminUser() ? 'admin' : 'user');
+  // Default view mode should follow role (admins and moderators default to management view)
+  currentUser.viewMode = currentUser.viewMode ?? getDefaultViewModeForRole(currentUser.role);
 
   if (!Number.isFinite(faithPoints)) faithPoints = 0;
   if (!Number.isFinite(treeProgress)) treeProgress = 0;

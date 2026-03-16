@@ -302,7 +302,7 @@ function performLogout(options) {
   const isAutoLogout = options?.auto === true;
   const logoutMessage = options?.message || null;
   stopInactivityTimer();
-  stopForceLogoutListener();
+  if (typeof stopForceLogoutListener === 'function') stopForceLogoutListener();
   stopCurrentUserCloudSync();
   document.querySelectorAll('.modal').forEach(modalEl => { modalEl.style.display = 'none'; });
 
@@ -442,9 +442,19 @@ function openProfileModal() {
       toggleBtn.textContent = getCurrentViewMode() === 'admin' ? 'Switch to User View' : 'Switch to Management View';
     }
   }
-  document.getElementById('profileName').textContent = currentUser.name;
-  document.getElementById('profileEmail').textContent = currentUser.email;
-  document.getElementById('profileJoined').textContent = currentUser.joinedDate;
+  // Safely populate profile fields even if `currentUser` is null in headless/evaluate contexts
+  const profileNameEl = document.getElementById('profileName');
+  const profileEmailEl = document.getElementById('profileEmail');
+  const profileJoinedEl = document.getElementById('profileJoined');
+  if (currentUser) {
+    if (profileNameEl) profileNameEl.textContent = currentUser.name || '';
+    if (profileEmailEl) profileEmailEl.textContent = currentUser.email || '';
+    if (profileJoinedEl) profileJoinedEl.textContent = currentUser.joinedDate || '';
+  } else {
+    if (profileNameEl) profileNameEl.textContent = '';
+    if (profileEmailEl) profileEmailEl.textContent = '';
+    if (profileJoinedEl) profileJoinedEl.textContent = '';
+  }
   ensureProfileNotificationControls();
   updateProfileNotificationControls();
   updateProfileDebugControls();

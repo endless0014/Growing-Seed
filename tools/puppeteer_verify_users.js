@@ -1,5 +1,5 @@
 const puppeteer = require('puppeteer');
-const HOST = 'http://127.0.0.1:8001/';
+const HOST = 'http://127.0.0.1:8001/kingdom-roots/index.html';
 
 function getTodayKey() {
   const d = new Date();

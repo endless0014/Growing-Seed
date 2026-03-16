@@ -365,7 +365,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
         <td>
           <div class="admin-actions">
             <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
-            <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Send Reset Email</button>
+            <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset Password</button>
             <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})" ${disableResetProgress}>Reset Progress</button>
             <button class="admin-action-btn restore" onclick="window.adminRestoreUser(${userId})">Restore</button>
             ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
@@ -425,25 +425,20 @@ async function adminResetPassword(userId) {
   const userIndex = findUserIndexById(users, userId);
   if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); return; }
   const userEmail = users[userIndex].email;
-  const confirmed = confirm(`Send password reset email to ${userEmail}?`);
-  if (!confirmed) return;
 
-  if (isFirebaseAuthAvailable()) {
-    try {
-      await firebase.auth().sendPasswordResetEmail(userEmail);
-      showNotification(`Password reset email sent to ${userEmail}.`, { type: 'success' });
-    } catch (error) {
-      showNotification(`Failed to send reset email: ${error.message || 'Unknown error'}`, { type: 'error' });
-    }
-  } else {
-    // Legacy fallback: direct password set when Firebase Auth is unavailable
-    const newPassword = prompt('Firebase Auth unavailable. Enter new password (min 6 characters):', '');
-    if (newPassword === null) return;
-    if (newPassword.length < 6) { showNotification('Password must be at least 6 characters.', { type: 'error' }); return; }
-    users[userIndex].password = newPassword;
-    setStoredUsers(users);
-    showNotification(`Password reset for ${userEmail}.`, { type: 'success' });
-  }
+  // Admin will set a default password for the user (stored locally).
+  const newPassword = prompt(`Enter new default password for ${userEmail} (min 6 chars):`, 'changeme123');
+  if (newPassword === null) return;
+  if (newPassword.length < 6) { showNotification('Password must be at least 6 characters.', { type: 'error' }); return; }
+
+  users[userIndex].password = newPassword;
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  try { await upsertUserInCloud(users[userIndex]); } catch (e) { /* ignore cloud failures */ }
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+  showNotification(`Password set for ${userEmail}.`, { type: 'success' });
 }
 
 function adminResetProgress(userId) {
