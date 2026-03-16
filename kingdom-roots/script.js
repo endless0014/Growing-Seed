@@ -2736,67 +2736,31 @@ async function renderAdminDashboard(syncFromCloud = true) {
             setStoredUsers(users);
             // Also update currentUser if editing self
             const currentUserRaw = localStorage.getItem('currentUser');
-            if (currentUserRaw) {
-              try {
-                const parsedCurrentUser = JSON.parse(currentUserRaw);
-                if (parsedCurrentUser.id == userId) {
-                  parsedCurrentUser.dailyLoginState = {
-                    ...parsedCurrentUser.dailyLoginState,
-                    claimedDays: Array.from({length: day}, (_, i) => i + 1),
-                    streakDay: day,
-                  };
-                  localStorage.setItem('currentUser', JSON.stringify(parsedCurrentUser));
-                }
-              } catch {}
-            }
-            syncCurrentSessionIfNeeded(users[userIndex]);
-            renderAdminDashboard();
-            showNotification(`Daily check-in progress updated to Day ${day}.`, { type: 'success' });
-          }
-          window.adminSetDailyCheckinDay = adminSetDailyCheckinDay;
-          <td>${lastLogin}</td>
-          <td>${lastActive}</td>
-          <td>${email}</td>
-          <td>${roleControl}</td>
-          <td>${faithPoints}</td>
-          <td>${treeProgress}</td>
-          <td>${taskCheckbox('pray')}</td>
-          <td>${taskCheckbox('bible')}</td>
-          <td>${taskCheckbox('devotion')}</td>
-          <td>${taskCheckbox('smallgroup')}</td>
-          <td>${taskCheckbox('attendService')}</td>
-          <td>
-              <div class="admin-actions">
-                <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
-                <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
-                <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
-                ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
-                <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})" ${disableOpenUi}>Open UI</button>
-                ${roleOfCurrentUser === 'admin' && role !== 'admin' ? `<button class="admin-action-btn logout" onclick="window.adminForceLogoutUser(${userId})">Log Out</button>` : ''}
-              </div>
-          </td>
-        </tr>
-      `;
-    })
-    .join('');
-  // Function definition moved outside template literal
-  function adminRestoreProgress(userId) {
-    if (!assertAdminDashboardAccess()) return;
-    if (!ensureActionPermission('resetProgress', 'Moderator cannot restore progress.')) return;
-
-    const users = getStoredUsersSafe();
-    const userIndex = findUserIndexById(users, userId);
-    if (userIndex === -1) {
-      showNotification('User not found.', { type: 'error' });
-      return;
-    }
-    const targetEmail = users[userIndex].email;
-    const confirmRestore = confirm(`Restore previous session progress for ${targetEmail}?`);
-    if (!confirmRestore) return;
-
-    // Find latest backup for this user
-    const backupKeys = Object.keys(localStorage).filter(k => k.startsWith('loginStreakBackup_'));
-    if (backupKeys.length === 0) {
+            return `
+              <tr>
+                <td class="admin-cell-name">${name}</td>
+                <td>${streakControl}</td>
+                <td>${dailyCheckinProgress}</td>
+                <td>${lastLogin}</td>
+                <td>${lastActive}</td>
+                <td>${email}</td>
+                <td>${roleControl}</td>
+                <td>${faithPoints}</td>
+                <td>${treeProgress}</td>
+                <td>${taskCheckbox('pray')}</td>
+                <td>${taskCheckbox('bible')}</td>
+                <td>${taskCheckbox('devotion')}</td>
+                <td>${taskCheckbox('smallgroup')}</td>
+                <td>${taskCheckbox('attendService')}</td>
+                <td>
+                    <div class="admin-actions">
+                      <button class="admin-action-btn points" onclick="window.adminAddPoints(${userId}, '${normalizedEmail}')">+Points</button>
+                      <button class="admin-action-btn password" onclick="window.adminResetPassword(${userId})">Reset PW</button>
+                      <button class="admin-action-btn restore" onclick="window.adminRestoreProgress(${userId})" ${disableRestoreProgress}>Restore</button>
+                      ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+                    </div>
+                </td>
+              </tr>`;
       showNotification('No backup found for restore.', { type: 'error' });
       return;
     }
