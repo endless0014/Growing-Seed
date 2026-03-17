@@ -757,6 +757,31 @@ function adminValidateActions() {
 
 window.adminValidateActions = adminValidateActions;
 
+/**
+ * Non-invasive tracer for admin-related permissions.
+ * Returns an object mapping action keys to permission checks without executing actions.
+ */
+function adminTraceActions() {
+  const actions = ['addPoints','resetPassword','resetProgress','viewProgress','openUi','restore','changeRole','setTaskCompletion','setStreakDays','grantAdmin'];
+  const role = getCurrentUserRole();
+  const isAdmin = isAdminUser();
+  const viewMode = getCurrentViewMode();
+  const canManage = hasManagementAccess();
+  const checks = {};
+  actions.forEach(actionKey => {
+    checks[actionKey] = {
+      canManageAction: canManageAction(actionKey),
+      hasManagementAccess: canManage,
+      isAdmin: isAdmin,
+      viewMode: viewMode
+    };
+  });
+  console.info('adminTraceActions', { role, isAdmin, viewMode, canManage, checks });
+  return { role, isAdmin, viewMode, canManage, checks };
+}
+
+window.adminTraceActions = adminTraceActions;
+
 function adminSetTaskCompletion(userId, taskKey, isCompleted) {
   if (!assertAdminDashboardAccess()) return;
   if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit task completion.', { type: 'error' }); renderAdminDashboard(false); return; }

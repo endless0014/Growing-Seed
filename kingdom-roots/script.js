@@ -1702,6 +1702,27 @@ function adminValidateActions() {
 
 window.adminValidateActions = adminValidateActions;
 
+function adminTraceActions() {
+  const actions = ['addPoints','resetPassword','resetProgress','viewProgress','openUi','restore','changeRole','setTaskCompletion','setStreakDays','grantAdmin'];
+  const role = getCurrentUserRole();
+  const isAdmin = isAdminUser();
+  const viewMode = getCurrentViewMode();
+  const canManage = hasManagementAccess();
+  const checks = {};
+  actions.forEach(actionKey => {
+    checks[actionKey] = {
+      canManageAction: canManageAction(actionKey),
+      hasManagementAccess: canManage,
+      isAdmin: isAdmin,
+      viewMode: viewMode
+    };
+  });
+  console.info('adminTraceActions', { role, isAdmin, viewMode, canManage, checks });
+  return { role, isAdmin, viewMode, canManage, checks };
+}
+
+window.adminTraceActions = adminTraceActions;
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
