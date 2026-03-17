@@ -1540,30 +1540,20 @@ function syncCurrentSessionIfNeeded(updatedUser, options = {}) {
   }
 }
 
-function adminAddPoints(userId, userEmail = '') {
+function adminAddPoints(userId, userEmail) {
   if (!assertAdminDashboardAccess()) return;
-
+  if (!ensureActionPermission('addPoints', 'You do not have permission to add points.')) return;
   const pointsInput = prompt('Enter points to add:', '10');
   if (pointsInput === null) return;
-
   const points = Number(pointsInput);
-  if (!Number.isFinite(points) || points <= 0) {
-    showNotification('Please enter a valid positive number.', { type: 'error' });
-    return;
-  }
-
+  if (!Number.isFinite(points) || points <= 0) { showNotification('Please enter a valid positive number.', { type: 'error' }); return; }
   const users = getStoredUsersSafe();
   let userIndex = findUserIndexById(users, userId);
   if (userIndex === -1 && userEmail) {
     const normalizedTargetEmail = normalizeEmail(userEmail);
     userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedTargetEmail);
   }
-
-  if (userIndex === -1) {
-    showNotification('User not found.', { type: 'error' });
-    return;
-  }
-
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); return; }
   users[userIndex].faithPoints = Math.floor(Number(users[userIndex].faithPoints ?? 0) + points);
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
@@ -1574,43 +1564,37 @@ function adminAddPoints(userId, userEmail = '') {
   showNotification(`Added ${points} FP to ${users[userIndex].email}.`, { type: 'success' });
 }
 
-function adminResetPassword(userId) {
+async function adminResetPassword(userId) {
   if (!assertAdminDashboardAccess()) return;
-
-  const newPassword = prompt('Enter new password (min 6 characters):', 'password123');
-  if (newPassword === null) return;
-
-  if (newPassword.length < 6) {
-    showNotification('Password must be at least 6 characters.', { type: 'error' });
-    return;
-  }
-
+  if (!ensureActionPermission('resetPassword', 'You do not have permission to reset passwords.')) return;
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
-  if (userIndex === -1) {
-    showNotification('User not found.', { type: 'error' });
-    return;
-  }
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); return; }
+  const userEmail = users[userIndex].email;
+
+  // Admin will set a default password for the user (stored locally).
+  const newPassword = prompt(`Enter new default password for ${userEmail} (min 6 chars):`, 'changeme123');
+  if (newPassword === null) return;
+  if (newPassword.length < 6) { showNotification('Password must be at least 6 characters.', { type: 'error' }); return; }
 
   users[userIndex].password = newPassword;
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
   setStoredUsers(users);
-  showNotification(`Password reset for ${users[userIndex].email}.`, { type: 'success' });
+  try { await upsertUserInCloud(users[userIndex]); } catch (e) { /* ignore cloud failures */ }
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+  showNotification(`Password set for ${userEmail}.`, { type: 'success' });
 }
 
 function adminResetProgress(userId) {
   if (!assertAdminDashboardAccess()) return;
-
+  if (!ensureActionPermission('resetProgress', 'Moderator cannot reset progress.')) return;
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
-  if (userIndex === -1) {
-    showNotification('User not found.', { type: 'error' });
-    return;
-  }
-
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); return; }
   const targetEmail = users[userIndex].email;
-  const confirmReset = confirm(`Reset progress for ${targetEmail}?`);
-  if (!confirmReset) return;
-
+  if (!confirm(`Reset progress for ${targetEmail}?`)) return;
   users[userIndex].faithPoints = 0;
   users[userIndex].treeProgress = 0;
   users[userIndex].passiveRate = 1;
@@ -1619,7 +1603,6 @@ function adminResetProgress(userId) {
   users[userIndex].maxBloomReached = false;
   users[userIndex].taskCompletions = {};
   users[userIndex].dailyLoginState = normalizeDailyLoginState({});
-
   setStoredUsers(users);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard();
@@ -1628,51 +1611,40 @@ function adminResetProgress(userId) {
 
 function adminViewProgress(userId) {
   if (!assertAdminDashboardAccess()) return;
-
+  if (!ensureActionPermission('viewProgress', 'You do not have permission to view progress.')) return;
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
-  if (userIndex === -1) {
-    showNotification('User not found.', { type: 'error' });
-    return;
-  }
-
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); return; }
   const user = users[userIndex];
   const progressMessage = [
-    `Name: ${user.name || 'N/A'}`,
-    `Email: ${user.email || 'N/A'}`,
-    `Role: ${getRoleByEmail(user.email)}`,
+    `Name: ${user.name || 'N/A'}`, `Email: ${user.email || 'N/A'}`,
+    `Role: ${getRoleByEmail(user.email, user.role)}`,
     `Faith Points: ${Math.floor(Number(user.faithPoints ?? 0) || 0)}`,
     `Tree Progress: ${Math.floor(Number(user.treeProgress ?? 0) || 0)}`,
     `Fruits: ${Math.floor(Number(user.fruitCount ?? 0) || 0)}`
   ].join('\n');
-
   showNotification(progressMessage, { type: 'info', title: 'User Progress', duration: 7000 });
 }
 
 function adminOpenUserUi(userId) {
   if (!assertAdminDashboardAccess()) return;
-
+  if (!ensureActionPermission('openUi', 'Moderator cannot open user UI.')) return;
   const users = getStoredUsersSafe();
   const userIndex = findUserIndexById(users, userId);
-  if (userIndex === -1) {
-    showNotification('User not found.', { type: 'error' });
-    return;
-  }
-
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); return; }
   const selectedUser = { ...users[userIndex] };
-  const proceed = confirm(`Open actual UI as ${selectedUser.email}?\nYou can return by logging back in as admin.`);
-  if (!proceed) return;
-
+  if (!confirm(`Open actual UI as ${selectedUser.email}?\nYou can return by logging back in as admin.`)) return;
   const nextSessionUser = {
     ...selectedUser,
-    role: getRoleByEmail(selectedUser.email),
+    role: getRoleByEmail(selectedUser.email, selectedUser.role),
     viewMode: 'user'
   };
-
   stopCurrentUserCloudSync();
   delete nextSessionUser.password;
   currentUser = nextSessionUser;
-  safeSetCurrentUser(nextSessionUser);
+  try { persistAllUserState(getStoredUsersSafe(), nextSessionUser); } catch (e) {
+    try { safeSetCurrentUser(nextSessionUser); } catch(__e2) { /* ignore */ }
+  }
   closeProfileModal();
   showAppInterface();
   loadUserData();
@@ -1686,6 +1658,29 @@ window.adminResetPassword = adminResetPassword;
 window.adminResetProgress = adminResetProgress;
 window.adminViewProgress = adminViewProgress;
 window.adminOpenUserUi = adminOpenUserUi;
+
+function adminGrantAdmin(email) {
+  if (!assertAdminDashboardAccess()) return;
+  const normalized = normalizeEmail(email || '');
+  if (!normalized) { showNotification('Invalid email.', { type: 'error' }); return; }
+  if (!ADMIN_EMAILS.some(e => normalizeEmail(e) === normalized)) {
+    try { ADMIN_EMAILS.push(normalized); } catch (e) { /* ignore */ }
+  }
+  const users = getStoredUsersSafe();
+  const idx = users.findIndex(u => normalizeEmail(u.email) === normalized);
+  if (idx === -1) { showNotification('User not found in local storage.', { type: 'error' }); return; }
+  users[idx].role = 'admin';
+  users[idx].roleUpdatedAt = Date.now();
+  users[idx].updatedAt = Date.now();
+  users[idx].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  try { upsertUserInCloud(users[idx]); } catch (e) { /* ignore */ }
+  syncCurrentSessionIfNeeded(users[idx]);
+  renderAdminDashboard(false);
+  showNotification(`${email} granted admin rights.`, { type: 'success' });
+}
+
+window.adminGrantAdmin = adminGrantAdmin;
 
 function escapeHtml(value) {
   return String(value)

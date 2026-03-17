@@ -710,6 +710,33 @@ function adminChangeUserRole(userId, nextRole) {
 
 window.adminChangeUserRole = adminChangeUserRole;
 
+function adminGrantAdmin(email) {
+  if (!assertAdminDashboardAccess()) return;
+  const normalized = normalizeEmail(email || '');
+  if (!normalized) { showNotification('Invalid email.', { type: 'error' }); return; }
+
+  // Ensure in-memory ADMIN_EMAILS contains this address (won't persist source code).
+  if (!ADMIN_EMAILS.some(e => normalizeEmail(e) === normalized)) {
+    try { ADMIN_EMAILS.push(normalized); } catch (e) { /* ignore */ }
+  }
+
+  const users = getStoredUsersSafe();
+  const idx = users.findIndex(u => normalizeEmail(u.email) === normalized);
+  if (idx === -1) { showNotification('User not found in local storage.', { type: 'error' }); return; }
+
+  users[idx].role = 'admin';
+  users[idx].roleUpdatedAt = Date.now();
+  users[idx].updatedAt = Date.now();
+  users[idx].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  try { upsertUserInCloud(users[idx]); } catch (e) { /* ignore cloud failures */ }
+  syncCurrentSessionIfNeeded(users[idx]);
+  renderAdminDashboard(false);
+  showNotification(`${email} granted admin rights.`, { type: 'success' });
+}
+
+window.adminGrantAdmin = adminGrantAdmin;
+
 function adminSetTaskCompletion(userId, taskKey, isCompleted) {
   if (!assertAdminDashboardAccess()) return;
   if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit task completion.', { type: 'error' }); renderAdminDashboard(false); return; }
