@@ -267,7 +267,7 @@
 .admin-table th:nth-child(11), .admin-table td:nth-child(11) { width: 10%; }
 
 /* Activity badges for admin table */
-.admin-activity-cell { display: flex; gap: 6px; align-items: center; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.admin-activity-cell { display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .admin-activity-badge {
   display: inline-flex;
   align-items: center;
