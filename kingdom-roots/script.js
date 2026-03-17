@@ -1427,14 +1427,16 @@ async function renderAdminDashboard(syncFromCloud = true) {
 }
 
 function assertAdminDashboardAccess() {
-  if (!isAdminUser()) {
-    showNotification('Admin dashboard access required.', { type: 'error' });
+  if (!hasManagementAccess()) {
+    showNotification('Management dashboard access required.', { type: 'error' });
     return false;
   }
 
   if (getCurrentViewMode() !== 'admin' && currentUser) {
     currentUser.viewMode = 'admin';
-    safeSetCurrentUser(currentUser);
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
   }
 
   return true;
