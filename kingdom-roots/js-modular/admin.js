@@ -252,11 +252,20 @@ async function renderAdminDashboard(syncFromCloud = true) {
       dailyRows.push({ label, value: topValue, userName: topName });
     }
 
+    // Render as vertical bars: each day shows the max login-streak value for that day
     const maxTrendValue = Math.max(...dailyRows.map(r => r.value), 1);
     dailyTrendEl.innerHTML = dailyRows.map(row => {
-      const widthPct = Math.max(6, Math.round((row.value / maxTrendValue) * 100));
-      const valueLabel = row.value > 0 ? `${row.value} day${row.value === 1 ? '' : 's'} — ${escapeHtml(row.userName)}` : '—';
-      return `<div class="admin-bar-row"><span class="admin-bar-label">${escapeHtml(row.label)}</span><div class="admin-bar-track"><div class="admin-bar-fill" style="width: ${widthPct}%;"></div></div><strong class="admin-bar-value">${valueLabel}</strong></div>`;
+      const heightPct = Math.max(6, Math.round((row.value / maxTrendValue) * 100));
+      const countLabel = row.value > 0 ? String(row.value) : '—';
+      const title = row.value > 0 ? `${row.value} day${row.value === 1 ? '' : 's'} — ${escapeHtml(row.userName)}` : 'No sign-ins';
+      return `
+        <div class="admin-trend-column" title="${escapeHtml(title)}">
+          <div class="admin-trend-bar" style="height: ${heightPct}%">
+            <span class="admin-trend-count">${escapeHtml(countLabel)}</span>
+          </div>
+          <div class="admin-trend-label">${escapeHtml(row.label)}</div>
+        </div>
+      `;
     }).join('');
   }
 

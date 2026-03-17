@@ -891,24 +891,43 @@ body.admin-view .container {
 }
 
 .admin-trend-list {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.admin-trend-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 0.34rem 0.45rem;
-  border-radius: 7px;
-  background: #f7fbfe;
-  color: #345469;
-  font-size: 0.82rem;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding: 0.45rem 0.2rem 0.2rem 0.2rem;
 }
 
-.admin-trend-item strong {
-  color: #1a3a56;
+.admin-trend-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 48px;
+}
+
+.admin-trend-bar {
+  width: 100%;
+  min-height: 8px;
+  border-radius: 6px 6px 4px 4px;
+  background: linear-gradient(180deg, #dff2ff 0%, #d6eefc 100%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  overflow: visible;
+}
+
+.admin-trend-count {
+  position: absolute;
+  top: -18px;
+  font-size: 0.78rem;
+  color: #173b5d;
+}
+
+.admin-trend-label {
+  font-size: 0.72rem;
+  color: #355367;
+  text-align: center;
 }
 
 .admin-bar-row {
@@ -1102,8 +1121,10 @@ body.admin-view .container {
 }
 
 .admin-actions {
-  display: inline-flex;
-  flex-wrap: nowrap;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.35rem;
   white-space: nowrap;
 }
