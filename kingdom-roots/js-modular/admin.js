@@ -782,6 +782,67 @@ function adminTraceActions() {
 
 window.adminTraceActions = adminTraceActions;
 
+/**
+ * Fix roles stored on users by normalizing typos (e.g., 'moderetos')
+ * and persist changes. Returns a report object.
+ */
+function adminFixUserRoles() {
+  if (!assertAdminDashboardAccess()) return;
+  const users = getStoredUsersSafe();
+  const fixed = [];
+  users.forEach((u, idx) => {
+    const original = String(u.role || '').trim();
+    const normalized = normalizeRole(original || u.role || 'user');
+    if (normalized !== original) {
+      users[idx].role = normalized;
+      users[idx].roleUpdatedAt = Date.now();
+      users[idx].updatedAt = Date.now();
+      fixed.push({ email: u.email, from: original || '(empty)', to: normalized });
+    }
+  });
+
+  if (fixed.length > 0) {
+    setStoredUsers(users);
+    try { syncUsersToCloud(users); } catch (e) { /* ignore cloud failures */ }
+    renderAdminDashboard(false);
+    showNotification(`Fixed roles for ${fixed.length} user(s).`, { type: 'success' });
+  } else {
+    showNotification('No role issues found.', { type: 'info' });
+  }
+
+  console.info('adminFixUserRoles report:', fixed);
+  return { fixed };
+}
+
+window.adminFixUserRoles = adminFixUserRoles;
+
+/**
+ * Audit all users and simulate allowed admin actions per user by role.
+ * Does not change active session. Returns an array of results.
+ */
+function adminAuditUsersPermissions() {
+  if (!assertAdminDashboardAccess()) return;
+  const users = getStoredUsersSafe();
+  const moderatorAllowed = new Set(['addPoints', 'resetPassword', 'viewProgress']);
+  const actions = ['addPoints','resetPassword','resetProgress','viewProgress','openUi','restore','changeRole','setTaskCompletion','setStreakDays','grantAdmin'];
+  const report = users.map(u => {
+    const resolvedRole = getRoleByEmail(u.email, u.role);
+    const allowed = {};
+    actions.forEach(a => {
+      if (resolvedRole === 'admin') allowed[a] = true;
+      else if (resolvedRole === 'moderator') allowed[a] = moderatorAllowed.has(a);
+      else allowed[a] = false;
+    });
+    return { email: u.email, role: resolvedRole, allowed };
+  });
+  console.info('adminAuditUsersPermissions', report);
+  const problematic = report.filter(r => Object.values(r.allowed).some(v => v === false && (r.role === 'moderator' || r.role === 'admin') === false));
+  showNotification(`Audited ${report.length} users.`, { type: 'info' });
+  return report;
+}
+
+window.adminAuditUsersPermissions = adminAuditUsersPermissions;
+
 function adminSetTaskCompletion(userId, taskKey, isCompleted) {
   if (!assertAdminDashboardAccess()) return;
   if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit task completion.', { type: 'error' }); renderAdminDashboard(false); return; }

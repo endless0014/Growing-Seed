@@ -1723,6 +1723,58 @@ function adminTraceActions() {
 
 window.adminTraceActions = adminTraceActions;
 
+function adminFixUserRoles() {
+  if (!assertAdminDashboardAccess()) return;
+  const users = getStoredUsersSafe();
+  const fixed = [];
+  users.forEach((u, idx) => {
+    const original = String(u.role || '').trim();
+    const normalized = normalizeRole(original || u.role || 'user');
+    if (normalized !== original) {
+      users[idx].role = normalized;
+      users[idx].roleUpdatedAt = Date.now();
+      users[idx].updatedAt = Date.now();
+      fixed.push({ email: u.email, from: original || '(empty)', to: normalized });
+    }
+  });
+
+  if (fixed.length > 0) {
+    setStoredUsers(users);
+    try { syncUsersToCloud(users); } catch (e) { /* ignore cloud failures */ }
+    renderAdminDashboard(false);
+    showNotification(`Fixed roles for ${fixed.length} user(s).`, { type: 'success' });
+  } else {
+    showNotification('No role issues found.', { type: 'info' });
+  }
+
+  console.info('adminFixUserRoles report:', fixed);
+  return { fixed };
+}
+
+window.adminFixUserRoles = adminFixUserRoles;
+
+function adminAuditUsersPermissions() {
+  if (!assertAdminDashboardAccess()) return;
+  const users = getStoredUsersSafe();
+  const moderatorAllowed = new Set(['addPoints', 'resetPassword', 'viewProgress']);
+  const actions = ['addPoints','resetPassword','resetProgress','viewProgress','openUi','restore','changeRole','setTaskCompletion','setStreakDays','grantAdmin'];
+  const report = users.map(u => {
+    const resolvedRole = getRoleByEmail(u.email, u.role);
+    const allowed = {};
+    actions.forEach(a => {
+      if (resolvedRole === 'admin') allowed[a] = true;
+      else if (resolvedRole === 'moderator') allowed[a] = moderatorAllowed.has(a);
+      else allowed[a] = false;
+    });
+    return { email: u.email, role: resolvedRole, allowed };
+  });
+  console.info('adminAuditUsersPermissions', report);
+  showNotification(`Audited ${report.length} users.`, { type: 'info' });
+  return report;
+}
+
+window.adminAuditUsersPermissions = adminAuditUsersPermissions;
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
