@@ -737,6 +737,26 @@ function adminGrantAdmin(email) {
 
 window.adminGrantAdmin = adminGrantAdmin;
 
+function adminValidateActions() {
+  const role = getCurrentUserRole();
+  const isAdmin = isAdminUser();
+  const viewMode = getCurrentViewMode();
+  const canManage = hasManagementAccess();
+  const sampleChecks = {
+    addPoints: canManageAction('addPoints'),
+    resetPassword: canManageAction('resetPassword'),
+    resetProgress: canManageAction('resetProgress'),
+    viewProgress: canManageAction('viewProgress'),
+    openUi: canManageAction('openUi')
+  };
+  const result = { role, isAdmin, viewMode, canManage, sampleChecks, currentUser: currentUser ? { email: currentUser.email, id: currentUser.id } : null };
+  console.info('adminValidateActions:', result);
+  showNotification(`Role: ${role}, View: ${viewMode}`, { type: 'info', duration: 4000 });
+  return result;
+}
+
+window.adminValidateActions = adminValidateActions;
+
 function adminSetTaskCompletion(userId, taskKey, isCompleted) {
   if (!assertAdminDashboardAccess()) return;
   if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit task completion.', { type: 'error' }); renderAdminDashboard(false); return; }
