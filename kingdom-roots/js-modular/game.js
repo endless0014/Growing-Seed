@@ -624,8 +624,23 @@ function updateDisplay(options) {
     const currentDay = dailyLoginState.streakDay;
     const totalDays = DAILY_LOGIN_REWARDS.length;
     const todayClaimed = hasClaimedDailyLoginToday();
+
+    let displayedDay = currentDay;
+    if (todayClaimed) {
+      // Prefer the most-recent claimed day when available (covers normal claims).
+      if (Array.isArray(dailyLoginState.claimedDays) && dailyLoginState.claimedDays.length > 0) {
+        displayedDay = Math.max(...dailyLoginState.claimedDays);
+      } else if (currentDay === 1 && !dailyLoginState.cycleStartDate) {
+        // Final-day claim resets the streak and clears claimedDays/cycleStartDate — show totalDays.
+        displayedDay = totalDays;
+      } else {
+        // Fall back to previous day (streak was advanced after claiming).
+        displayedDay = Math.max(1, currentDay - 1);
+      }
+    }
+
     dailyRewardStreakEl.textContent = todayClaimed
-      ? `Day ${currentDay > totalDays ? totalDays : currentDay}/${totalDays} — Checked in today!`
+      ? `Day ${displayedDay}/${totalDays} — Checked in today!`
       : `Day ${currentDay}/${totalDays} — Check in now!`;
   }
   updateTaskBadges();
