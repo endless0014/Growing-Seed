@@ -5,7 +5,13 @@ const puppeteer = require('puppeteer');
   const url = 'http://127.0.0.1:8001/kingdom-roots/index.html';
   const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
-  page.on('console', msg => console.log('PAGE:', msg.text()));
+  const pageConsoleLogs = [];
+  page.on('console', msg => {
+    try {
+      pageConsoleLogs.push({ type: msg.type(), text: msg.text() });
+    } catch (e) {}
+    try { console.log('PAGE:', msg.text()); } catch (e) {}
+  });
 
   // Prepare a test user
   const testUser = {
@@ -36,6 +42,27 @@ const puppeteer = require('puppeteer');
   await page.waitForSelector('#faithPoints');
   // Ensure the app has exposed `saveUserData` and hydrated session
   await page.waitForFunction(() => typeof window.saveUserData === 'function' && !!localStorage.getItem('currentUser'));
+
+  // Fetch and log the loaded script sources and a short preview of their contents
+  try {
+    const loadedScripts = await page.evaluate(async () => {
+      const scripts = Array.from(document.querySelectorAll('script[src]')).map(s => s.getAttribute('src'));
+      const out = [];
+      for (const src of scripts) {
+        try {
+          const resp = await fetch(src, { cache: 'no-store' });
+          const txt = await resp.text();
+          out.push({ src, ok: resp.ok, length: txt.length, preview: txt.slice(0, 800) });
+        } catch (e) {
+          out.push({ src, ok: false, error: String(e) });
+        }
+      }
+      return out;
+    });
+    console.log('LOADED_SCRIPTS', JSON.stringify(loadedScripts));
+  } catch (e) {
+    console.log('LOADED_SCRIPTS_ERROR', String(e));
+  }
 
   const tasks = ['pray', 'bible', 'devotion', 'smallgroup', 'attendService'];
   const results = {};
@@ -123,6 +150,39 @@ const puppeteer = require('puppeteer');
     };
   });
 
+  // Capture any durable pre-upsert snapshots the client writes for debugging.
+  // Poll localStorage for up to 15s to allow client code time to write the snapshots.
+  const preUpsertSnapshots = await page.evaluate(async () => {
+    const key = '__debug_pre_upsert_snapshots';
+    const timeoutMs = 15000;
+    const pollInterval = 200;
+    const start = Date.now();
+    while (Date.now() - start <timeoutMs) {
+      try {
+        const raw = localStorage.getItem(key) || '[]';
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.length > 0) return arr;
+      } catch (e) {
+        // ignore parse errors and continue polling
+      }
+      await new Promise(r => setTimeout(r, pollInterval));
+    }
+    // final attempt, return whatever is present (possibly empty)
+    try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { return []; }
+  });
+
+  // Also attempt to read a DOM mirror if the client wrote one (avoids localStorage race).
+  const domPreUpsertMirror = await page.evaluate(() => {
+    try {
+      return document.getElementById('__debug_pre_upsert_dom')?.textContent || null;
+    } catch (e) { return null; }
+  });
+
+  // Also capture the last snapshot exported to window by instrumentation (if present)
+  const windowPreUpsert = await page.evaluate(() => {
+    try { return window.__LAST_PRE_UPSERT_SNAPSHOT || null; } catch (e) { return null; }
+  });
+
   // Simulate next day by setting stored task completions to an old key
   await page.evaluate(() => {
     const users = JSON.parse(localStorage.getItem('users') || '[]');
@@ -160,9 +220,37 @@ const puppeteer = require('puppeteer');
   console.log('Stored totals after completions:', storedTotals);
   console.log('Reset checks after simulated day rollover:', resetChecks);
 
+  // Attempt an Upgrade (open modal + confirm) and record result
+  const upgradeResult = await page.evaluate(() => {
+    try {
+      if (typeof handleUpgradeRootsClick === 'function') handleUpgradeRootsClick();
+    } catch (e) {}
+    try { if (typeof confirmUpgrade === 'function') confirmUpgrade(); } catch (e) {}
+    try { if (typeof saveUserData === 'function') saveUserData(); } catch (e) {}
+    return {
+      faithPoints: Number(document.getElementById('faithPoints')?.textContent || 0),
+      currentUser: JSON.parse(localStorage.getItem('currentUser') || '{}')
+    };
+  });
+
+  // Claim Daily Login reward (open modal + claim current streak day)
+  const dailyLoginResult = await page.evaluate(() => {
+    try { if (typeof openDailyLoginModal === 'function') openDailyLoginModal(); } catch (e) {}
+    try {
+      const day = (typeof dailyLoginState !== 'undefined' && dailyLoginState && dailyLoginState.streakDay) ? dailyLoginState.streakDay : 1;
+      if (typeof claimDailyLogin === 'function') claimDailyLogin(Number(day));
+    } catch (e) {}
+    try { if (typeof saveUserData === 'function') saveUserData(); } catch (e) {}
+    return {
+      faithPoints: Number(document.getElementById('faithPoints')?.textContent || 0),
+      dailyLoginState: (typeof dailyLoginState !== 'undefined') ? dailyLoginState : (JSON.parse(localStorage.getItem('currentUser')||'{}').dailyLoginState || {}) ,
+      currentUser: JSON.parse(localStorage.getItem('currentUser') || '{}')
+    };
+  });
+
   await browser.close();
 
   // Print consolidated result to stdout for external parsing
-  console.log('RESULT', JSON.stringify({ completed: results, fpAfter, storedTotals, resetChecks }));
+  console.log('RESULT', JSON.stringify({ completed: results, fpAfter, storedTotals, resetChecks, upgradeResult, dailyLoginResult, preUpsertSnapshots, domPreUpsertMirror, windowPreUpsert, pageConsoleLogs }));
   process.exit(0);
 })();

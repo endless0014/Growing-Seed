@@ -766,6 +766,7 @@ function saveUserData() {
     try { console.debug('[micro] saveUserData (modular): pre-upsert-payload=', upsertPayload); } catch (e) {}
     try { console.log('[micro] saveUserData (modular): pre-upsert-payload=', JSON.parse(JSON.stringify(upsertPayload))); } catch (e) {}
     try { console.log('PRE_UPSERT_SNAPSHOT_MARKER::', JSON.stringify(upsertPayload)); } catch (e) {}
+    try { window.__LAST_PRE_UPSERT_SNAPSHOT = { ts: Date.now(), src: 'kingdom-roots/js-modular/game.js', payload: JSON.parse(JSON.stringify(upsertPayload)) }; } catch (e) {}
     try {
       const dbgKey = '__debug_pre_upsert_snapshots';
       const arr = JSON.parse(localStorage.getItem(dbgKey) || '[]');

@@ -61,7 +61,9 @@ function safeSetCurrentUser(userObj) {
     try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch(_) {}
     try { console.debug('[persist] fallback wrote currentUser.faithPoints=', userObj && typeof userObj.faithPoints !== 'undefined' ? userObj.faithPoints : null, ' ts=', String(Date.now())); } catch(_) {}
   } catch (e) {}
-}
+  } 
+  try { console.log('PRE_UPSERT_SNAPSHOT_MARKER::', JSON.stringify(upsertPayload)); } catch (e) {}
+  try { window.__LAST_PRE_UPSERT_SNAPSHOT = { ts: Date.now(), src: 'android/script.js', payload: JSON.parse(JSON.stringify(upsertPayload)) }; } catch (e) {}
 
 function ensureNotificationContainer() {
   let container = document.getElementById('appNotifications');
@@ -1870,11 +1872,13 @@ function sanitizeUserForCloud(user) {
 }
 
 async function upsertUserInCloud(user) {
-  const usersCollection = getCloudUsersCollection();
-  if (!usersCollection || !user?.email) {
-    return;
+  if (isCloudSyncDisabled()) {
+    try { console.debug('[cloud] upsertUserInCloud: skipped (TEST_DISABLE_CLOUD_SYNC) for', user && user.email); } catch (e) {}
+    return Promise.resolve(null);
   }
 
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection || !user?.email) return null;
   try {
     const normalizedEmail = normalizeEmail(user.email);
     const cloudUser = sanitizeUserForCloud(user);
@@ -1887,8 +1891,12 @@ async function upsertUserInCloud(user) {
 
     await userDoc.set(cloudUserFields, { merge: true });
     await userDoc.update({ taskCompletions, dailyLoginState });
+    try { debugServerSyncCompare(userDoc, 'upsertUserInCloud'); } catch (e) { /* ignore */ }
+    const snap = await userDoc.get();
+    return snap.exists ? snap.data() : null;
   } catch (error) {
     console.warn('Cloud upsert failed:', error);
+    return null;
   }
 }
 
@@ -3961,8 +3969,22 @@ function saveUserData() {
       users[userIndex].lastActiveAt = Date.now();
       users[userIndex].updatedAt = Date.now();
       
+      try { console.debug('[probe] saveUserData (android): pre-upsert users[userIndex]=', JSON.parse(JSON.stringify(users[userIndex] || {}))); } catch (e) {}
+      try { console.debug('[probe] saveUserData (android): before setStoredUsers users[userIndex]=', JSON.parse(JSON.stringify(users[userIndex] || {}))); } catch (e) {}
       setStoredUsers(users);
-      upsertUserInCloud(users[userIndex]);
+      const upsertPayload = JSON.parse(JSON.stringify(users[userIndex] || {}));
+      try { console.debug('[micro] saveUserData (android): pre-upsert-payload=', upsertPayload); } catch (e) {}
+      try { console.log('[micro] saveUserData (android): pre-upsert-payload=', JSON.parse(JSON.stringify(upsertPayload))); } catch (e) {}
+      try {
+        const dbgKey = '__debug_pre_upsert_snapshots';
+        const arr = JSON.parse(localStorage.getItem(dbgKey) || '[]');
+        arr.push({ ts: Date.now(), src: 'android/script.js', payload: JSON.parse(JSON.stringify(upsertPayload)) });
+        localStorage.setItem(dbgKey, JSON.stringify(arr.slice(-50)));
+      } catch (e) {}
+      upsertUserInCloud(upsertPayload).then(res => {
+        try { console.debug('[probe] saveUserData (android): cloudResult=', JSON.parse(JSON.stringify(res || {}))); } catch (e) {}
+        try { console.debug('[probe] saveUserData (android): after cloud read currentUser=', JSON.parse(localStorage.getItem('currentUser') || '{}'), 'usersCount=', JSON.parse(localStorage.getItem('users') || '[]').length); } catch (e) {}
+      }).catch(e => { console.warn('saveUserData cloud upsert failed:', e); });
       
       // Also update current user session with all game data
       currentUser.faithPoints = Math.floor(faithPoints);

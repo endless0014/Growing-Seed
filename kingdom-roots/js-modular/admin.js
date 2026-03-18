@@ -843,6 +843,85 @@ function adminAuditUsersPermissions() {
 
 window.adminAuditUsersPermissions = adminAuditUsersPermissions;
 
+function adminRemovePuppeteerAccounts() {
+  if (!assertAdminDashboardAccess()) return;
+  const users = getStoredUsersSafe();
+  const pattern = /puppeteer|puppet|\.test$/i;
+  const toRemove = users.filter(u => pattern.test(String(u.email || '')));
+  if (toRemove.length === 0) {
+    showNotification('No Puppeteer test accounts found.', { type: 'info' });
+    return { removed: 0, details: [] };
+  }
+  const remaining = users.filter(u => !pattern.test(String(u.email || '')));
+  setStoredUsers(remaining);
+  try { syncUsersToCloud(remaining); } catch (e) { /* ignore cloud failures */ }
+  try {
+    if (currentUser && pattern.test(String(currentUser.email || ''))) {
+      stopCurrentUserCloudSync();
+      localStorage.removeItem('currentUser');
+      currentUser = null;
+      showAuthInterface();
+      resetGameState();
+    }
+  } catch (e) { /* ignore */ }
+  renderAdminDashboard(false);
+  showNotification(`Removed ${toRemove.length} Puppeteer test account(s).`, { type: 'success' });
+  console.info('adminRemovePuppeteerAccounts removed:', toRemove.map(u => u.email));
+  return { removed: toRemove.length, details: toRemove.map(u => ({ email: u.email, id: u.id })) };
+}
+
+window.adminRemovePuppeteerAccounts = adminRemovePuppeteerAccounts;
+
+function adminMakeModerators(emails) {
+  if (!assertAdminDashboardAccess()) return;
+  let list = emails;
+  if (typeof list === 'string') list = list.split(',').map(s => normalizeEmail(s));
+  if (!Array.isArray(list) || list.length === 0) {
+    showNotification('No emails provided.', { type: 'error' });
+    return { updated: 0, details: [] };
+  }
+
+  const normalizedTargets = list.map(e => normalizeEmail(e)).filter(Boolean);
+  const users = getStoredUsersSafe();
+  const report = [];
+
+  normalizedTargets.forEach(target => {
+    const idx = users.findIndex(u => normalizeEmail(u.email) === target);
+    if (idx === -1) {
+      report.push({ email: target, status: 'not_found' });
+      return;
+    }
+    if (isAdminEmail(users[idx].email)) {
+      report.push({ email: users[idx].email, status: 'locked_admin' });
+      return;
+    }
+    users[idx].role = 'moderator';
+    users[idx].roleUpdatedAt = Date.now();
+    users[idx].updatedAt = Date.now();
+    users[idx].lastActiveAt = Date.now();
+    report.push({ email: users[idx].email, status: 'updated' });
+  });
+
+  setStoredUsers(users);
+  try { syncUsersToCloud(users); } catch (e) { /* ignore cloud failures */ }
+
+  try {
+    if (currentUser && normalizedTargets.includes(normalizeEmail(currentUser.email))) {
+      currentUser.role = getRoleByEmail(currentUser.email, 'moderator');
+      safeSetCurrentUser(currentUser);
+      syncCurrentSessionIfNeeded(currentUser);
+    }
+  } catch (e) { /* ignore */ }
+
+  renderAdminDashboard(false);
+  const count = report.filter(r => r.status === 'updated').length;
+  showNotification(`Updated ${count} moderator(s).`, { type: 'success' });
+  console.info('adminMakeModerators report:', report);
+  return { updated: count, details: report };
+}
+
+window.adminMakeModerators = adminMakeModerators;
+
 function adminSetTaskCompletion(userId, taskKey, isCompleted) {
   if (!assertAdminDashboardAccess()) return;
   if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit task completion.', { type: 'error' }); renderAdminDashboard(false); return; }

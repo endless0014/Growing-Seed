@@ -215,8 +215,13 @@ function getCloudUsersCollection() {
 // --- Cloud CRUD ---
 
 async function upsertUserInCloud(user) {
+  if (isCloudSyncDisabled()) {
+    try { console.debug('[cloud] upsertUserInCloud: skipped (TEST_DISABLE_CLOUD_SYNC) for', user && user.email); } catch (e) {}
+    return Promise.resolve(null);
+  }
+
   const usersCollection = getCloudUsersCollection();
-  if (!usersCollection || !user?.email) return;
+  if (!usersCollection || !user?.email) return null;
   try {
     const normalizedEmail = normalizeEmail(user.email);
     const cloudUser = sanitizeUserForCloud(user);
@@ -229,8 +234,12 @@ async function upsertUserInCloud(user) {
 
     await userDoc.set(cloudUserFields, { merge: true });
     await userDoc.update({ taskCompletions, dailyLoginState });
+    try { debugServerSyncCompare(userDoc, 'upsertUserInCloud'); } catch (e) { /* ignore */ }
+    const snap = await userDoc.get();
+    return snap.exists ? snap.data() : null;
   } catch (error) {
     console.warn('Cloud upsert failed:', error);
+    return null;
   }
 }
 

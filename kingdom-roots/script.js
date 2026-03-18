@@ -1108,6 +1108,7 @@ async function upsertUserInCloud(user) {
     const snapshot = { ts: Date.now(), src: 'kingdom-roots/script.js', payload: JSON.parse(JSON.stringify(user || {})) };
     try { console.debug('PRE_UPSERT_SNAPSHOT', snapshot); } catch (e) {}
     try { console.log('PRE_UPSERT_SNAPSHOT_MARKER::', JSON.stringify(snapshot)); } catch (e) {}
+    try { window.__LAST_PRE_UPSERT_SNAPSHOT = snapshot; } catch (e) {}
     try {
       let dbgEl = document.getElementById('__debug_pre_upsert_dom');
       if (!dbgEl) {
