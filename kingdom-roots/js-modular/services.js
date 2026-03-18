@@ -223,9 +223,38 @@ async function debugServerSyncCompare(docRef, context) {
 // --- Cloud CRUD ---
 
 async function upsertUserInCloud(user) {
+  // Durable debug snapshot: record pre-upsert payload to localStorage for forensic tracing
+  try {
+    const dbgKey = '__debug_pre_upsert_snapshots';
+    try {
+      const snap = JSON.parse(localStorage.getItem(dbgKey) || '[]');
+      snap.push({ ts: Date.now(), src: 'js-modular/services.js', payload: JSON.parse(JSON.stringify(user || {})) });
+      localStorage.setItem(dbgKey, JSON.stringify(snap.slice(-50)));
+    } catch (_e) {
+      try { localStorage.setItem(dbgKey, JSON.stringify([{ ts: Date.now(), src: 'js-modular/services.js', payload: JSON.parse(JSON.stringify(user || {})) }])); } catch(__) {}
+    }
+  } catch (e) { /* ignore storage failures */ }
+
+  // Also emit a console message and mirror into a hidden DOM <pre> so harness can capture snapshots reliably
+  try {
+    const snapshot = { ts: Date.now(), src: 'js-modular/services.js', payload: JSON.parse(JSON.stringify(user || {})) };
+    try { console.debug('PRE_UPSERT_SNAPSHOT', snapshot); } catch (e) {}
+    try { console.log('PRE_UPSERT_SNAPSHOT_MARKER::', JSON.stringify(snapshot)); } catch (e) {}
+    try {
+      let dbgEl = document.getElementById('__debug_pre_upsert_dom');
+      if (!dbgEl) {
+        dbgEl = document.createElement('pre');
+        dbgEl.id = '__debug_pre_upsert_dom';
+        dbgEl.style.display = 'none';
+        document.body.appendChild(dbgEl);
+      }
+      dbgEl.textContent = JSON.stringify(snapshot);
+    } catch (e) {}
+  } catch (e) { /* ignore */ }
+
   if (isCloudSyncDisabled()) {
     try { console.debug('[cloud] upsertUserInCloud: skipped (TEST_DISABLE_CLOUD_SYNC) for', user && user.email); } catch (e) {}
-    return Promise.resolve();
+    return Promise.resolve(null);
   }
 
   const usersCollection = getCloudUsersCollection();
@@ -244,6 +273,9 @@ async function upsertUserInCloud(user) {
     await userDoc.update({ taskCompletions, dailyLoginState });
     // Debug: read back server doc and compare timestamps with local persistence
     try { debugServerSyncCompare(userDoc, 'upsertUserInCloud'); } catch (e) { /* ignore */ }
+    // Read back and return server-side document data so callers can apply authoritative fields
+    const snap = await userDoc.get();
+    return snap.exists ? snap.data() : null;
   } catch (error) {
     console.warn('Cloud upsert failed:', error);
   }

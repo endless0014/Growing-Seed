@@ -765,6 +765,15 @@ function claimDailyLogin(dayNumber) {
     fpBefore: previousFp,
     fpAfter: Math.floor(Number(faithPoints ?? 0) || 0)
   });
+  try {
+    console.debug('[instr] post-claimDailyLogin', {
+      faithPoints: Math.floor(Number(faithPoints ?? 0) || 0),
+      currentUser: (currentUser && typeof currentUser === 'object') ? { email: currentUser.email, faithPoints: currentUser.faithPoints, updatedAt: currentUser.updatedAt } : null,
+      storedCurrentUser: JSON.parse(localStorage.getItem('currentUser') || '{}'),
+      storedUsersCount: JSON.parse(localStorage.getItem('users') || '[]').length,
+      ts: String(Date.now())
+    });
+  } catch (e) {}
 }
 
 function ensureDailyLoginUi() {
@@ -893,6 +902,8 @@ function persistAllUserState(users, currentUserObj) {
     const normalized = Array.isArray(users) ? users.map(u => normalizeStoredUser(u, Date.now())) : [];
     // Ensure currentUserObj is normalized
     const normalizedCurrent = normalizeStoredUser(currentUserObj || {}, Date.now());
+    // Make sure the canonical current user record has a fresh updatedAt
+    try { normalizedCurrent.updatedAt = Date.now(); } catch (e) {}
 
     // Write users then currentUser to keep them in sync
     try { localStorage.setItem('users', JSON.stringify(normalized)); } catch (e) {}
@@ -1080,16 +1091,60 @@ function sanitizeUserForCloud(user) {
 }
 
 async function upsertUserInCloud(user) {
-  const usersCollection = getCloudUsersCollection();
-  if (!usersCollection || !user?.email) {
-    return;
+  // Durable debug snapshot: record pre-upsert payload to localStorage for forensic tracing
+  try {
+    const dbgKey = '__debug_pre_upsert_snapshots';
+    try {
+      const snap = JSON.parse(localStorage.getItem(dbgKey) || '[]');
+      snap.push({ ts: Date.now(), src: 'kingdom-roots/script.js', payload: JSON.parse(JSON.stringify(user || {})) });
+      localStorage.setItem(dbgKey, JSON.stringify(snap.slice(-50)));
+    } catch (_e) {
+      try { localStorage.setItem(dbgKey, JSON.stringify([{ ts: Date.now(), src: 'kingdom-roots/script.js', payload: JSON.parse(JSON.stringify(user || {})) }])); } catch(__) {}
+    }
+  } catch (e) { /* ignore storage failures */ }
+
+  // Also emit a console message and mirror into a hidden DOM <pre> so harness can capture snapshots reliably
+  try {
+    const snapshot = { ts: Date.now(), src: 'kingdom-roots/script.js', payload: JSON.parse(JSON.stringify(user || {})) };
+    try { console.debug('PRE_UPSERT_SNAPSHOT', snapshot); } catch (e) {}
+    try { console.log('PRE_UPSERT_SNAPSHOT_MARKER::', JSON.stringify(snapshot)); } catch (e) {}
+    try {
+      let dbgEl = document.getElementById('__debug_pre_upsert_dom');
+      if (!dbgEl) {
+        dbgEl = document.createElement('pre');
+        dbgEl.id = '__debug_pre_upsert_dom';
+        dbgEl.style.display = 'none';
+        document.body.appendChild(dbgEl);
+      }
+      dbgEl.textContent = JSON.stringify(snapshot);
+    } catch (e) {}
+  } catch (e) { /* ignore */ }
+
+  if (isCloudSyncDisabled()) {
+    try { console.debug('[cloud] upsertUserInCloud: skipped (TEST_DISABLE_CLOUD_SYNC) for', user && user.email); } catch (e) {}
+    return Promise.resolve(null);
   }
 
+  const usersCollection = getCloudUsersCollection();
+  if (!usersCollection || !user?.email) return null;
   try {
     const normalizedEmail = normalizeEmail(user.email);
-    await usersCollection.doc(normalizedEmail).set(sanitizeUserForCloud(user), { merge: true });
+    const cloudUser = sanitizeUserForCloud(user);
+    const {
+      taskCompletions = {},
+      dailyLoginState = normalizeDailyLoginState({}),
+      ...cloudUserFields
+    } = cloudUser;
+    const userDoc = usersCollection.doc(normalizedEmail);
+
+    await userDoc.set(cloudUserFields, { merge: true });
+    await userDoc.update({ taskCompletions, dailyLoginState });
+    try { debugServerSyncCompare(userDoc, 'upsertUserInCloud'); } catch (e) { /* ignore */ }
+    const snap = await userDoc.get();
+    return snap.exists ? snap.data() : null;
   } catch (error) {
     console.warn('Cloud upsert failed:', error);
+    return null;
   }
 }
 
@@ -1776,6 +1831,89 @@ function adminAuditUsersPermissions() {
 }
 
 window.adminAuditUsersPermissions = adminAuditUsersPermissions;
+
+function adminRemovePuppeteerAccounts() {
+  if (!assertAdminDashboardAccess()) return;
+  const users = getStoredUsersSafe();
+  const pattern = /puppeteer|puppet|\.test$/i;
+  const toRemove = users.filter(u => pattern.test(String(u.email || '')));
+  if (toRemove.length === 0) {
+    showNotification('No Puppeteer test accounts found.', { type: 'info' });
+    return { removed: 0, details: [] };
+  }
+
+  const remaining = users.filter(u => !pattern.test(String(u.email || '')));
+  setStoredUsers(remaining);
+  try { syncUsersToCloud(remaining); } catch (e) { /* ignore cloud failures */ }
+
+  // If currentUser matches removed pattern, log them out to avoid dangling session
+  try {
+    if (currentUser && pattern.test(String(currentUser.email || ''))) {
+      stopCurrentUserCloudSync();
+      localStorage.removeItem('currentUser');
+      currentUser = null;
+      showAuthInterface();
+      resetGameState();
+    }
+  } catch (e) { /* ignore */ }
+
+  renderAdminDashboard(false);
+  showNotification(`Removed ${toRemove.length} Puppeteer test account(s).`, { type: 'success' });
+  console.info('adminRemovePuppeteerAccounts removed:', toRemove.map(u => u.email));
+  return { removed: toRemove.length, details: toRemove.map(u => ({ email: u.email, id: u.id })) };
+}
+
+window.adminRemovePuppeteerAccounts = adminRemovePuppeteerAccounts;
+
+function adminMakeModerators(emails) {
+  if (!assertAdminDashboardAccess()) return;
+  let list = emails;
+  if (typeof list === 'string') list = list.split(',').map(s => normalizeEmail(s));
+  if (!Array.isArray(list) || list.length === 0) {
+    showNotification('No emails provided.', { type: 'error' });
+    return { updated: 0, details: [] };
+  }
+
+  const normalizedTargets = list.map(e => normalizeEmail(e)).filter(Boolean);
+  const users = getStoredUsersSafe();
+  const report = [];
+
+  normalizedTargets.forEach(target => {
+    const idx = users.findIndex(u => normalizeEmail(u.email) === target);
+    if (idx === -1) {
+      report.push({ email: target, status: 'not_found' });
+      return;
+    }
+    if (isAdminEmail(users[idx].email)) {
+      report.push({ email: users[idx].email, status: 'locked_admin' });
+      return;
+    }
+    users[idx].role = 'moderator';
+    users[idx].roleUpdatedAt = Date.now();
+    users[idx].updatedAt = Date.now();
+    users[idx].lastActiveAt = Date.now();
+    report.push({ email: users[idx].email, status: 'updated' });
+  });
+
+  setStoredUsers(users);
+  try { syncUsersToCloud(users); } catch (e) { /* ignore cloud failures */ }
+
+  try {
+    if (currentUser && normalizedTargets.includes(normalizeEmail(currentUser.email))) {
+      currentUser.role = getRoleByEmail(currentUser.email, 'moderator');
+      safeSetCurrentUser(currentUser);
+      syncCurrentSessionIfNeeded(currentUser);
+    }
+  } catch (e) { /* ignore */ }
+
+  renderAdminDashboard(false);
+  const count = report.filter(r => r.status === 'updated').length;
+  showNotification(`Updated ${count} moderator(s).`, { type: 'success' });
+  console.info('adminMakeModerators report:', report);
+  return { updated: count, details: report };
+}
+
+window.adminMakeModerators = adminMakeModerators;
 
 function escapeHtml(value) {
   return String(value)
@@ -2647,9 +2785,24 @@ function saveUserData() {
         users[userIndex].updatedAt = now;
       }
 
+        // Ensure session-scoped values are reflected in the stored record (safety copy)
+        try {
+          users[userIndex].faithPoints = Math.floor(Number(faithPoints ?? users[userIndex].faithPoints ?? 0) || 0);
+          users[userIndex].treeProgress = Math.floor(Number(treeProgress ?? users[userIndex].treeProgress ?? 0) || 0);
+          users[userIndex].passiveRate = Number(passiveRate ?? users[userIndex].passiveRate ?? 1) || 1;
+          users[userIndex].fruitCount = Number(fruitCount ?? users[userIndex].fruitCount ?? 0) || 0;
+          users[userIndex].pointsForFruit = Number(pointsForFruit ?? users[userIndex].pointsForFruit ?? 0) || 0;
+          users[userIndex].maxBloomReached = Boolean(maxBloomReached) || Boolean(users[userIndex].maxBloomReached);
+          users[userIndex].taskCompletions = taskCompletions || users[userIndex].taskCompletions || {};
+          users[userIndex].dailyLoginState = normalizeDailyLoginState(dailyLoginState || users[userIndex].dailyLoginState || {});
+          users[userIndex].lastActiveAt = now;
+          users[userIndex].updatedAt = Number(users[userIndex].updatedAt) || now;
+        } catch (e) {}
+
       try {
         console.debug('[probe] saveUserData: storing userIndex', userIndex, 'userBeforeStore=', JSON.parse(JSON.stringify(users[userIndex] || {})));
       } catch (e) {}
+      try { console.debug('[probe] saveUserData: before setStoredUsers users[userIndex]=', JSON.parse(JSON.stringify(users[userIndex] || {}))); } catch (e) {}
       setStoredUsers(users);
       try {
         console.debug('[probe] saveUserData: after setStoredUsers readback usersCount=', JSON.parse(localStorage.getItem('users') || '[]').length, 'lastPersistAt=', localStorage.getItem('lastPersistAt'));
@@ -2657,7 +2810,55 @@ function saveUserData() {
       try {
         console.debug('[probe] saveUserData: upsert payload=', JSON.parse(JSON.stringify(users[userIndex] || {})));
       } catch (e) {}
-      upsertUserInCloud(users[userIndex]);
+      try {
+        console.debug('[probe] saveUserData: pre-upsert users[userIndex]=', JSON.parse(JSON.stringify(users[userIndex] || {})));
+      } catch (e) {}
+      // Prefer cloud upsert as authoritative when available. Await the upsert and apply returned
+      // cloud fields back into local users/currentUser. Fall back to local-only behavior if cloud
+      // is disabled or fails.
+      (async () => {
+          try {
+            // Build a frozen deep-copy payload so async upsert sees the exact snapshot
+            const upsertPayload = JSON.parse(JSON.stringify(users[userIndex] || {}));
+            try { console.debug('[micro] saveUserData: pre-upsert-payload=', upsertPayload); } catch (e) {}
+            try { console.log('[micro] saveUserData: pre-upsert-payload=', JSON.parse(JSON.stringify(upsertPayload))); } catch (e) {}
+            try {
+              const dbgKey = '__debug_pre_upsert_snapshots';
+              const arr = JSON.parse(localStorage.getItem(dbgKey) || '[]');
+              arr.push({ ts: Date.now(), src: 'kingdom-roots/script.js', payload: JSON.parse(JSON.stringify(upsertPayload)) });
+              localStorage.setItem(dbgKey, JSON.stringify(arr.slice(-50)));
+            } catch (e) {}
+            const cloudResult = await upsertUserInCloud(upsertPayload);
+            try { console.debug('[probe] saveUserData: cloudResult=', JSON.parse(JSON.stringify(cloudResult || {}))); } catch (e) {}
+          if (cloudResult && typeof cloudResult === 'object') {
+            // Merge server-returned fields into stored record to keep canonical state
+            const serverNormalized = normalizeStoredUser(cloudResult, users[userIndex].id ?? Date.now());
+            users[userIndex] = { ...users[userIndex], ...serverNormalized };
+            // Persist merged users locally for offline-read and faster UI hydration
+            try { console.debug('[probe] saveUserData: before cloud-applied setStoredUsers users[userIndex]=', JSON.parse(JSON.stringify(users[userIndex] || {}))); } catch (e) {}
+            setStoredUsers(users);
+            try { console.debug('[probe] saveUserData: after cloud-applied setStoredUsers readback usersCount=', JSON.parse(localStorage.getItem('users') || '[]').length, 'currentUser=', JSON.parse(localStorage.getItem('currentUser') || '{}')); } catch (e) {}
+            currentUser = {
+              ...currentUser,
+              ...users[userIndex],
+              role: getRoleByEmail(users[userIndex].email),
+              viewMode: currentUser.viewMode ?? users[userIndex].viewMode ?? 'user'
+            };
+            delete currentUser.password;
+            try { safeSetCurrentUser(currentUser); } catch (e) {}
+            debugFpLog('save-user-data-cloud-applied', {
+              savedFaithPoints: users[userIndex].faithPoints,
+              savedUpdatedAt: users[userIndex].updatedAt,
+              source: 'cloud'
+            });
+            return;
+          }
+        } catch (e) {
+          console.warn('Cloud upsert failed or unavailable, falling back to local store:', e);
+        }
+        // Fallback: ensure local persistence still occurs if cloud is disabled or fails
+        setStoredUsers(users);
+      })();
 
       // Reflect authoritative fields back into the current session
       currentUser = {
@@ -2931,6 +3132,7 @@ function submitPhoto() {
     fpBefore: previousFp,
     fpAfter: Math.floor(Number(faithPoints ?? 0) || 0)
   });
+  try { console.debug('[instr] post-submitPhoto', { faithPoints: Math.floor(Number(faithPoints ?? 0) || 0), storedCurrentUser: JSON.parse(localStorage.getItem('currentUser') || '{}'), ts: String(Date.now()) }); } catch(e) {}
 }
 
 function shareGospel() {
@@ -2944,6 +3146,7 @@ function shareGospel() {
     fpBefore: previousFp,
     fpAfter: Math.floor(Number(faithPoints ?? 0) || 0)
   });
+  try { console.debug('[instr] post-shareGospel', { faithPoints: Math.floor(Number(faithPoints ?? 0) || 0), storedCurrentUser: JSON.parse(localStorage.getItem('currentUser') || '{}'), ts: String(Date.now()) }); } catch(e) {}
 }
 
 function addFruitIfNeeded(pointsAdded) {
@@ -3016,6 +3219,7 @@ function useAllPoints() {
       fpAfter: Math.floor(Number(faithPoints ?? 0) || 0),
       treeProgressAfter: Math.floor(Number(treeProgress ?? 0) || 0)
     });
+    try { console.debug('[instr] post-useAllPoints', { faithPoints: Math.floor(Number(faithPoints ?? 0) || 0), storedUsersFirst: JSON.parse(localStorage.getItem('users') || '[]')[0] || null, ts: String(Date.now()) }); } catch(e) {}
     
     // Reset message color after 3 seconds
     setTimeout(() => {
@@ -3044,6 +3248,7 @@ function upgrade() {
       fpAfter: Math.floor(Number(faithPoints ?? 0) || 0),
       passiveRate
     });
+    try { console.debug('[instr] post-upgrade', { faithPoints: Math.floor(Number(faithPoints ?? 0) || 0), currentUser: (currentUser && currentUser.email) ? { email: currentUser.email, faithPoints: currentUser.faithPoints } : null, ts: String(Date.now()) }); } catch(e) {}
     
     // Trigger bloom animation
     const flowers = document.getElementById("flowers");

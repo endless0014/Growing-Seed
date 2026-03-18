@@ -356,6 +356,7 @@ function claimDailyLogin(dayNumber) {
     : `Daily login claimed: Day ${dayNumber} (+${reward} FP).`;
   showNotification(rewardMessage, { type: 'success', browser: true });
   debugFpLog('daily-login-claimed', { dayNumber, reward, finalDay: isFinalDay, fpBefore: previousFp, fpAfter: Math.floor(Number(faithPoints ?? 0) || 0) });
+  try { console.debug('[instr][mod] post-claimDailyLogin', { faithPoints: Math.floor(Number(faithPoints ?? 0) || 0), currentUser: (currentUser && currentUser.email) ? { email: currentUser.email, faithPoints: currentUser.faithPoints } : null, storedCurrentUser: JSON.parse(localStorage.getItem('currentUser') || '{}'), ts: String(Date.now()) }); } catch(e) {}
 }
 
 function ensureDailyLoginUi() {
@@ -757,8 +758,24 @@ function saveUserData() {
     users[userIndex].viewMode = getCurrentViewMode();
     users[userIndex].lastActiveAt = Date.now();
     users[userIndex].updatedAt = Date.now();
+    try { console.debug('[probe] saveUserData (modular): pre-upsert users[userIndex]=', JSON.parse(JSON.stringify(users[userIndex] || {}))); } catch (e) {}
+    try { console.debug('[probe] saveUserData (modular): before setStoredUsers users[userIndex]=', JSON.parse(JSON.stringify(users[userIndex] || {}))); } catch (e) {}
     setStoredUsers(users);
-    upsertUserInCloud(users[userIndex]);
+    // Freeze payload and log it to avoid races where users[userIndex] mutates before upsert
+    const upsertPayload = JSON.parse(JSON.stringify(users[userIndex] || {}));
+    try { console.debug('[micro] saveUserData (modular): pre-upsert-payload=', upsertPayload); } catch (e) {}
+    try { console.log('[micro] saveUserData (modular): pre-upsert-payload=', JSON.parse(JSON.stringify(upsertPayload))); } catch (e) {}
+    try { console.log('PRE_UPSERT_SNAPSHOT_MARKER::', JSON.stringify(upsertPayload)); } catch (e) {}
+    try {
+      const dbgKey = '__debug_pre_upsert_snapshots';
+      const arr = JSON.parse(localStorage.getItem(dbgKey) || '[]');
+      arr.push({ ts: Date.now(), src: 'kingdom-roots/js-modular/game.js', payload: JSON.parse(JSON.stringify(upsertPayload)) });
+      localStorage.setItem(dbgKey, JSON.stringify(arr.slice(-50)));
+    } catch (e) {}
+    upsertUserInCloud(upsertPayload).then(res => {
+      try { console.debug('[probe] saveUserData (modular): cloudResult=', JSON.parse(JSON.stringify(res || {}))); } catch (e) {}
+      try { console.debug('[probe] saveUserData (modular): after cloud read currentUser=', JSON.parse(localStorage.getItem('currentUser') || '{}'), 'usersCount=', JSON.parse(localStorage.getItem('users') || '[]').length); } catch (e) {}
+    }).catch(e => { console.warn('saveUserData cloud upsert failed:', e); });
     currentUser.faithPoints = Math.floor(faithPoints);
     currentUser.treeProgress = Math.floor(treeProgress);
     currentUser.passiveRate = passiveRate;
@@ -853,6 +870,7 @@ function submitPhoto() {
   closeUploadModal();
   showNotification(`Great job! ${pointsToAdd} FP added for ${reward.name}.`, { type: 'success', browser: true });
   debugFpLog('task-photo-submitted', { action: currentAction, pointsToAdd, fpBefore: previousFp, fpAfter: Math.floor(Number(faithPoints ?? 0) || 0) });
+  try { console.debug('[instr][mod] post-submitPhoto', { faithPoints: Math.floor(Number(faithPoints ?? 0) || 0), storedCurrentUser: JSON.parse(localStorage.getItem('currentUser') || '{}'), ts: String(Date.now()) }); } catch(e) {}
 }
 
 function shareGospel() {
@@ -861,6 +879,7 @@ function shareGospel() {
   applyTreeProgress(pointsToAdd);
   updateDisplay();
   debugFpLog('share-gospel', { pointsToAdd, fpBefore: previousFp, fpAfter: Math.floor(Number(faithPoints ?? 0) || 0) });
+  try { console.debug('[instr][mod] post-shareGospel', { faithPoints: Math.floor(Number(faithPoints ?? 0) || 0), storedCurrentUser: JSON.parse(localStorage.getItem('currentUser') || '{}'), ts: String(Date.now()) }); } catch(e) {}
 }
 
 // --- Upgrade ---
@@ -877,6 +896,7 @@ function useAllPoints() {
     updateDisplay();
     closeUpgradeModal();
     debugFpLog('use-all-points', { pointsUsed, fpAfter: Math.floor(Number(faithPoints ?? 0) || 0), treeProgressAfter: Math.floor(Number(treeProgress ?? 0) || 0) });
+    try { console.debug('[instr][mod] post-useAllPoints', { faithPoints: Math.floor(Number(faithPoints ?? 0) || 0), storedUsersFirst: JSON.parse(localStorage.getItem('users') || '[]')[0] || null, ts: String(Date.now()) }); } catch(e) {}
   } else {
     showNotification('Points must be divisible by 10 to use!', { type: 'warning' });
   }
@@ -891,6 +911,7 @@ function upgrade() {
     applyTreeProgress(pointsToAdd, { addFaithPoints: false });
     updateDisplay();
     debugFpLog('upgrade', { pointsToAdd, upgradeCost, fpBefore: previousFp, fpAfter: Math.floor(Number(faithPoints ?? 0) || 0), passiveRate });
+    try { console.debug('[instr][mod] post-upgrade', { faithPoints: Math.floor(Number(faithPoints ?? 0) || 0), currentUser: (currentUser && currentUser.email) ? { email: currentUser.email, faithPoints: currentUser.faithPoints } : null, ts: String(Date.now()) }); } catch(e) {}
     const flowers = document.getElementById("flowers");
     if (flowers) {
       flowers.classList.remove("blooming");
