@@ -863,8 +863,9 @@ function isAdminEmail(email) {
   return ADMIN_EMAILS.some(adminEmail => normalizeEmail(adminEmail) === normalizedEmail);
 }
 
-function getRoleByEmail(email) {
-  return isAdminEmail(email) ? 'admin' : 'user';
+function getRoleByEmail(email, preferredRole) {
+  if (isAdminEmail(email)) return 'admin';
+  try { return typeof preferredRole !== 'undefined' ? normalizeRole(preferredRole) : 'user'; } catch (e) { return 'user'; }
 }
 
 function isFirebaseConfigured() {
