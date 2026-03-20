@@ -374,3 +374,26 @@ function findUserIndexForSession(users, sessionUser) {
   if (!normalizedSessionEmail) return -1;
   return users.findIndex(user => normalizeEmail(user.email) === normalizedSessionEmail);
 }
+
+// Attempt to recover a usable `currentUser` from stored `users` when `currentUser` is missing or corrupted.
+function safeRecoverCurrentUser() {
+  try {
+    const users = getStoredUsersSafe();
+    if (!Array.isArray(users) || users.length === 0) {
+      try { localStorage.removeItem('currentUser'); } catch (_) {}
+      return null;
+    }
+    // Prefer an admin user if present, otherwise pick the first user
+    let fallback = users.find(u => getRoleByEmail(u.email, u.role) === 'admin') || users[0];
+    if (!fallback) {
+      try { localStorage.removeItem('currentUser'); } catch (_) {}
+      return null;
+    }
+    try { localStorage.setItem('currentUser', JSON.stringify(fallback)); } catch (_) {}
+    try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch (_) {}
+    return fallback;
+  } catch (e) {
+    try { localStorage.removeItem('currentUser'); } catch (_) {}
+    return null;
+  }
+}

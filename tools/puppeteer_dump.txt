@@ -1,0 +1,14 @@
+PAGE: Failed to load resource: the server responded with a status of 404 (File not found)
+PAGE: Failed to load resource: the server responded with a status of 404 ()
+PAGE: [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: Failed to load resource: the server responded with a status of 404 ()
+STORED_USERS_LEN: 39
+STORED_USERS_PREVIEW: [{"lastLogin":"","lastLoginDateKey":"","name":"Mark Aaron Navarrosa","dailyLoginState":{"streakDay":1,"lastClaimDate":"","cycleStartDate":"","claimedDays":[]},"taskCompletions":{},"id":1772023066533,"roleUpdatedAt":0,"loginStreakLongest":0,"role":"user","lastLoginAt":"","loginStreakCurrent":0,"fruitCount":0,"treeProgress":0,"lastActiveAt":1772084211743,"password":"043006","passiveRate":1,"pointsForFruit":0,"email":"aaronnavarrosa30@gmail.com","maxBloomReached":false,"joinedDate":"2/25/2026","faithPoints":0,"viewMode":"user","updatedAt":1773897505540},{"passiveRate":1,"pointsForFruit":0,"treeProgress":0,"password":"Y.Kc56*23","lastActiveAt":1773143627111,"updatedAt":1773897505545,"joinedDate":"3/10/2026","maxBloomReached":false,"email":"adonismacasinag2@gmail.com","faithPoints":0,"viewMode":"user","lastLogin":"3/10/2026, 7:53:47 PM","lastLoginDateKey":"","loginStreakCurrent":0,"fruitCount":0,"name":"Adowniz","dailyLoginState":{"streakDay":1,"lastClaimDate":"","cycleStartDate":"","claime
+CURRENT_USER_PREVIEW: null

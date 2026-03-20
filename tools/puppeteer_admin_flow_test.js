@@ -43,10 +43,10 @@ async function run() {
   // ensure functions exist then trigger admin view (set global currentUser if needed)
   const result = await page.evaluate(() => {
     try {
-      try { window.currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}'); } catch(e) {}
+      try { currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}'); } catch(e) { currentUser = null; }
       // Force management helpers for test: override role checks to allow admin view
-      try { window.getCurrentUserRole = () => 'admin'; } catch(e) {}
-      try { window.hasManagementAccess = () => true; } catch(e) {}
+      try { getCurrentUserRole = () => 'admin'; } catch(e) {}
+      try { hasManagementAccess = () => true; } catch(e) {}
       const debug = {
         currentUserVar: window.currentUser || null,
         hasApplyViewModeUI: typeof applyViewModeUI === 'function',
@@ -55,7 +55,7 @@ async function run() {
         hasManagementAccess: typeof hasManagementAccess === 'function' ? hasManagementAccess() : null
       };
       // Ensure currentUser is set to management view for the test
-      try { window.currentUser.viewMode = 'admin'; localStorage.setItem('currentUser', JSON.stringify(window.currentUser)); } catch(e) {}
+      try { if (currentUser) { currentUser.viewMode = 'admin'; localStorage.setItem('currentUser', JSON.stringify(currentUser)); } } catch(e) {}
       if (debug.hasApplyViewModeUI) applyViewModeUI();
       // Ensure management/admin view is visible for this test by toggling if needed.
       try {

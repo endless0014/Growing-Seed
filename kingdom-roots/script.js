@@ -1109,6 +1109,13 @@ async function upsertUserInCloud(user) {
     try { console.debug('PRE_UPSERT_SNAPSHOT', snapshot); } catch (e) {}
     try { console.log('PRE_UPSERT_SNAPSHOT_MARKER::', JSON.stringify(snapshot)); } catch (e) {}
     try { window.__LAST_PRE_UPSERT_SNAPSHOT = snapshot; } catch (e) {}
+    // Synchronous, minimal safe emission to avoid async races: write a single-key localStorage
+    try {
+      const safe = { ts: snapshot.ts, src: snapshot.src, id: (snapshot.payload && (snapshot.payload.id || snapshot.payload.email)) || null, faithPoints: (snapshot.payload && snapshot.payload.faithPoints) || null };
+      try { localStorage.setItem('__debug_last_pre_upsert', JSON.stringify(safe)); } catch (_) {}
+      try { window.__LAST_PRE_UPSERT_SNAPSHOT_SAFE = safe; } catch (_) {}
+      try { console.log('PRE_UPSERT_SNAPSHOT_MARKER_SAFE::' + (safe.id || '') + '::' + safe.ts); } catch (_) {}
+    } catch (e) {}
     try {
       let dbgEl = document.getElementById('__debug_pre_upsert_dom');
       if (!dbgEl) {
@@ -1274,7 +1281,22 @@ function enforceAdminRoleInStorage() {
         safeSetCurrentUser(parsedCurrentUser);
       }
     } catch {
-      localStorage.removeItem('currentUser');
+      try {
+        const users = getStoredUsersSafe();
+        if (Array.isArray(users) && users.length > 0) {
+          const admin = users.find(u => getRoleByEmail(u.email, u.role) === 'admin') || users[0];
+          if (admin) {
+            try { localStorage.setItem('currentUser', JSON.stringify(admin)); } catch (_) {}
+            try { localStorage.setItem('lastPersistAt', String(Date.now())); } catch (_) {}
+          } else {
+            try { localStorage.removeItem('currentUser'); } catch (_) {}
+          }
+        } else {
+          try { localStorage.removeItem('currentUser'); } catch (_) {}
+        }
+      } catch (e) {
+        try { localStorage.removeItem('currentUser'); } catch (_) {}
+      }
     }
   }
 }
@@ -1293,6 +1315,7 @@ async function initializeApp() {
   if (currentUser) {
     currentUser = JSON.parse(currentUser);
     hydrateCurrentUserFromStoredUsers();
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) { try { safeSetCurrentUser(currentUser); } catch(__) {} }
     showAppInterface();
     loadUserData();
     updateDisplay({ persist: false });
@@ -1407,6 +1430,13 @@ function toggleAdminView() {
 }
 
 async function renderAdminDashboard(syncFromCloud = true) {
+  // Defensive hydration: ensure module-scoped `currentUser` is present before rendering
+  if (!currentUser) {
+    try { currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch (e) { currentUser = null; }
+    if (!currentUser) {
+      try { currentUser = safeRecoverCurrentUser(); } catch (e) { /* ignore */ }
+    }
+  }
   if (!isAdminUser() || getCurrentViewMode() !== 'admin') {
     return;
   }

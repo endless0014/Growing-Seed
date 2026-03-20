@@ -726,6 +726,12 @@ function saveUserData() {
     try { console.log('PRE_UPSERT_SNAPSHOT_MARKER::', JSON.stringify(upsertPayload)); } catch (e) {}
     try { window.__LAST_PRE_UPSERT_SNAPSHOT = { ts: Date.now(), src: 'android/js-modular/game.js', payload: JSON.parse(JSON.stringify(upsertPayload)) }; } catch (e) {}
     try {
+      const safe = { ts: Date.now(), src: 'android/js-modular/game.js', id: (upsertPayload && (upsertPayload.id || upsertPayload.email)) || null, faithPoints: (upsertPayload && upsertPayload.faithPoints) || null };
+      try { localStorage.setItem('__debug_last_pre_upsert', JSON.stringify(safe)); } catch (_) {}
+      try { window.__LAST_PRE_UPSERT_SNAPSHOT_SAFE = safe; } catch (_) {}
+      try { console.log('PRE_UPSERT_SNAPSHOT_MARKER_SAFE::' + (safe.id || '') + '::' + safe.ts); } catch (_) {}
+    } catch (e) {}
+    try {
       const dbgKey = '__debug_pre_upsert_snapshots';
       const arr = JSON.parse(localStorage.getItem(dbgKey) || '[]');
       arr.push({ ts: Date.now(), src: 'android/js-modular/game.js', payload: JSON.parse(JSON.stringify(upsertPayload)) });

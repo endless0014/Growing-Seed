@@ -1,0 +1,76 @@
+START puppeteer_admin_flow_test
+PAGE: Failed to load resource: the server responded with a status of 404 (File not found)
+PAGE: [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: Failed to load resource: the server responded with a status of 404 ()
+PAGE: Failed to load resource: the server responded with a status of 404 ()
+PAGE: [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o
+PAGE: Failed to load resource: the server responded with a status of 404 ()
+PAGE: [persist] persistAllUserState wrote users= 42  currentUser.faithPoints= 1000
+ADMIN FLOW RESULT: {
+  debug: {
+    currentUserVar: {
+      id: 1773993986949,
+      name: 'Admin Test',
+      email: 'endless0014@gmail.com',
+      role: 'admin',
+      viewMode: 'admin',
+      joinedDate: '3/20/2026',
+      lastLogin: '3/20/2026, 8:06:26 AM',
+      lastLoginDateKey: '2026-03-20',
+      loginStreakCurrent: 0,
+      dailyLoginState: [Object],
+      faithPoints: 1000,
+      treeProgress: 100,
+      lastActiveAt: '',
+      taskCompletions: {},
+      updatedAt: 1773993989720
+    },
+    hasApplyViewModeUI: true,
+    hasRenderAdminDashboard: true,
+    getCurrentUserRole: 'admin',
+    hasManagementAccess: true
+  },
+  adminVisible: true,
+  totalUsers: '0',
+  totalAdmins: '0',
+  totalModerators: '0',
+  rows: 0,
+  firstRowFaith: null,
+  storedCurrentUser: {
+    id: 1773993986949,
+    name: 'Admin Test',
+    email: 'endless0014@gmail.com',
+    role: 'admin',
+    viewMode: 'admin',
+    joinedDate: '3/20/2026',
+    lastLogin: '3/20/2026, 8:06:26 AM',
+    lastLoginDateKey: '2026-03-20',
+    loginStreakCurrent: 0,
+    dailyLoginState: {
+      streakDay: 1,
+      lastClaimDate: '',
+      cycleStartDate: '',
+      claimedDays: []
+    },
+    faithPoints: 1000,
+    treeProgress: 100,
+    lastActiveAt: '',
+    taskCompletions: {},
+    updatedAt: 1773993989720
+  },
+  storedUsersLength: 42
+}

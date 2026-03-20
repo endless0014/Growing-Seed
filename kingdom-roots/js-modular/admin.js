@@ -152,13 +152,46 @@ function toggleAdminView() {
 }
 
 async function renderAdminDashboard(syncFromCloud = true) {
+  // Defensive: ensure module-scoped `currentUser` is hydrated from localStorage
+  if (!currentUser) {
+    try { currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch (e) { currentUser = null; }
+    if (!currentUser) {
+      try { currentUser = safeRecoverCurrentUser(); } catch (e) { /* ignore */ }
+    }
+  }
   if (!hasManagementAccess() || getCurrentViewMode() !== 'admin') return;
 
   if (syncFromCloud) await syncUsersFromCloudToLocal();
   removeLegacyAdminFaithPointsCard();
 
-  const safeUsers = getStoredUsersSafe();
-  const roleOfCurrentUser = getCurrentUserRole();
+  // Prefer rendering from the persisted `localStorage.users` to avoid relying on
+  // transient module-scoped state that may be overwritten by sync callbacks.
+  let safeUsers = [];
+  try {
+    const raw = localStorage.getItem('users');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        safeUsers = parsed.map((u, idx) => normalizeStoredUser(u, Date.now() + idx));
+      }
+    }
+  } catch (e) {
+    safeUsers = [];
+  }
+  if (!Array.isArray(safeUsers) || safeUsers.length === 0) {
+    try { safeUsers = getStoredUsersSafe(); } catch (e) { safeUsers = []; }
+  }
+  // Determine current user's role robustly: prefer module `currentUser`, fallback to localStorage-stored currentUser.
+  let roleOfCurrentUser = 'user';
+  try {
+    if (currentUser) roleOfCurrentUser = getCurrentUserRole();
+    else {
+      const raw = localStorage.getItem('currentUser');
+      if (raw) {
+        try { const parsed = JSON.parse(raw || '{}'); roleOfCurrentUser = getRoleByEmail(parsed.email, parsed.role); } catch(e) { roleOfCurrentUser = 'user'; }
+      }
+    }
+  } catch (e) { roleOfCurrentUser = 'user'; }
   const usersVisibleToCurrentUser = roleOfCurrentUser === 'moderator'
     ? safeUsers.filter(user => getRoleByEmail(user.email, user.role) !== 'admin')
     : safeUsers;

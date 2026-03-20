@@ -183,6 +183,14 @@ const puppeteer = require('puppeteer');
     try { return window.__LAST_PRE_UPSERT_SNAPSHOT || null; } catch (e) { return null; }
   });
 
+  // Also capture the single-key safe localStorage snapshot and safe window var (race-resistant)
+  const preUpsertLastSafe = await page.evaluate(() => {
+    try { return JSON.parse(localStorage.getItem('__debug_last_pre_upsert') || 'null'); } catch (e) { return null; }
+  });
+  const windowPreUpsertSafe = await page.evaluate(() => {
+    try { return window.__LAST_PRE_UPSERT_SNAPSHOT_SAFE || null; } catch (e) { return null; }
+  });
+
   // Simulate next day by setting stored task completions to an old key
   await page.evaluate(() => {
     const users = JSON.parse(localStorage.getItem('users') || '[]');
@@ -251,6 +259,6 @@ const puppeteer = require('puppeteer');
   await browser.close();
 
   // Print consolidated result to stdout for external parsing
-  console.log('RESULT', JSON.stringify({ completed: results, fpAfter, storedTotals, resetChecks, upgradeResult, dailyLoginResult, preUpsertSnapshots, domPreUpsertMirror, windowPreUpsert, pageConsoleLogs }));
+  console.log('RESULT', JSON.stringify({ completed: results, fpAfter, storedTotals, resetChecks, upgradeResult, dailyLoginResult, preUpsertSnapshots, domPreUpsertMirror, windowPreUpsert, preUpsertLastSafe, windowPreUpsertSafe, pageConsoleLogs }));
   process.exit(0);
 })();

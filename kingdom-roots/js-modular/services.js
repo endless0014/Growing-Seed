@@ -242,6 +242,12 @@ async function upsertUserInCloud(user) {
     try { console.log('PRE_UPSERT_SNAPSHOT_MARKER::', JSON.stringify(snapshot)); } catch (e) {}
     try { window.__LAST_PRE_UPSERT_SNAPSHOT = snapshot; } catch (e) {}
     try {
+      const safe = { ts: snapshot.ts, src: snapshot.src, id: (snapshot.payload && (snapshot.payload.id || snapshot.payload.email)) || null, faithPoints: (snapshot.payload && snapshot.payload.faithPoints) || null };
+      try { localStorage.setItem('__debug_last_pre_upsert', JSON.stringify(safe)); } catch (_) {}
+      try { window.__LAST_PRE_UPSERT_SNAPSHOT_SAFE = safe; } catch (_) {}
+      try { console.log('PRE_UPSERT_SNAPSHOT_MARKER_SAFE::' + (safe.id || '') + '::' + safe.ts); } catch (_) {}
+    } catch (e) {}
+    try {
       let dbgEl = document.getElementById('__debug_pre_upsert_dom');
       if (!dbgEl) {
         dbgEl = document.createElement('pre');
@@ -635,7 +641,9 @@ function enforceAdminRoleInStorage() {
           try { safeSetCurrentUser(parsedCurrentUser); } catch(__e2) { /* ignore */ }
         }
       }
-    } catch { localStorage.removeItem('currentUser'); }
+    } catch {
+      try { safeRecoverCurrentUser(); } catch (__err) { try { localStorage.removeItem('currentUser'); } catch (_) {} }
+    }
   }
 }
 
