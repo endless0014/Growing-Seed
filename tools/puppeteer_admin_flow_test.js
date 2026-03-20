@@ -129,7 +129,11 @@ async function run() {
       } catch(e) { firstRowFaith = null; }
       const storedCurrentUser = (() => { try { return JSON.parse(localStorage.getItem('currentUser')||'null'); } catch(e) { return null; } })();
       const storedUsers = (() => { try { return JSON.parse(localStorage.getItem('users')||'[]'); } catch(e) { return []; } })();
-      return { debug, adminVisible, totalUsers, totalAdmins, totalModerators, rows, firstRowFaith, storedCurrentUser, storedUsersLength: storedUsers.length };
+      const debugAdminActions = (() => { try { return JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); } catch(e) { return []; } })();
+      const preUpsertSafe = (() => { try { return localStorage.getItem('__debug_last_pre_upsert') || null; } catch(e) { return null; } })();
+      const preUpsertSnapshots = (() => { try { return JSON.parse(localStorage.getItem('__debug_pre_upsert_snapshots')||'[]'); } catch(e) { return []; } })();
+      const loadedScripts = Array.from(document.querySelectorAll('script')).map(s => ({ src: s.src || null, inlineLength: s.textContent ? s.textContent.length : 0, type: s.type || null }));
+      return { debug, adminVisible, totalUsers, totalAdmins, totalModerators, rows, firstRowFaith, storedCurrentUser, storedUsersLength: storedUsers.length, debugAdminActions, preUpsertSafe, preUpsertSnapshotsLength: (preUpsertSnapshots||[]).length, loadedScripts };
     } catch (e) { return { error: String(e) }; }
   });
   // allow UI to update after toggling view

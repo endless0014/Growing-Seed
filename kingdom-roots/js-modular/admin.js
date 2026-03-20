@@ -26,6 +26,11 @@ function adminSetEmail(userId, emailValue) {
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
   setStoredUsers(users);
+  try {
+    const entry = { ts: Date.now(), action: 'setEmail', userId: users[userIndex].id, email: users[userIndex].email };
+    try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {}
+    console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry));
+  } catch (e) {}
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);
@@ -45,6 +50,7 @@ function adminSetFaithPoints(userId, pointsValue) {
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
   setStoredUsers(users);
+  try { const entry = { ts: Date.now(), action: 'setFaithPoints', userId: users[userIndex].id, faithPoints: users[userIndex].faithPoints }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);
@@ -64,6 +70,7 @@ function adminSetTreeProgress(userId, progressValue) {
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
   setStoredUsers(users);
+  try { const entry = { ts: Date.now(), action: 'setTreeProgress', userId: users[userIndex].id, treeProgress: users[userIndex].treeProgress }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);
@@ -151,7 +158,8 @@ function toggleAdminView() {
   saveUserData();
 }
 
-async function renderAdminDashboard(syncFromCloud = true) {
+async function renderAdminDashboard(syncFromCloud = false) {
+  console.log('[admin] renderAdminDashboard start', { syncFromCloud: !!syncFromCloud, currentUserPresent: !!currentUser });
   // Defensive: ensure module-scoped `currentUser` is hydrated from localStorage
   if (!currentUser) {
     try { currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch (e) { currentUser = null; }
@@ -159,6 +167,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
       try { currentUser = safeRecoverCurrentUser(); } catch (e) { /* ignore */ }
     }
   }
+  // Require management access and admin view mode to render dashboard
   if (!hasManagementAccess() || getCurrentViewMode() !== 'admin') return;
 
   if (syncFromCloud) await syncUsersFromCloudToLocal();
@@ -181,6 +190,10 @@ async function renderAdminDashboard(syncFromCloud = true) {
   if (!Array.isArray(safeUsers) || safeUsers.length === 0) {
     try { safeUsers = getStoredUsersSafe(); } catch (e) { safeUsers = []; }
   }
+  try {
+    console.log('[admin] raw users present', !!localStorage.getItem('users'), 'rawLen', (localStorage.getItem('users')||'').length);
+    console.log('[admin] safeUsers length', Array.isArray(safeUsers) ? safeUsers.length : 0);
+  } catch(_) {}
   // Determine current user's role robustly: prefer module `currentUser`, fallback to localStorage-stored currentUser.
   let roleOfCurrentUser = 'user';
   try {
@@ -196,7 +209,26 @@ async function renderAdminDashboard(syncFromCloud = true) {
     ? safeUsers.filter(user => getRoleByEmail(user.email, user.role) !== 'admin')
     : safeUsers;
 
+  // Fallback: if role detection produced no visible users but persisted users exist,
+  // try to re-derive role from stored `currentUser` and allow rendering for admins/moderators.
+  if ((Array.isArray(usersVisibleToCurrentUser) && usersVisibleToCurrentUser.length === 0) && Array.isArray(safeUsers) && safeUsers.length > 0) {
+    try {
+      const rawCur = localStorage.getItem('currentUser');
+      if (rawCur) {
+        const parsedCur = JSON.parse(rawCur || '{}');
+        const storedRole = getRoleByEmail(parsedCur.email, parsedCur.role);
+        if (storedRole === 'admin') {
+          // allow full list when stored role is admin
+          usersVisibleToCurrentUser.splice(0, usersVisibleToCurrentUser.length, ...safeUsers);
+        } else if (storedRole === 'moderator') {
+          usersVisibleToCurrentUser.splice(0, usersVisibleToCurrentUser.length, ...safeUsers.filter(u => getRoleByEmail(u.email, u.role) !== 'admin'));
+        }
+      }
+    } catch (e) { /* ignore fallback errors */ }
+  }
+
   const totalUsers = safeUsers.length;
+  try { console.log('[admin] usersVisibleToCurrentUser length', Array.isArray(usersVisibleToCurrentUser) ? usersVisibleToCurrentUser.length : 0); } catch(_) {}
   const totalAdmins = safeUsers.filter(user => getRoleByEmail(user.email, user.role) === 'admin').length;
   const totalModerators = safeUsers.filter(user => getRoleByEmail(user.email, user.role) === 'moderator').length;
 
@@ -445,6 +477,7 @@ async function renderAdminDashboard(syncFromCloud = true) {
             <button class="admin-action-btn progress" onclick="window.adminResetProgress(${userId})" ${disableResetProgress}>Reset Progress</button>
             <button class="admin-action-btn restore" onclick="window.adminRestoreUser(${userId})">Restore</button>
             ${canViewProgress ? `<button class="admin-action-btn view" onclick="window.adminViewProgress(${userId})">View</button>` : ''}
+            <button class="admin-action-btn delete" onclick="window.adminDeleteUser(${userId})">Delete</button>
             <button class="admin-action-btn open" onclick="window.adminOpenUserUi(${userId})" ${disableOpenUi}>Open UI</button>
           </div>
         </td>
@@ -488,6 +521,7 @@ function adminAddPoints(userId, userEmail) {
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
   setStoredUsers(users);
+  try { const entry = { ts: Date.now(), action: 'adminAddPoints', userId: users[userIndex].id, pointsAdded: points }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);
@@ -648,6 +682,7 @@ async function adminRestoreUser(userId) {
   };
 
   setStoredUsers(users);
+  try { const entry = { ts: Date.now(), action: 'restoreUser', userId: users[userIndex].id, email: users[userIndex].email, recoveredFp, recoveredTree, recoveredStreakDays }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
   try { await upsertUserInCloud(users[userIndex]); } catch (e) { console.warn('Cloud upsert failed after restore:', e); }
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);
@@ -710,9 +745,47 @@ async function restoreUserLoginStreaksFromBackup() {
 
   setStoredUsers(users);
   try { await syncUsersToCloud(users); } catch (e) { console.warn('Cloud sync failed after bulk restore:', e); }
+  try { const entry = { ts: Date.now(), action: 'bulkRestore', totalRecoveredFp: totalRecoveredFp, totalRecoveredTree: totalRecoveredTree, totalRecoveredStreaks: totalRecoveredStreaks }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
   renderAdminDashboard(false);
   showNotification(`Bulk restore complete. Restored +${totalRecoveredFp} FP, +${totalRecoveredTree} TP, +${totalRecoveredStreaks} streak day(s) across users.`, { type: 'success', duration: 8000 });
 }
+
+// --- Delete user ---
+async function adminDeleteUser(userId) {
+  if (!assertAdminDashboardAccess()) return;
+  if (!ensureActionPermission('deleteUser', 'Only admin can delete users.')) return;
+
+  const users = getStoredUsersSafe();
+  const idx = findUserIndexById(users, userId);
+  if (idx === -1) { showNotification('User not found.', { type: 'error' }); return; }
+  const target = users[idx];
+  const email = normalizeEmail(target.email || '');
+  if (!confirm(`Permanently delete user ${target.email || email}? This cannot be undone.`)) return;
+
+  // Remove locally
+  users.splice(idx, 1);
+  setStoredUsers(users);
+  try { const entry = { ts: Date.now(), action: 'deleteUser', userId: target.id, email: target.email }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
+
+  // Attempt cloud delete (best-effort)
+  try { await deleteUserFromCloud(email); } catch (e) { console.warn('Cloud delete failed:', e); }
+
+  // If we deleted the active session, clear it
+  try {
+    if (currentUser && Number(currentUser.id) === Number(target.id)) {
+      stopCurrentUserCloudSync();
+      try { localStorage.removeItem('currentUser'); } catch (_) {}
+      currentUser = null;
+      showAuthInterface();
+      resetGameState();
+    }
+  } catch (e) { /* ignore */ }
+
+  renderAdminDashboard(false);
+  showNotification(`Deleted ${target.email || email}.`, { type: 'success' });
+}
+
+window.adminDeleteUser = adminDeleteUser;
 
 window.adminRestoreUser = adminRestoreUser;
 window.restoreUserLoginStreaksFromBackup = restoreUserLoginStreaksFromBackup;
@@ -735,6 +808,7 @@ function adminChangeUserRole(userId, nextRole) {
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
   setStoredUsers(users);
+  try { const entry = { ts: Date.now(), action: 'changeUserRole', userId: users[userIndex].id, role: users[userIndex].role }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);
@@ -971,6 +1045,7 @@ function adminSetTaskCompletion(userId, taskKey, isCompleted) {
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
   setStoredUsers(users);
+  try { const entry = { ts: Date.now(), action: 'setTaskCompletion', userId: users[userIndex].id, taskKey, isCompleted }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);
@@ -998,6 +1073,7 @@ function adminSetStreakDays(userId, streakInput) {
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
   setStoredUsers(users);
+  try { const entry = { ts: Date.now(), action: 'setStreakDays', userId: users[userIndex].id, streakDays: parsedStreak }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard(false);

@@ -1,5 +1,13 @@
 // Authentication System
 let currentUser = null;
+// Expose module-scoped `currentUser` to non-module legacy scripts via window accessor
+try {
+  Object.defineProperty(window, 'currentUser', {
+    get() { return currentUser; },
+    set(v) { currentUser = v; return currentUser; },
+    configurable: true
+  });
+} catch (e) { /* ignore in constrained environments */ }
 const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
 const ALLOWED_ROLES = ['admin', 'moderator', 'user'];
 const EMAIL_CORRECTIONS = {
@@ -157,6 +165,17 @@ function toggleFpDebugMode() {
   setFpDebugEnabled(nextEnabled);
   updateProfileDebugControls();
   showNotification(nextEnabled ? 'FP debug mode enabled.' : 'FP debug mode disabled.', { type: 'info' });
+}
+
+// Prefer admin renderer from modular admin.js when present.
+function callAdminRender(syncFromCloud = true) {
+  if (typeof window.renderAdminDashboard === 'function') {
+    try { return window.renderAdminDashboard(syncFromCloud); } catch (e) { console.warn('callAdminRender: window.renderAdminDashboard failed', e); }
+  }
+  if (typeof renderAdminDashboard === 'function') {
+    try { return renderAdminDashboard(syncFromCloud); } catch (e) { console.warn('callAdminRender: local renderAdminDashboard failed', e); }
+  }
+  return null;
 }
 
 async function runFpDiagnostics() {
@@ -916,6 +935,26 @@ function persistAllUserState(users, currentUserObj) {
   }
 }
 
+// --- Expose key helpers to window for legacy modular scripts (admin.js, utils.js)
+try {
+  window.getStoredUsersSafe = getStoredUsersSafe;
+  window.setStoredUsers = setStoredUsers;
+  window.getRoleByEmail = getRoleByEmail;
+  window.getCurrentUserRole = getCurrentUserRole;
+  window.hasManagementAccess = hasManagementAccess;
+  window.ensureActionPermission = ensureActionPermission;
+  window.syncUsersFromCloudToLocal = syncUsersFromCloudToLocal;
+  window.syncUsersToCloud = syncUsersToCloud;
+  window.upsertUserInCloud = upsertUserInCloud;
+  window.deleteUserFromCloud = deleteUserFromCloud;
+  window.persistAllUserState = persistAllUserState;
+  window.safeSetCurrentUser = safeSetCurrentUser;
+  window.safeRecoverCurrentUser = safeRecoverCurrentUser;
+  window.startCurrentUserCloudSync = startCurrentUserCloudSync;
+  window.stopCurrentUserCloudSync = stopCurrentUserCloudSync;
+  window.syncCurrentSessionIfNeeded = syncCurrentSessionIfNeeded;
+} catch (e) { /* ignore on read-only environments */ }
+
 function stopCurrentUserCloudSync() {
   if (typeof currentUserCloudUnsubscribe === 'function') {
     currentUserCloudUnsubscribe();
@@ -1399,7 +1438,7 @@ function applyViewModeUI() {
   syncProfilePillVisibilityForViewport();
 
   if (isAdminView) {
-    renderAdminDashboard();
+    callAdminRender();
   }
 }
 
@@ -1431,13 +1470,13 @@ function toggleAdminView() {
 
 async function renderAdminDashboard(syncFromCloud = true) {
   // Defensive hydration: ensure module-scoped `currentUser` is present before rendering
-  if (!currentUser) {
+    if (!currentUser || !currentUser.email) {
     try { currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch (e) { currentUser = null; }
     if (!currentUser) {
       try { currentUser = safeRecoverCurrentUser(); } catch (e) { /* ignore */ }
     }
   }
-  if (!isAdminUser() || getCurrentViewMode() !== 'admin') {
+    if (!isAdminUser() || getCurrentViewMode() !== 'admin' || !currentUser.email) {
     return;
   }
 
@@ -1648,7 +1687,7 @@ function adminAddPoints(userId, userEmail) {
   setStoredUsers(users);
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
-  renderAdminDashboard(false);
+  callAdminRender(false);
   showNotification(`Added ${points} FP to ${users[userIndex].email}.`, { type: 'success' });
 }
 
@@ -1671,7 +1710,7 @@ async function adminResetPassword(userId) {
   setStoredUsers(users);
   try { await upsertUserInCloud(users[userIndex]); } catch (e) { /* ignore cloud failures */ }
   syncCurrentSessionIfNeeded(users[userIndex]);
-  renderAdminDashboard(false);
+  callAdminRender(false);
   showNotification(`Password set for ${userEmail}.`, { type: 'success' });
 }
 
@@ -1693,7 +1732,7 @@ function adminResetProgress(userId) {
   users[userIndex].dailyLoginState = normalizeDailyLoginState({});
   setStoredUsers(users);
   syncCurrentSessionIfNeeded(users[userIndex]);
-  renderAdminDashboard();
+  callAdminRender();
   showNotification(`Progress reset for ${targetEmail}.`, { type: 'success' });
 }
 
@@ -1764,7 +1803,7 @@ function adminGrantAdmin(email) {
   setStoredUsers(users);
   try { upsertUserInCloud(users[idx]); } catch (e) { /* ignore */ }
   syncCurrentSessionIfNeeded(users[idx]);
-  renderAdminDashboard(false);
+  callAdminRender(false);
   showNotification(`${email} granted admin rights.`, { type: 'success' });
 }
 
@@ -1829,7 +1868,7 @@ function adminFixUserRoles() {
   if (fixed.length > 0) {
     setStoredUsers(users);
     try { syncUsersToCloud(users); } catch (e) { /* ignore cloud failures */ }
-    renderAdminDashboard(false);
+    callAdminRender(false);
     showNotification(`Fixed roles for ${fixed.length} user(s).`, { type: 'success' });
   } else {
     showNotification('No role issues found.', { type: 'info' });
@@ -1888,7 +1927,7 @@ function adminRemovePuppeteerAccounts() {
     }
   } catch (e) { /* ignore */ }
 
-  renderAdminDashboard(false);
+  callAdminRender(false);
   showNotification(`Removed ${toRemove.length} Puppeteer test account(s).`, { type: 'success' });
   console.info('adminRemovePuppeteerAccounts removed:', toRemove.map(u => u.email));
   return { removed: toRemove.length, details: toRemove.map(u => ({ email: u.email, id: u.id })) };
@@ -1937,7 +1976,7 @@ function adminMakeModerators(emails) {
     }
   } catch (e) { /* ignore */ }
 
-  renderAdminDashboard(false);
+  callAdminRender(false);
   const count = report.filter(r => r.status === 'updated').length;
   showNotification(`Updated ${count} moderator(s).`, { type: 'success' });
   console.info('adminMakeModerators report:', report);
