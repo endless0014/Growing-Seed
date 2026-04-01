@@ -33,8 +33,19 @@ function normalizeRole(role) {
 }
 
 function getRoleByEmail(email, preferredRole) {
-  if (isAdminEmail(email)) return 'admin';
-  return normalizeRole(preferredRole);
+  const normalizedEmail = normalizeEmail(email || '');
+  if (isAdminEmail(normalizedEmail)) return 'admin';
+  try {
+    if (typeof preferredRole !== 'undefined' && preferredRole !== null) return normalizeRole(preferredRole);
+    try {
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      if (Array.isArray(users)) {
+        const found = users.find(u => normalizeEmail(u.email) === normalizedEmail);
+        if (found && typeof found.role !== 'undefined' && found.role !== null) return normalizeRole(found.role);
+      }
+    } catch (_) {}
+    return 'user';
+  } catch (e) { return 'user'; }
 }
 
 function getCurrentUserRole() {

@@ -1003,19 +1003,23 @@ function adminMakeModerators(emails) {
       return;
     }
     users[idx].role = 'moderator';
-    users[idx].roleUpdatedAt = Date.now();
-    users[idx].updatedAt = Date.now();
-    users[idx].lastActiveAt = Date.now();
+    // Bump roleUpdatedAt slightly into the near future to avoid cloud merge races
+    const bumpTs = Date.now() + 10000;
+    users[idx].roleUpdatedAt = bumpTs;
+    users[idx].updatedAt = bumpTs;
+    users[idx].lastActiveAt = bumpTs;
     report.push({ email: users[idx].email, status: 'updated' });
   });
 
   setStoredUsers(users);
+  try { try { persistAllUserState(users, currentUser); } catch(e) { /* ignore */ } } catch(e) {}
+  try { localStorage.setItem('__debug_last_make_mod', String(Date.now())); } catch(_) {}
   try { syncUsersToCloud(users); } catch (e) { /* ignore cloud failures */ }
 
   try {
     if (currentUser && normalizedTargets.includes(normalizeEmail(currentUser.email))) {
       currentUser.role = getRoleByEmail(currentUser.email, 'moderator');
-      safeSetCurrentUser(currentUser);
+      try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch(e) { try { safeSetCurrentUser(currentUser); } catch(_) {} }
       syncCurrentSessionIfNeeded(currentUser);
     }
   } catch (e) { /* ignore */ }

@@ -7,7 +7,12 @@ const emails = [
 
 (async function run(){
   console.log('START puppeteer_make_moderators');
-  const browser = await puppeteer.launch({headless: true, args: ['--no-sandbox','--disable-setuid-sandbox']});
+  const PUPPETEER_PROFILE = process.env.PUPPETEER_PROFILE || '/tmp/puppeteer_profile';
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox','--disable-setuid-sandbox'],
+    userDataDir: PUPPETEER_PROFILE
+  });
   const page = await browser.newPage();
   page.on('console', msg => console.log('PAGE:', msg.text()));
 

@@ -8,7 +8,7 @@ try {
     configurable: true
   });
 } catch (e) { /* ignore in constrained environments */ }
-const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
+const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'hymn.0014@gmail.com'];
 const ALLOWED_ROLES = ['admin', 'moderator', 'user'];
 const EMAIL_CORRECTIONS = {
   'nicolenavarrosa27@gmailc.com': 'nicolenavarrosa27@gmail.com'
@@ -864,8 +864,20 @@ function isAdminEmail(email) {
 }
 
 function getRoleByEmail(email, preferredRole) {
-  if (isAdminEmail(email)) return 'admin';
-  try { return typeof preferredRole !== 'undefined' ? normalizeRole(preferredRole) : 'user'; } catch (e) { return 'user'; }
+  const normalizedEmail = normalizeEmail(email || '');
+  if (isAdminEmail(normalizedEmail)) return 'admin';
+  try {
+    if (typeof preferredRole !== 'undefined' && preferredRole !== null) return normalizeRole(preferredRole);
+    // No preferred role provided; try to resolve from stored users
+    try {
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      if (Array.isArray(users)) {
+        const found = users.find(u => normalizeEmail(u.email) === normalizedEmail);
+        if (found && typeof found.role !== 'undefined' && found.role !== null) return normalizeRole(found.role);
+      }
+    } catch (_) {}
+    return 'user';
+  } catch (e) { return 'user'; }
 }
 
 function isFirebaseConfigured() {
@@ -1087,11 +1099,11 @@ function normalizeStoredUser(user, fallbackId) {
   const parsedLastActiveAt = Number(user?.lastActiveAt ?? user?.updatedAt ?? 0);
 
   return {
-    ...user,
-    id: safeUserId,
-    email: normalizeEmail(user?.email),
-    role: getRoleByEmail(user?.email),
-    viewMode: user?.viewMode ?? 'user',
+  ...user,
+  id: safeUserId,
+  email: normalizeEmail(user?.email),
+  role: getRoleByEmail(user?.email, user?.role),
+  viewMode: user?.viewMode ?? 'user',
     lastLogin: user?.lastLogin ?? '',
     lastActiveAt: Number.isFinite(parsedLastActiveAt) && parsedLastActiveAt > 0 ? parsedLastActiveAt : '',
     taskCompletions: user?.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {},
