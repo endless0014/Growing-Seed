@@ -8,6 +8,7 @@
   <meta http-equiv="Expires" content="0" />
   <title>Growing Seed</title>
   <link rel="stylesheet" href="style.css?v=20260310-board-popup-1" />
+  <link rel="icon" href="assets/ABCF.png?v=20260225-logo-refresh-2" />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -543,11 +544,11 @@
   <script>
     (async function loadLocalFirebaseConfig(){
       try {
-        const res = await fetch('kingdom-roots/firebase.local.js', {cache: 'no-store'});
+        const res = await fetch('./firebase.local.js', {cache: 'no-store'});
         if (!res.ok) return;
         const txt = await res.text();
         (0, eval)(txt);
-        console.log('[local-firebase] loaded kingdom-roots/firebase.local.js');
+        console.log('[local-firebase] loaded ./firebase.local.js');
       } catch (e) {
         /* silent fallback when file absent or fetch fails */
       }
@@ -555,10 +556,10 @@
   </script>
   <script src="js-modular/config.js?v=20260315-release-2"></script>
   <script src="js-modular/utils.js?v=20260315-release-2"></script>
+  <script src="js-modular/services.js?v=20260315-release-2"></script>
+  <script src="js-modular/compat.js?v=20260315-release-2"></script>
   <script src="js-modular/auth.js?v=20260315-release-2"></script>
   <script src="js-modular/game.js?v=20260315-release-2"></script>
   <script src="js-modular/admin.js?v=20260315-release-2"></script>
-  <script src="js-modular/services.js?v=20260315-release-2"></script>
-  <script src="script.js?v=20260315-release-2"></script>
 </body>
 </html>
