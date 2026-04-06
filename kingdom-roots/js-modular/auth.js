@@ -702,7 +702,11 @@ window.handleLogout = handleLogout;
 window.switchToRegister = switchToRegister;
 window.switchToLogin = switchToLogin;
 window.switchToForgotPassword = switchToForgotPassword;
-window.sendResetCode = sendResetCode;
+if (typeof sendResetCode === 'function') {
+  window.sendResetCode = sendResetCode;
+} else {
+  console.debug('sendResetCode not defined at auth.js exposure time');
+}
 window.handleChangePassword = handleChangePassword;
 window.openProfileModal = openProfileModal;
 window.closeProfileModal = closeProfileModal;

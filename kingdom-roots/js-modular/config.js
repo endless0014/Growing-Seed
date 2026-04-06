@@ -1,6 +1,10 @@
 // Growing Seed — Configuration & Constants
 
-let currentUser = null;
+if (typeof currentUser === 'undefined') {
+  var currentUser = null;
+} else {
+  // reuse existing global `currentUser`
+}
 
 const ADMIN_EMAILS = ['endlesssh0014@gmail.com', 'endlessssh0014@gmail.com', 'endless0014@gmail.com'];
 const ALLOWED_ROLES = ['admin', 'moderator', 'user'];

@@ -1,5 +1,9 @@
 // Authentication System
-let currentUser = null;
+if (typeof currentUser === 'undefined') {
+  var currentUser = null;
+} else {
+  // reuse existing global `currentUser`
+}
 // Expose module-scoped `currentUser` to non-module legacy scripts via window accessor
 try {
   Object.defineProperty(window, 'currentUser', {
