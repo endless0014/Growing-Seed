@@ -16,7 +16,17 @@ function isCloudSyncDisabled() {
 
 function isFirebaseAuthAvailable() {
   try {
-    return typeof firebase !== 'undefined' && typeof firebase.auth === 'function' && Array.isArray(firebase.apps) && firebase.apps.length > 0;
+    const hasFirebase = typeof firebase !== 'undefined';
+    const hasAuthFn = hasFirebase && (typeof firebase.auth === 'function' || typeof firebase.auth === 'object');
+    const appsArray = hasFirebase && Array.isArray(firebase.apps) ? firebase.apps : null;
+    const appsCount = appsArray ? firebase.apps.length : 0;
+    const available = hasFirebase && hasAuthFn && appsCount > 0;
+    if (!available) {
+      try {
+        console.debug('[firebase-debug] available:', available, 'hasFirebase:', hasFirebase, 'hasAuthFn:', !!hasAuthFn, 'appsCount:', appsCount, 'firebaseType:', typeof firebase);
+      } catch (e) { /* ignore logging failure */ }
+    }
+    return available;
   } catch (e) {
     return false;
   }
@@ -212,7 +222,10 @@ function isFirebaseConfigured(config) {
 }
 
 function initializeCloudDatabase() {
-  if (!window.firebase) return false;
+  if (!window.firebase) {
+    try { console.warn('[cloud-init] window.firebase is not defined. Firebase scripts may be blocked or not loaded.'); } catch (e) {}
+    return false;
+  }
   // Allow a local override via window.FIREBASE_LOCAL_CONFIG for developer testing
   const cfg = (typeof window !== 'undefined' && window.FIREBASE_LOCAL_CONFIG) ? window.FIREBASE_LOCAL_CONFIG : FIREBASE_CONFIG;
   if (!isFirebaseConfigured(cfg)) {
