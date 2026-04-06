@@ -9,6 +9,7 @@
   <title>Growing Seed</title>
   <link rel="stylesheet" href="style.css?v=20260310-board-popup-1" />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
 <body>
@@ -39,6 +40,13 @@
             <input type="password" id="loginPassword" placeholder="Enter your password" required>
           </div>
           <button type="submit" class="auth-btn">Login</button>
+          <div class="auth-divider">
+            <span>or</span>
+          </div>
+          <button type="button" onclick="handleGoogleSignIn()" class="auth-btn google-btn">
+            <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" class="google-icon">
+            Sign in with Google
+          </button>
           <p id="loginError" class="error-message"></p>
         </form>
         <p class="auth-link">Don't have an account? <a href="#" onclick="switchToRegister()">Register here</a></p>
@@ -551,6 +559,6 @@
   <script src="js-modular/game.js?v=20260315-release-2"></script>
   <script src="js-modular/admin.js?v=20260315-release-2"></script>
   <script src="js-modular/services.js?v=20260315-release-2"></script>
-  <script type="module" src="script.js?v=20260315-release-2"></script>
+  <script src="script.js?v=20260315-release-2"></script>
 </body>
 </html>

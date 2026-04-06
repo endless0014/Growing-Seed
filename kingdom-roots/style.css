@@ -683,6 +683,48 @@ body {
   background: #bbb;
 }
 
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 1rem 0;
+  text-align: center;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #ddd;
+}
+
+.auth-divider span {
+  padding: 0 1rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.google-btn {
+  background: #fff !important;
+  color: #333 !important;
+  border: 1px solid #ddd !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.google-btn:hover {
+  background: #f8f9fa !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  transform: none !important;
+}
+
+.google-icon {
+  width: 18px;
+  height: 18px;
+}
+
 .error-message {
   color: #e74c3c;
   font-size: 0.9rem;

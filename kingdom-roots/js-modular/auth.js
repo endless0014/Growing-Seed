@@ -290,6 +290,125 @@ async function handleRegister(event) {
   startInactivityTimer();
 }
 
+// --- Google Sign-In ---
+
+async function handleGoogleSignIn() {
+  clearAuthErrors();
+  document.getElementById('loginError').textContent = 'Signing in with Google...';
+
+  try {
+    const googleUser = await signInWithGoogle();
+
+    // Check if user already exists in local storage
+    const users = getStoredUsersSafe();
+    let existingUser = users.find(u => normalizeEmail(u.email) === normalizeEmail(googleUser.email));
+
+    if (!existingUser) {
+      // Create new user account for Google user
+      const newUser = {
+        id: Date.now(),
+        name: googleUser.displayName || googleUser.email.split('@')[0],
+        email: googleUser.email,
+        role: getRoleByEmail(googleUser.email, 'user'),
+        viewMode: 'user',
+        joinedDate: new Date().toLocaleDateString(),
+        lastLogin: new Date().toLocaleString(),
+        lastLoginDateKey: getTodayDateKey(),
+        loginStreakCurrent: 1,
+        loginStreakLongest: 1,
+        lastActiveAt: Date.now(),
+        faithPoints: 0,
+        treeProgress: 0,
+        passiveRate: 1,
+        fruitCount: 0,
+        pointsForFruit: 0,
+        maxBloomReached: false,
+        taskCompletions: {},
+        dailyLoginState: normalizeDailyLoginState({})
+      };
+
+      users.push(newUser);
+      setStoredUsers(users);
+      existingUser = newUser;
+    } else {
+      // Update existing user's login stats
+      const userIndex = users.findIndex(u => Number(u.id) === Number(existingUser.id));
+      const normalizedUser = normalizeStoredUser(existingUser, existingUser.id);
+
+      // Update consecutive login stats
+      try {
+        updateConsecutiveLoginStats(normalizedUser);
+      } catch (e) {
+        try {
+          const todayKey = getDateKeyFromDate(new Date());
+          const lastKey = normalizedUser.lastLoginDateKey;
+          const lastDate = parseDateKeyToDate(lastKey);
+          if (lastDate) {
+            const days = getDaysBetween(lastDate, new Date());
+            normalizedUser.loginStreakCurrent = days === 1 ? (Number(normalizedUser.loginStreakCurrent || 0) + 1) : 1;
+          } else {
+            normalizedUser.loginStreakCurrent = 1;
+          }
+          normalizedUser.lastLoginDateKey = todayKey;
+        } catch (ee) {
+          normalizedUser.loginStreakCurrent = Number(normalizedUser.loginStreakCurrent || 1);
+          normalizedUser.lastLoginDateKey = getDateKeyFromDate(new Date());
+        }
+      }
+
+      normalizedUser.lastLogin = new Date().toLocaleString();
+      normalizedUser.lastActiveAt = Date.now();
+      normalizedUser.viewMode = normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role);
+
+      if (userIndex !== -1) {
+        users[userIndex] = normalizedUser;
+        setStoredUsers(users);
+      }
+      existingUser = normalizedUser;
+    }
+
+    // Update cloud
+    upsertUserInCloud(existingUser);
+
+    currentUser = {
+      ...existingUser,
+      role: getRoleByEmail(existingUser.email, existingUser.role),
+      viewMode: existingUser.viewMode ?? getDefaultViewModeForRole(existingUser.role),
+      faithPoints: existingUser.faithPoints ?? 0,
+      treeProgress: existingUser.treeProgress ?? 0,
+      passiveRate: existingUser.passiveRate ?? 1,
+      fruitCount: existingUser.fruitCount ?? 0,
+      pointsForFruit: existingUser.pointsForFruit ?? 0,
+      maxBloomReached: existingUser.maxBloomReached ?? false,
+      lastLogin: existingUser.lastLogin ?? '',
+      lastActiveAt: existingUser.lastActiveAt ?? '',
+      taskCompletions: existingUser.taskCompletions ?? {},
+      dailyLoginState: normalizeDailyLoginState(existingUser.dailyLoginState)
+    };
+
+    hasAutoPromptedDailyLogin = false;
+    stopCurrentUserCloudSync();
+
+    try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+      try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+    }
+
+    await runRollbackRecoveryForCurrentUserOnce();
+    clearAuthErrors();
+    showAppInterface();
+    loadUserData();
+    updateDisplay();
+    autoPromptDailyLoginIfPending();
+    startCurrentUserCloudSync();
+    startScheduledReminders();
+    startInactivityTimer();
+
+  } catch (error) {
+    console.error('Google Sign-In failed:', error);
+    document.getElementById('loginError').textContent = 'Google Sign-In failed. Please try again.';
+  }
+}
+
 // --- Logout ---
 
 function handleLogout() {
@@ -566,3 +685,20 @@ function syncCurrentSessionIfNeeded(updatedUser, options) {
     updateDisplay({ persist: persist });
   }
 }
+
+// Expose functions globally for HTML onclick handlers
+window.handleLogin = handleLogin;
+window.handleRegister = handleRegister;
+window.handleGoogleSignIn = handleGoogleSignIn;
+window.handleLogout = handleLogout;
+window.switchToRegister = switchToRegister;
+window.switchToLogin = switchToLogin;
+window.switchToForgotPassword = switchToForgotPassword;
+window.sendResetCode = sendResetCode;
+window.handleChangePassword = handleChangePassword;
+window.openProfileModal = openProfileModal;
+window.closeProfileModal = closeProfileModal;
+window.openChangePasswordModal = openChangePasswordModal;
+window.closeChangePasswordModal = closeChangePasswordModal;
+window.downloadUserData = downloadUserData;
+window.clearAuthErrors = clearAuthErrors;

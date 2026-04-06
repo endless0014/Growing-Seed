@@ -44,6 +44,24 @@ async function migrateUserToFirebaseAuth(email, password) {
   }
 }
 
+async function signInWithGoogle() {
+  if (!isFirebaseAuthAvailable()) {
+    throw new Error('Firebase Auth not available');
+  }
+
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
+
+  try {
+    const result = await firebase.auth().signInWithPopup(provider);
+    return result.user;
+  } catch (error) {
+    console.error('Google Sign-In error:', error);
+    throw error;
+  }
+}
+
 // --- Notification System ---
 
 function ensureNotificationContainer() {
