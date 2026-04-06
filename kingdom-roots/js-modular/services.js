@@ -202,18 +202,28 @@ function showNotification(message, options) {
 
 // --- Firebase / Firestore ---
 
-function isFirebaseConfigured() {
-  return Object.values(FIREBASE_CONFIG).every(value => String(value || '').trim() !== '');
+function isFirebaseConfigured(config) {
+  try {
+    const cfg = config || FIREBASE_CONFIG;
+    return cfg && Object.values(cfg).every(value => String(value || '').trim() !== '');
+  } catch (e) {
+    return false;
+  }
 }
 
 function initializeCloudDatabase() {
   if (!window.firebase) return false;
-  if (!isFirebaseConfigured()) {
-    console.warn('Firebase config is missing. Shared registration sync is disabled until FIREBASE_CONFIG is filled.');
+  // Allow a local override via window.FIREBASE_LOCAL_CONFIG for developer testing
+  const cfg = (typeof window !== 'undefined' && window.FIREBASE_LOCAL_CONFIG) ? window.FIREBASE_LOCAL_CONFIG : FIREBASE_CONFIG;
+  if (!isFirebaseConfigured(cfg)) {
+    console.warn('Firebase config is missing or incomplete. Shared registration sync is disabled until FIREBASE_CONFIG is filled.');
     return false;
   }
   try {
-    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    if (!firebase.apps.length) {
+      firebase.initializeApp(cfg);
+      try { console.debug('[cloud] firebase initialized with', (cfg && cfg.projectId) || '[unknown]'); } catch (e) {}
+    }
     cloudDb = firebase.firestore();
     return true;
   } catch (error) {

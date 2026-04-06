@@ -38,13 +38,30 @@ const puppeteer = require('puppeteer');
     // extra wait to capture async console messages
     await new Promise(r => setTimeout(r, 1500));
     try {
-      const evalResult = await page.evaluate(() => ({
-        sendResetCode: typeof window.sendResetCode,
-        resetPasswordWithCode: typeof window.resetPasswordWithCode,
-        goBackToForgot: typeof window.goBackToForgot,
-        showNotification: typeof window.showNotification
-      }));
-      console.log('EVAL_RESULT', evalResult);
+      const evalResult = await page.evaluate(() => {
+        const firebaseInfo = {};
+        try {
+          firebaseInfo.exists = typeof window.firebase !== 'undefined';
+          firebaseInfo.appsLength = Array.isArray(window.firebase?.apps) ? window.firebase.apps.length : null;
+          firebaseInfo.authAvailable = typeof window.firebase?.auth === 'function';
+          firebaseInfo.appOptions = (window.firebase && Array.isArray(window.firebase.apps) && window.firebase.apps[0] && window.firebase.apps[0].options)
+            ? {
+                apiKey: window.firebase.apps[0].options.apiKey || null,
+                authDomain: window.firebase.apps[0].options.authDomain || null,
+                projectId: window.firebase.apps[0].options.projectId || null
+              }
+            : null;
+        } catch (e) { /* ignore */ }
+
+        return {
+          sendResetCode: typeof window.sendResetCode,
+          resetPasswordWithCode: typeof window.resetPasswordWithCode,
+          goBackToForgot: typeof window.goBackToForgot,
+          showNotification: typeof window.showNotification,
+          firebaseInfo
+        };
+      });
+      console.log('EVAL_RESULT', JSON.stringify(evalResult));
     } catch (e) {
       console.log('EVAL_ERROR', e && e.toString());
     }
