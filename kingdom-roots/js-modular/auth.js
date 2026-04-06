@@ -55,6 +55,7 @@ async function handleLogin(event) {
       authenticated = true;
       firebaseAuthWorking = true;
     } catch (authError) {
+      console.error('Firebase auth signIn error', { code: authError?.code, message: authError?.message, email });
       const isConfigOrNetworkError = authError.code === 'auth/configuration-not-found'
         || authError.code === 'auth/network-request-failed'
         || authError.code === 'auth/internal-error';
@@ -119,6 +120,13 @@ async function handleLogin(event) {
   }
 
   if (!authenticated) {
+    // Helpful debug info for diagnosing login failures in the wild
+    try {
+      const storedUsers = getStoredUsersSafe();
+      const matchedByEmail = storedUsers.find(u => normalizeEmail(u.email) === email) || null;
+      console.debug('Login failed', { email, normalizedEmail: email, firebaseAuthWorking, matchedByEmail });
+    } catch (e) { console.debug('Login debug gather failed', e); }
+
     document.getElementById('loginError').textContent = 'Invalid email or password';
     return;
   }
