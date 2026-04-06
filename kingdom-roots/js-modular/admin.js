@@ -568,6 +568,7 @@ function adminResetProgress(userId) {
   users[userIndex].taskCompletions = {};
   users[userIndex].dailyLoginState = normalizeDailyLoginState({});
   setStoredUsers(users);
+  try { upsertUserInCloud(users[userIndex]); } catch (e) { /* ignore cloud failures */ }
   syncCurrentSessionIfNeeded(users[userIndex]);
   renderAdminDashboard();
   showNotification(`Progress reset for ${targetEmail}.`, { type: 'success' });
@@ -1085,6 +1086,28 @@ function adminSetStreakDays(userId, streakInput) {
 
 window.adminSetTaskCompletion = adminSetTaskCompletion;
 window.adminSetStreakDays = adminSetStreakDays;
+
+function adminSetRealLoginStreak(userId, daysInput) {
+  if (!assertAdminDashboardAccess()) return;
+  if (getCurrentUserRole() !== 'admin') { showNotification('Only admin can edit login streak.', { type: 'error' }); renderAdminDashboard(false); return; }
+  const parsed = Math.max(0, Math.floor(Number(daysInput) || 0));
+  if (!Number.isFinite(parsed) || parsed < 0) { showNotification('Invalid streak value.', { type: 'error' }); return; }
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexById(users, userId);
+  if (userIndex === -1) { showNotification('User not found.', { type: 'error' }); renderAdminDashboard(false); return; }
+  const previousLongest = Math.floor(Number(users[userIndex].loginStreakLongest ?? 0) || 0);
+  users[userIndex].loginStreakCurrent = parsed;
+  users[userIndex].loginStreakLongest = Math.max(previousLongest, parsed);
+  users[userIndex].updatedAt = Date.now();
+  users[userIndex].lastActiveAt = Date.now();
+  setStoredUsers(users);
+  try { const entry = { ts: Date.now(), action: 'setRealLoginStreak', userId: users[userIndex].id, streak: parsed }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
+  upsertUserInCloud(users[userIndex]);
+  syncCurrentSessionIfNeeded(users[userIndex]);
+  renderAdminDashboard(false);
+}
+
+window.adminSetRealLoginStreak = adminSetRealLoginStreak;
 
 function adminSetJoinedDate(userId, dateValue) {
   if (!assertAdminDashboardAccess()) return;

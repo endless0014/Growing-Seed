@@ -49,16 +49,16 @@ function dateKeyForOffset(daysOffset) {
   // Fill login form and submit
   await page.type('#loginEmail', sampleUser.email, {delay: 20});
   await page.type('#loginPassword', sampleUser.password, {delay: 20});
-  await Promise.all([
-    page.click('#loginForm button[type=submit]'),
-    page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 5000 }).catch(()=>{})
-  ]);
+  await page.click('#loginForm button[type=submit]');
+  // Wait until the app UI shows the main app container (logged-in state)
+  await page.waitForSelector('#appContainer', { visible: true, timeout: 10000 });
 
-  // give app time to process
-  await new Promise(r => setTimeout(r, 1000));
-
-  // Read back currentUser from localStorage
-  const afterLogin = await page.evaluate(() => ({ currentUser: JSON.parse(localStorage.getItem('currentUser') || '{}'), dailyLoginState: window.dailyLoginState, taskCompletions: window.taskCompletions }));
+  // Read back currentUser preferring in-page variable (fallback to localStorage)
+  const afterLogin = await page.evaluate(() => {
+    const cur = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const lastPreUpsert = window.__LAST_PRE_UPSERT_SNAPSHOT || null;
+    return { currentUser: cur, lastPreUpsert };
+  });
   console.log('After login snapshot:', afterLogin.currentUser ? { loginStreakCurrent: afterLogin.currentUser.loginStreakCurrent, lastLoginDateKey: afterLogin.currentUser.lastLoginDateKey } : null);
 
   // Check that login streak incremented (from 1 -> 2)
@@ -72,17 +72,38 @@ function dateKeyForOffset(daysOffset) {
 
   // (no debug logging)
 
-  // Click Day 1 tile if enabled
-  const claimResult = await page.evaluate(async () => {
-    const tile = document.querySelector('.daily-login-tile[data-day="1"]');
-    if (!tile) return { ok: false, reason: 'no-tile' };
-    if (tile.disabled || tile.getAttribute('disabled') !== null) return { ok: false, reason: 'disabled' };
-    // trigger click
-    tile.click();
-    // allow app to process
-    await new Promise(r => setTimeout(r, 600));
-    return { ok: true, dailyLoginState: window.dailyLoginState, currentUser: JSON.parse(localStorage.getItem('currentUser') || '{}') };
-  });
+  // Click Day 1 tile if enabled (perform DOM click from page context, wait for updates from Node)
+  let claimResult = { ok: false, reason: 'no-tile' };
+  const tileHandle = await page.$('.daily-login-tile[data-day="1"]');
+  if (!tileHandle) {
+    claimResult = { ok: false, reason: 'no-tile' };
+  } else {
+    const isDisabled = await page.evaluate((sel) => {
+      const t = document.querySelector(sel);
+      return !t || t.disabled || t.getAttribute('disabled') !== null;
+    }, '.daily-login-tile[data-day="1"]');
+    if (isDisabled) {
+      claimResult = { ok: false, reason: 'disabled' };
+    } else {
+      // capture lastPersistAt before clicking so we can wait for a completed persist
+      const prevPersist = await page.evaluate(() => Number(localStorage.getItem('lastPersistAt') || '0'));
+      await page.evaluate((sel) => { const t = document.querySelector(sel); if (t) t.click(); }, '.daily-login-tile[data-day="1"]');
+      // wait for persist to update (or visual change) with a short polling loop
+      const maxWait = 8000;
+      const pollInterval = 200;
+      let elapsed = 0;
+      while (elapsed < maxWait) {
+        const curPersist = await page.evaluate(() => Number(localStorage.getItem('lastPersistAt') || '0'));
+        if (curPersist > prevPersist) break;
+        await new Promise(r => setTimeout(r, pollInterval));
+        elapsed += pollInterval;
+      }
+      const currentUser = await page.evaluate(() => (typeof currentUser !== 'undefined' && currentUser) ? currentUser : JSON.parse(localStorage.getItem('currentUser') || '{}'));
+      const lastPreUpsert = await page.evaluate(() => window.__LAST_PRE_UPSERT_SNAPSHOT || null);
+      const dailyLoginState = (currentUser && currentUser.dailyLoginState) ? currentUser.dailyLoginState : (lastPreUpsert && lastPreUpsert.payload ? lastPreUpsert.payload.dailyLoginState : undefined);
+      claimResult = { ok: true, dailyLoginState, currentUser, lastPreUpsert };
+    }
+  }
 
   console.log('Claim attempt result:', claimResult);
 
@@ -94,18 +115,19 @@ function dateKeyForOffset(daysOffset) {
   // then rehydrate in-page state and refresh the calendar behavior
   await page.evaluate((dk) => {
     try {
+      let parsed = null;
       const curRaw = localStorage.getItem('currentUser');
       if (curRaw) {
-        const parsed = JSON.parse(curRaw);
+        try { parsed = JSON.parse(curRaw); } catch (e) { parsed = null; }
+      }
+      if (!parsed && (typeof currentUser !== 'undefined' && currentUser)) {
+        try { parsed = JSON.parse(JSON.stringify(currentUser)); } catch (e) { parsed = currentUser; }
+      }
+      if (parsed) {
         parsed.dailyLoginState = parsed.dailyLoginState || {};
         parsed.dailyLoginState.lastClaimDate = dk;
         localStorage.setItem('currentUser', JSON.stringify(parsed));
-        // Rehydrate in-page currentUser and state
-        try {
-          currentUser = JSON.parse(localStorage.getItem('currentUser'));
-        } catch (e) {
-          // ignore
-        }
+        try { currentUser = JSON.parse(localStorage.getItem('currentUser')); } catch (e) { currentUser = parsed; }
         if (typeof loadUserData === 'function') loadUserData();
         if (typeof updateDisplay === 'function') updateDisplay({ persist: false });
         if (typeof renderDailyLoginCalendar === 'function') renderDailyLoginCalendar();
@@ -116,7 +138,7 @@ function dateKeyForOffset(daysOffset) {
   }, dateKeyForOffset(-2));
   await new Promise(r => setTimeout(r, 400));
   const afterMissed = await page.evaluate(() => {
-    const cur = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const cur = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : JSON.parse(localStorage.getItem('currentUser') || '{}');
     return { currentUser: cur, dailyLoginState: cur.dailyLoginState };
   });
   console.log('After missed-day simulation:', afterMissed.dailyLoginState);

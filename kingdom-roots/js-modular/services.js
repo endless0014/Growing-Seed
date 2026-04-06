@@ -15,7 +15,11 @@ function isCloudSyncDisabled() {
 // --- Firebase Auth ---
 
 function isFirebaseAuthAvailable() {
-  return typeof firebase !== 'undefined' && typeof firebase.auth === 'function';
+  try {
+    return typeof firebase !== 'undefined' && typeof firebase.auth === 'function' && Array.isArray(firebase.apps) && firebase.apps.length > 0;
+  } catch (e) {
+    return false;
+  }
 }
 
 function initializeFirebaseAuth() {

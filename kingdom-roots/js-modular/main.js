@@ -110,8 +110,8 @@ async function resolveLogoSources() {
 // --- App initialization ---
 
 async function initializeApp() {
-  initializeCloudDatabase();
-  initializeFirebaseAuth();
+  const cloudInit = initializeCloudDatabase();
+  if (cloudInit) initializeFirebaseAuth();
   await applyEmailCorrections();
   await migrateLocalUsersToCloudOnce();
   await syncUsersFromCloudToLocal();
