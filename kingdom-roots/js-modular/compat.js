@@ -4,12 +4,12 @@
 (function () {
   function sendResetCode() {
     const emailEl = document.getElementById('forgotEmail');
-    const email = emailEl ? emailEl.value : '';
+    const email = getCorrectedEmail(emailEl ? emailEl.value : '');
     const forgotErrorEl = document.getElementById('forgotError');
     if (forgotErrorEl) forgotErrorEl.textContent = '';
 
     const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const user = users.find(u => u.email === email);
+    const user = users.find(u => normalizeEmail(u.email) === email);
 
     if (!user) {
       if (forgotErrorEl) forgotErrorEl.textContent = 'Email not found';
@@ -44,7 +44,7 @@
     const confirmPasswordEl = document.getElementById('confirmNewPassword');
     const resetErrorEl = document.getElementById('resetError');
 
-    const email = emailEl ? emailEl.value : '';
+    const email = getCorrectedEmail(emailEl ? emailEl.value : '');
     const resetCode = resetCodeEl ? resetCodeEl.value : '';
     const newPassword = newPasswordEl ? newPasswordEl.value : '';
     const confirmPassword = confirmPasswordEl ? confirmPasswordEl.value : '';
@@ -70,7 +70,7 @@
     }
 
     const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const userIndex = users.findIndex(u => u.email === email);
+    const userIndex = users.findIndex(u => normalizeEmail(u.email) === email);
 
     if (userIndex !== -1) {
       users[userIndex].password = newPassword;

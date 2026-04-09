@@ -35,7 +35,9 @@ function dateKeyForOffset(daysOffset) {
 
   await page.goto(HOST, { waitUntil: 'networkidle2' });
   // inject users into localStorage before app initializes fully
+  // Disable cloud sync to avoid Firebase Auth/Firestore interference in tests
   await page.evaluate((u) => {
+    localStorage.setItem('TEST_DISABLE_CLOUD_SYNC', '1');
     localStorage.setItem('users', JSON.stringify([u]));
     localStorage.removeItem('currentUser');
   }, sampleUser);

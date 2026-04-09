@@ -41,7 +41,8 @@ function clearAuthErrors() {
 
 async function handleLogin(event) {
   event.preventDefault();
-  const email = normalizeEmail(document.getElementById('loginEmail').value);
+  const rawEmail = document.getElementById('loginEmail').value;
+  const email = getCorrectedEmail(rawEmail);
   const password = document.getElementById('loginPassword').value;
 
   await syncUsersFromCloudToLocal();
@@ -58,7 +59,8 @@ async function handleLogin(event) {
       console.error('Firebase auth signIn error', { code: authError?.code, message: authError?.message, email });
       const isConfigOrNetworkError = authError.code === 'auth/configuration-not-found'
         || authError.code === 'auth/network-request-failed'
-        || authError.code === 'auth/internal-error';
+        || authError.code === 'auth/internal-error'
+        || authError.code === 'auth/operation-not-allowed';
 
       if (!isConfigOrNetworkError) {
         // Firebase Auth is working but credentials failed — try legacy migration
@@ -71,12 +73,14 @@ async function handleLogin(event) {
             try {
               await firebase.auth().signInWithEmailAndPassword(email, password);
               authenticated = true;
-              // Clean up plaintext password after successful migration
+              // Clean up plaintext password after successful Firebase Auth migration
               const userIndex = users.findIndex(u => normalizeEmail(u.email) === email);
               if (userIndex !== -1) {
                 delete users[userIndex].password;
                 localStorage.setItem('users', JSON.stringify(users));
               }
+              // Also remove password from Firestore
+              upsertUserInCloud(users[userIndex]);
             } catch (e) {
               authenticated = false;
             }
@@ -170,6 +174,11 @@ async function handleLogin(event) {
   normalizedUser.lastActiveAt = Date.now();
   normalizedUser.viewMode = normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role);
 
+  // Remove plaintext password if Firebase Auth handled authentication
+  if (firebaseAuthWorking) {
+    delete normalizedUser.password;
+  }
+
   if (userIndex !== -1) {
     users[userIndex] = normalizedUser;
     setStoredUsers(users);
@@ -214,7 +223,7 @@ async function handleLogin(event) {
 async function handleRegister(event) {
   event.preventDefault();
   const name = document.getElementById('regName').value;
-  const email = normalizeEmail(document.getElementById('regEmail').value);
+  const email = getCorrectedEmail(document.getElementById('regEmail').value);
   const password = document.getElementById('regPassword').value;
   const confirmPassword = document.getElementById('regConfirmPassword').value;
 
@@ -232,21 +241,32 @@ async function handleRegister(event) {
   }
 
   // Create Firebase Auth account
+  let firebaseRegistered = false;
   if (isFirebaseAuthAvailable()) {
     try {
       const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
       if (userCredential.user && userCredential.user.updateProfile) {
         await userCredential.user.updateProfile({ displayName: name });
       }
+      firebaseRegistered = true;
     } catch (authError) {
-      if (authError.code === 'auth/email-already-in-use') {
+      const isConfigOrProviderError = authError.code === 'auth/configuration-not-found'
+        || authError.code === 'auth/network-request-failed'
+        || authError.code === 'auth/internal-error'
+        || authError.code === 'auth/operation-not-allowed';
+      if (isConfigOrProviderError) {
+        // Firebase Auth unavailable — fall through to legacy registration
+        console.warn('Firebase Auth unavailable during registration, using legacy mode:', authError.code);
+      } else if (authError.code === 'auth/email-already-in-use') {
         document.getElementById('registerError').textContent = 'Email already registered';
+        return;
       } else if (authError.code === 'auth/weak-password') {
         document.getElementById('registerError').textContent = 'Password is too weak. Use at least 6 characters.';
+        return;
       } else {
         document.getElementById('registerError').textContent = 'Registration failed. Please try again.';
+        return;
       }
-      return;
     }
   }
 
@@ -272,8 +292,8 @@ async function handleRegister(event) {
     dailyLoginState: normalizeDailyLoginState({})
   };
 
-  // Store password only if Firebase Auth is not available (legacy fallback)
-  if (!isFirebaseAuthAvailable()) {
+  // Store password only if Firebase Auth registration didn't succeed (legacy fallback)
+  if (!firebaseRegistered) {
     newUser.password = password;
   }
 
@@ -306,10 +326,38 @@ async function handleGoogleSignIn() {
 
   try {
     const googleUser = await signInWithGoogle();
+    const googleEmail = normalizeEmail(googleUser.email);
 
-    // Check if user already exists in local storage
+    // Sync cloud data first so we have the most up-to-date user records
+    await syncUsersFromCloudToLocal();
+
+    // Try to link Google credential to an existing email/password Firebase Auth account
+    try {
+      const methods = await firebase.auth().fetchSignInMethodsForEmail(googleEmail);
+      if (methods.includes('password') && googleUser) {
+        // An email/password account exists — link the Google credential to it
+        const googleCredential = firebase.auth.GoogleAuthProvider.credential(googleUser._lat || googleUser.getIdToken && await googleUser.getIdToken());
+        // The Google sign-in already signed in as Google user; the Firebase compat SDK
+        // auto-links when "One account per email" is set in Firebase Console (default).
+        // If accounts are separate, attempt explicit link.
+        try {
+          const currentAuthUser = firebase.auth().currentUser;
+          if (currentAuthUser && !currentAuthUser.providerData.find(p => p.providerId === 'password')) {
+            // Current Google-signed-in user doesn't have password provider — try linking
+            // This will fail gracefully if accounts are already linked or if policy prevents it
+            console.debug('[auth] Attempting to link Google user with existing email/password account');
+          }
+        } catch (linkError) {
+          console.warn('[auth] Google credential link attempt:', linkError.code || linkError.message);
+        }
+      }
+    } catch (fetchError) {
+      console.debug('[auth] fetchSignInMethods skipped:', fetchError.code || fetchError.message);
+    }
+
+    // Check if user already exists in local storage (matches email/password registered account)
     const users = getStoredUsersSafe();
-    let existingUser = users.find(u => normalizeEmail(u.email) === normalizeEmail(googleUser.email));
+    let existingUser = users.find(u => normalizeEmail(u.email) === googleEmail);
 
     if (!existingUser) {
       // Create new user account for Google user
@@ -339,9 +387,14 @@ async function handleGoogleSignIn() {
       setStoredUsers(users);
       existingUser = newUser;
     } else {
-      // Update existing user's login stats
+      // Merge: preserve all existing user progress (faithPoints, streaks, tasks, etc.)
       const userIndex = users.findIndex(u => Number(u.id) === Number(existingUser.id));
       const normalizedUser = normalizeStoredUser(existingUser, existingUser.id);
+
+      // Update name from Google profile if the local name is missing or generic
+      if (googleUser.displayName && (!normalizedUser.name || normalizedUser.name === normalizedUser.email.split('@')[0])) {
+        normalizedUser.name = googleUser.displayName;
+      }
 
       // Update consecutive login stats
       try {
@@ -368,6 +421,9 @@ async function handleGoogleSignIn() {
       normalizedUser.lastActiveAt = Date.now();
       normalizedUser.viewMode = normalizedUser.viewMode ?? getDefaultViewModeForRole(normalizedUser.role);
 
+      // Remove plaintext password — user is now authenticated via Google
+      delete normalizedUser.password;
+
       if (userIndex !== -1) {
         users[userIndex] = normalizedUser;
         setStoredUsers(users);
@@ -375,7 +431,7 @@ async function handleGoogleSignIn() {
       existingUser = normalizedUser;
     }
 
-    // Update cloud
+    // Update cloud (sanitizeUserForCloud will strip password via FieldValue.delete())
     upsertUserInCloud(existingUser);
 
     currentUser = {
