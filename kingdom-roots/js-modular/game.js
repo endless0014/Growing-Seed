@@ -834,6 +834,13 @@ function loadUserData() {
 
 // --- Upload / Submit ---
 
+function syncSubmitPhotoButtonState() {
+  const submitPhotoBtn = document.getElementById('submitPhotoBtn');
+  const photoInputElement = document.getElementById('photoInput');
+  if (!submitPhotoBtn || !photoInputElement) return;
+  submitPhotoBtn.disabled = !(photoInputElement.files && photoInputElement.files.length > 0);
+}
+
 function openUploadModal(action) {
   currentAction = action;
   const reward = actionRewards[action];
@@ -846,10 +853,13 @@ function openUploadModal(action) {
     titlePrefixElement.textContent = 'Share Your';
     actionNameElement.textContent = reward.name;
   }
-  document.getElementById("photoInput").value = '';
+  const photoInputElement = document.getElementById('photoInput');
+  photoInputElement.value = '';
+  // Keep submit state in sync even if global listeners were not attached.
+  photoInputElement.onchange = syncSubmitPhotoButtonState;
+  photoInputElement.oninput = syncSubmitPhotoButtonState;
   document.getElementById("photoPreview").style.display = 'none';
-  const submitPhotoBtn = document.getElementById('submitPhotoBtn');
-  if (submitPhotoBtn) submitPhotoBtn.disabled = true;
+  syncSubmitPhotoButtonState();
   document.getElementById("uploadModal").style.display = 'flex';
 }
 
@@ -861,6 +871,7 @@ function closeUploadModal() {
 }
 
 function submitPhoto() {
+  syncSubmitPhotoButtonState();
   const photoInputElement = document.getElementById('photoInput');
   const selectedFile = photoInputElement?.files?.[0];
   if (!selectedFile) { showNotification('Please attach an image before submitting.', { type: 'warning' }); return; }

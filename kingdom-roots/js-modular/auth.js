@@ -137,11 +137,42 @@ async function handleLogin(event) {
 
   // Load user data from local storage
   const users = getStoredUsersSafe();
-  const user = users.find(u => normalizeEmail(u.email) === email);
+  let user = users.find(u => normalizeEmail(u.email) === email);
   if (!user) {
-    document.getElementById('loginError').textContent = 'Account data not found. Please register.';
-    if (isFirebaseAuthAvailable()) firebase.auth().signOut().catch(() => {});
-    return;
+    // If Firebase Auth succeeded but cloud profile read is blocked by rules,
+    // bootstrap a local profile so login still works on new devices.
+    if (firebaseAuthWorking && isFirebaseAuthAvailable()) {
+      const authUser = firebase.auth().currentUser;
+      const bootstrapUser = normalizeStoredUser({
+        id: Date.now(),
+        name: authUser?.displayName || email.split('@')[0],
+        email,
+        role: getRoleByEmail(email, 'user'),
+        viewMode: 'user',
+        joinedDate: new Date().toLocaleDateString(),
+        lastLogin: new Date().toLocaleString(),
+        lastLoginDateKey: getTodayDateKey(),
+        loginStreakCurrent: 1,
+        loginStreakLongest: 1,
+        lastActiveAt: Date.now(),
+        faithPoints: 0,
+        treeProgress: 0,
+        passiveRate: 1,
+        fruitCount: 0,
+        pointsForFruit: 0,
+        maxBloomReached: false,
+        taskCompletions: {},
+        dailyLoginState: normalizeDailyLoginState({})
+      }, Date.now());
+      users.push(bootstrapUser);
+      setStoredUsers(users);
+      user = bootstrapUser;
+      try { upsertUserInCloud(bootstrapUser); } catch (e) { /* ignore cloud write failures */ }
+    } else {
+      document.getElementById('loginError').textContent = 'Account data not found. Please register.';
+      if (isFirebaseAuthAvailable()) firebase.auth().signOut().catch(() => {});
+      return;
+    }
   }
 
   hasAutoPromptedDailyLogin = false;
@@ -469,7 +500,11 @@ async function handleGoogleSignIn() {
 
   } catch (error) {
     console.error('Google Sign-In failed:', error);
-    document.getElementById('loginError').textContent = 'Google Sign-In failed. Please try again.';
+    if (error?.code === 'auth/unauthorized-domain') {
+      document.getElementById('loginError').textContent = 'Google Sign-In is not enabled for this domain. Add this domain in Firebase Authentication > Settings > Authorized domains.';
+    } else {
+      document.getElementById('loginError').textContent = 'Google Sign-In failed. Please try again.';
+    }
   }
 }
 

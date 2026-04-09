@@ -408,3 +408,33 @@ function safeRecoverCurrentUser() {
     return null;
   }
 }
+
+// Persist users and currentUser together to keep session and storage in sync.
+function persistAllUserState(users, currentUserObj) {
+  try {
+    const normalizedUsers = Array.isArray(users)
+      ? users.map((user, index) => normalizeStoredUser(user, Date.now() + index))
+      : [];
+    const normalizedCurrent = normalizeStoredUser(currentUserObj || {}, Date.now());
+
+    localStorage.setItem('users', JSON.stringify(normalizedUsers));
+    localStorage.setItem('currentUser', JSON.stringify(normalizedCurrent));
+    localStorage.setItem('lastPersistAt', String(Date.now()));
+  } catch (e) {
+    try { console.warn('persistAllUserState failed:', e); } catch (_) {}
+  }
+}
+
+function safeSetCurrentUser(userObj) {
+  try {
+    const users = getStoredUsersSafe();
+    persistAllUserState(users, userObj);
+  } catch (e) {
+    try {
+      localStorage.setItem('currentUser', JSON.stringify(userObj || {}));
+      localStorage.setItem('lastPersistAt', String(Date.now()));
+    } catch (_) {
+      // Ignore storage failures in compatibility fallback.
+    }
+  }
+}
