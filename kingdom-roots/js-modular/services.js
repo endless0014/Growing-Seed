@@ -3,6 +3,7 @@
 let cloudDb = null;
 let reminderIntervalId = null;
 let currentUserCloudUnsubscribe = null;
+let cloudWriteInProgress = false;
 
 function isCloudSyncDisabled() {
   try {
@@ -250,85 +251,27 @@ function getCloudUsersCollection() {
   return cloudDb ? cloudDb.collection(CLOUD_USERS_COLLECTION) : null;
 }
 
-// Lightweight debug helper: compare server record timestamps with local lastPersistAt
-async function debugServerSyncCompare(docRef, context) {
-  try {
-    if (!docRef) return;
-    const snap = await docRef.get();
-    if (!snap.exists) return;
-    const data = snap.data() || {};
-    const serverUpdatedAt = Number(data.updatedAt ?? data.lastActiveAt ?? 0);
-    const lastPersistAt = Number(localStorage.getItem('lastPersistAt') || 0);
-    try { console.debug('[cloud-debug] ' + context + ': doc=', docRef.id || '[doc]', ' serverUpdatedAt=', serverUpdatedAt, ' lastPersistAt=', lastPersistAt, ' serverIsStale=', serverUpdatedAt > 0 && serverUpdatedAt < lastPersistAt); } catch(e) {}
-  } catch (e) {
-    try { console.warn('[cloud-debug] debugServerSyncCompare failed:', e); } catch(_) {}
-  }
-}
-
 // --- Cloud CRUD ---
 
 async function upsertUserInCloud(user) {
-  // Durable debug snapshot: record pre-upsert payload to localStorage for forensic tracing
-  try {
-    const dbgKey = '__debug_pre_upsert_snapshots';
-    try {
-      const snap = JSON.parse(localStorage.getItem(dbgKey) || '[]');
-      snap.push({ ts: Date.now(), src: 'js-modular/services.js', payload: JSON.parse(JSON.stringify(user || {})) });
-      localStorage.setItem(dbgKey, JSON.stringify(snap.slice(-50)));
-    } catch (_e) {
-      try { localStorage.setItem(dbgKey, JSON.stringify([{ ts: Date.now(), src: 'js-modular/services.js', payload: JSON.parse(JSON.stringify(user || {})) }])); } catch(__) {}
-    }
-  } catch (e) { /* ignore storage failures */ }
-
-  // Also emit a console message and mirror into a hidden DOM <pre> so harness can capture snapshots reliably
-  try {
-    const snapshot = { ts: Date.now(), src: 'js-modular/services.js', payload: JSON.parse(JSON.stringify(user || {})) };
-    try { console.debug('PRE_UPSERT_SNAPSHOT', snapshot); } catch (e) {}
-    try { console.log('PRE_UPSERT_SNAPSHOT_MARKER::', JSON.stringify(snapshot)); } catch (e) {}
-    try { window.__LAST_PRE_UPSERT_SNAPSHOT = snapshot; } catch (e) {}
-    try {
-      const safe = { ts: snapshot.ts, src: snapshot.src, id: (snapshot.payload && (snapshot.payload.id || snapshot.payload.email)) || null, faithPoints: (snapshot.payload && snapshot.payload.faithPoints) || null };
-      try { localStorage.setItem('__debug_last_pre_upsert', JSON.stringify(safe)); } catch (_) {}
-      try { window.__LAST_PRE_UPSERT_SNAPSHOT_SAFE = safe; } catch (_) {}
-      try { console.log('PRE_UPSERT_SNAPSHOT_MARKER_SAFE::' + (safe.id || '') + '::' + safe.ts); } catch (_) {}
-    } catch (e) {}
-    try {
-      let dbgEl = document.getElementById('__debug_pre_upsert_dom');
-      if (!dbgEl) {
-        dbgEl = document.createElement('pre');
-        dbgEl.id = '__debug_pre_upsert_dom';
-        dbgEl.style.display = 'none';
-        document.body.appendChild(dbgEl);
-      }
-      dbgEl.textContent = JSON.stringify(snapshot);
-    } catch (e) {}
-  } catch (e) { /* ignore */ }
-
-  if (isCloudSyncDisabled()) {
-    try { console.debug('[cloud] upsertUserInCloud: skipped (TEST_DISABLE_CLOUD_SYNC) for', user && user.email); } catch (e) {}
-    return Promise.resolve(null);
-  }
+  if (isCloudSyncDisabled()) return Promise.resolve(null);
 
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection || !user?.email) return;
   try {
     const normalizedEmail = normalizeEmail(user.email);
     const cloudUser = sanitizeUserForCloud(user);
-    const {
-      taskCompletions = {},
-      dailyLoginState = normalizeDailyLoginState({}),
-      ...cloudUserFields
-    } = cloudUser;
     const userDoc = usersCollection.doc(normalizedEmail);
 
-    await userDoc.set(cloudUserFields, { merge: true });
-    await userDoc.update({ taskCompletions, dailyLoginState });
-    // Debug: read back server doc and compare timestamps with local persistence
-    try { debugServerSyncCompare(userDoc, 'upsertUserInCloud'); } catch (e) { /* ignore */ }
-    // Read back and return server-side document data so callers can apply authoritative fields
-    const snap = await userDoc.get();
-    return snap.exists ? snap.data() : null;
+    // Single atomic write — avoids the race where onSnapshot fires between
+    // a partial set() and the follow-up update(), seeing stale taskCompletions
+    // and dailyLoginState that then overwrite local state.
+    cloudWriteInProgress = true;
+    await userDoc.set(cloudUser);
+    cloudWriteInProgress = false;
+    return null;
   } catch (error) {
+    cloudWriteInProgress = false;
     console.warn('Cloud upsert failed:', error);
   }
 }
@@ -392,6 +335,9 @@ function startCurrentUserCloudSync() {
   const normalizedEmail = normalizeEmail(currentUser.email);
   currentUserCloudUnsubscribe = usersCollection.doc(normalizedEmail).onSnapshot(snapshot => {
     if (!snapshot.exists || !currentUser) return;
+    // Ignore snapshots that echo back our own in-flight write to prevent
+    // stale intermediate data from overwriting the local state.
+    if (cloudWriteInProgress) return;
     const cloudUser = normalizeStoredUser(snapshot.data(), currentUser.id);
     if (!cloudUser?.email || normalizeEmail(cloudUser.email) !== normalizeEmail(currentUser.email)) return;
 
@@ -460,7 +406,6 @@ function startCurrentUserCloudSync() {
     const userIndex = users.findIndex(user => normalizeEmail(user.email) === normalizedEmail);
     if (userIndex !== -1) {
       users[userIndex] = { ...users[userIndex], ...cloudUserToApply, role: getRoleByEmail(cloudUserToApply.email, cloudUserToApply.role) };
-      try { console.debug('[persist][mod] set users (cloud apply) count=', Array.isArray(users) ? users.length : 0, ' currentUser.faithPoints=', currentUser && typeof currentUser.faithPoints !== 'undefined' ? currentUser.faithPoints : null); } catch (e) {}
       localStorage.setItem('users', JSON.stringify(users));
     }
     currentUser = {
@@ -531,17 +476,6 @@ async function syncUsersFromCloudToLocal() {
     try {
       // Attempt full collection read (succeeds when rules allow it or user is admin).
       const snapshot = await usersCollection.get();
-      try {
-        snapshot.docs.forEach(doc => {
-          try {
-            const d = doc.data() || {};
-            const serverUpdatedAt = Number(d.updatedAt ?? d.lastActiveAt ?? 0);
-            if (serverUpdatedAt > 0 && lastPersistAt > 0 && serverUpdatedAt < lastPersistAt) {
-              try { console.debug('[cloud-debug] syncUsersFromCloudToLocal: server record stale doc=', doc.id, ' serverUpdatedAt=', serverUpdatedAt, ' lastPersistAt=', lastPersistAt); } catch(e) {}
-            }
-          } catch(e) { /* ignore per-doc errors */ }
-        });
-      } catch(e) { /* ignore snapshot iterate errors */ }
       cloudUsers = snapshot.docs
         .map((doc, index) => normalizeStoredUser(doc.data(), Date.now() + index))
         .filter(user => Boolean(user.email));
@@ -567,7 +501,6 @@ async function syncUsersFromCloudToLocal() {
       }
     }
     const mergedUsers = mergeUsersByLatestTimestamp(localUsers, cloudUsers);
-    try { console.debug('[persist][mod] set users (cloud read) count=', Array.isArray(mergedUsers) ? mergedUsers.length : 0); } catch (e) {}
 
     // Persist merged users and ensure currentUser is synchronized with the canonical record
     try {
@@ -813,7 +746,7 @@ async function runRollbackRecoveryForCurrentUserOnce() {
   } else {
     users.push(normalizeStoredUser(currentUser, currentUser.id));
   }
-  setStoredUsers(users);
+  localStorage.setItem('users', JSON.stringify(users));
   faithPoints = bestFaithPoints;
   dailyLoginState = recoveredDailyLoginState;
   try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {

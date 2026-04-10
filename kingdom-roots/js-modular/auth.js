@@ -232,11 +232,12 @@ async function handleLogin(event) {
 
   if (userIndex !== -1) {
     users[userIndex] = normalizedUser;
-    setStoredUsers(users);
   } else {
     users.push(normalizedUser);
-    setStoredUsers(users);
   }
+  // Write to localStorage only — avoid setStoredUsers which fires
+  // syncUsersToCloud for ALL users, causing N redundant cloud writes.
+  localStorage.setItem('users', JSON.stringify(users));
   upsertUserInCloud(normalizedUser);
 
   currentUser = {
@@ -350,6 +351,7 @@ async function handleRegister(event) {
 
   users.push(newUser);
   setStoredUsers(users);
+  upsertUserInCloud(newUser);
   stopCurrentUserCloudSync();
 
   currentUser = { ...newUser };

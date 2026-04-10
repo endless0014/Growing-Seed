@@ -369,7 +369,10 @@ function getStoredUsersSafe() {
 
 function setStoredUsers(users) {
   localStorage.setItem('users', JSON.stringify(users));
-  syncUsersToCloud(users);
+  // Cloud sync removed — callers that need a cloud write should explicitly
+  // call upsertUserInCloud for the specific user they changed, instead of
+  // syncing ALL users on every local save (which caused cascade writes,
+  // snapshot listener race conditions, and "Aw, Snap" crashes).
 }
 
 function findUserIndexById(users, userId) {

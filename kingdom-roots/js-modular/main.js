@@ -134,7 +134,9 @@ async function initializeApp() {
       updateConsecutiveLoginStats(users[currentIndex]);
       users[currentIndex].lastActiveAt = Date.now();
       users[currentIndex].updatedAt = Date.now();
-      setStoredUsers(users);
+      // Write to localStorage only — avoid setStoredUsers which fires
+      // syncUsersToCloud for ALL users on every page load.
+      localStorage.setItem('users', JSON.stringify(users));
       currentUser = { ...currentUser, ...users[currentIndex] };
       delete currentUser.password;
       try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
