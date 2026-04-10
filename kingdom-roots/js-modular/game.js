@@ -883,9 +883,8 @@ function submitPhoto() {
   if (!reward) { closeUploadModal(); return; }
   const pointsToAdd = reward.fp;
   const previousFp = Math.floor(Number(faithPoints ?? 0) || 0);
-  faithPoints += pointsToAdd;
   markTaskCompleted(currentAction, recurrenceCheck.periodKey);
-  showScripture();
+  applyTreeProgress(pointsToAdd);
   updateDisplay();
   closeUploadModal();
   showNotification(`Great job! ${pointsToAdd} FP added for ${reward.name}.`, { type: 'success', browser: true });
