@@ -44,6 +44,8 @@ async function handleLogin(event) {
   const rawEmail = document.getElementById('loginEmail').value;
   const email = getCorrectedEmail(rawEmail);
   const password = document.getElementById('loginPassword').value;
+  let lastAuthErrorCode = '';
+  let lastAuthSignInMethods = [];
 
   // Try a quick local-only sync first (cloud sync deferred until after auth
   // to avoid Firestore permission errors when no Firebase Auth session exists).
@@ -58,12 +60,20 @@ async function handleLogin(event) {
       authenticated = true;
       firebaseAuthWorking = true;
     } catch (authError) {
+      lastAuthErrorCode = String(authError?.code || '');
       const isCredentialError = authError.code === 'auth/wrong-password'
         || authError.code === 'auth/user-not-found'
         || authError.code === 'auth/invalid-credential'
         || authError.code === 'auth/invalid-email';
       const logFn = isCredentialError ? console.warn : console.error;
       logFn('Firebase auth signIn error', { code: authError?.code, message: authError?.message, email });
+      if (isCredentialError) {
+        try {
+          lastAuthSignInMethods = await firebase.auth().fetchSignInMethodsForEmail(email);
+        } catch (fetchMethodsError) {
+          lastAuthSignInMethods = [];
+        }
+      }
       const isConfigOrNetworkError = authError.code === 'auth/configuration-not-found'
         || authError.code === 'auth/network-request-failed'
         || authError.code === 'auth/internal-error'
@@ -156,7 +166,18 @@ async function handleLogin(event) {
       console.debug('Login failed', { email, normalizedEmail: email, firebaseAuthWorking, matchedByEmail });
     } catch (e) { console.debug('Login debug gather failed', e); }
 
-    document.getElementById('loginError').textContent = 'Invalid email or password';
+    const loginErrorEl = document.getElementById('loginError');
+    if (loginErrorEl) {
+      if (lastAuthSignInMethods.includes('google.com') && !lastAuthSignInMethods.includes('password')) {
+        loginErrorEl.textContent = 'This account uses Google Sign-In. Use the Google button below.';
+      } else if (lastAuthErrorCode === 'auth/invalid-credential' || lastAuthErrorCode === 'auth/wrong-password') {
+        loginErrorEl.textContent = 'Incorrect password. Use Forgot password to reset it.';
+      } else if (lastAuthErrorCode === 'auth/user-not-found') {
+        loginErrorEl.textContent = 'No account found for this email. Register first or check the spelling.';
+      } else {
+        loginErrorEl.textContent = 'Invalid email or password';
+      }
+    }
     return;
   }
 

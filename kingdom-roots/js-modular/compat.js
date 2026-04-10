@@ -8,6 +8,40 @@
     const forgotErrorEl = document.getElementById('forgotError');
     if (forgotErrorEl) forgotErrorEl.textContent = '';
 
+    if (isFirebaseAuthAvailable && isFirebaseAuthAvailable()) {
+      firebase.auth().sendPasswordResetEmail(email)
+        .then(() => {
+          if (typeof showNotification === 'function') {
+            showNotification(`Password reset email sent to ${email}. Check your inbox.`, {
+              type: 'success',
+              title: 'Password Reset',
+              duration: 9000,
+              browser: true
+            });
+          }
+          if (forgotErrorEl) forgotErrorEl.textContent = 'Reset email sent. Check your inbox and spam folder.';
+        })
+        .catch(error => {
+          const code = String(error?.code || '');
+          if (code === 'auth/user-not-found') {
+            if (forgotErrorEl) forgotErrorEl.textContent = 'Email not found';
+            return;
+          }
+          if (code === 'auth/invalid-email') {
+            if (forgotErrorEl) forgotErrorEl.textContent = 'Enter a valid email address';
+            return;
+          }
+          // Fall back to the legacy local reset-code flow when Firebase reset email
+          // is unavailable or the account is not managed by Firebase Auth.
+          sendLegacyResetCode(email, forgotErrorEl);
+        });
+      return;
+    }
+
+    sendLegacyResetCode(email, forgotErrorEl);
+  }
+
+  function sendLegacyResetCode(email, forgotErrorEl) {
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     const user = users.find(u => normalizeEmail(u.email) === email);
 
