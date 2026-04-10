@@ -151,9 +151,12 @@ async function handleLogin(event) {
     return;
   }
 
-  // Now that we have a Firebase Auth session (or legacy auth), sync cloud data.
-  // This succeeds because Firestore rules allow reads for authenticated users.
-  await syncUsersFromCloudToLocal();
+  // Sync cloud data only when a Firebase Auth session is present.
+  // Legacy-only sessions may not have Firestore read permission.
+  const hasFirebaseSession = isFirebaseAuthAvailable() && !!firebase.auth().currentUser;
+  if (hasFirebaseSession) {
+    await syncUsersFromCloudToLocal();
+  }
 
   // Load user data from local storage (now populated from cloud)
   const users = getStoredUsersSafe();

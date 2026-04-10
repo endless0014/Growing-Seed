@@ -251,6 +251,33 @@ function getCloudUsersCollection() {
   return cloudDb ? cloudDb.collection(CLOUD_USERS_COLLECTION) : null;
 }
 
+function getCurrentAuthUid() {
+  if (!isFirebaseAuthAvailable()) return '';
+  try {
+    return String(firebase.auth().currentUser?.uid || '');
+  } catch (e) {
+    return '';
+  }
+}
+
+function getCloudUserDocCandidates(usersCollection, email) {
+  if (!usersCollection) return [];
+  const candidates = [];
+  const seen = new Set();
+  const authUid = getCurrentAuthUid();
+  const normalizedEmail = email ? normalizeEmail(email) : '';
+
+  if (authUid && !seen.has(authUid)) {
+    seen.add(authUid);
+    candidates.push(usersCollection.doc(authUid));
+  }
+  if (normalizedEmail && !seen.has(normalizedEmail)) {
+    seen.add(normalizedEmail);
+    candidates.push(usersCollection.doc(normalizedEmail));
+  }
+  return candidates;
+}
+
 // --- Cloud CRUD ---
 
 async function upsertUserInCloud(user) {
@@ -260,8 +287,13 @@ async function upsertUserInCloud(user) {
   if (!usersCollection || !user?.email) return;
   try {
     const normalizedEmail = normalizeEmail(user.email);
-    const cloudUser = sanitizeUserForCloud(user);
-    const userDoc = usersCollection.doc(normalizedEmail);
+    const authUid = getCurrentAuthUid();
+    const cloudUser = {
+      ...sanitizeUserForCloud(user),
+      ...(authUid ? { authUid } : {})
+    };
+    const [userDoc] = getCloudUserDocCandidates(usersCollection, normalizedEmail);
+    if (!userDoc) return;
 
     // Single atomic write — avoids the race where onSnapshot fires between
     // a partial set() and the follow-up update(), seeing stale taskCompletions
@@ -280,7 +312,8 @@ async function deleteUserFromCloud(email) {
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection || !email) return;
   try {
-    await usersCollection.doc(normalizeEmail(email)).delete();
+    const candidates = getCloudUserDocCandidates(usersCollection, email);
+    await Promise.all(candidates.map(docRef => docRef.delete().catch(() => null)));
   } catch (error) {
     console.warn('Cloud delete failed:', error);
   }
@@ -332,8 +365,10 @@ function startCurrentUserCloudSync() {
   if (!currentUser?.email) return;
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection) return;
-  const normalizedEmail = normalizeEmail(currentUser.email);
-  currentUserCloudUnsubscribe = usersCollection.doc(normalizedEmail).onSnapshot(snapshot => {
+  const [currentUserDoc] = getCloudUserDocCandidates(usersCollection, currentUser.email);
+  if (!currentUserDoc) return;
+
+  currentUserCloudUnsubscribe = currentUserDoc.onSnapshot(snapshot => {
     if (!snapshot.exists || !currentUser) return;
     // Ignore snapshots that echo back our own in-flight write to prevent
     // stale intermediate data from overwriting the local state.
@@ -485,14 +520,22 @@ async function syncUsersFromCloudToLocal() {
       const knownEmail = (() => {
         try { return normalizeEmail(JSON.parse(localStorage.getItem('currentUser') || '{}').email || ''); } catch (_) { return ''; }
       })();
-      if (knownEmail) {
-        try {
-          const ownDoc = await usersCollection.doc(knownEmail).get();
-          if (ownDoc.exists) {
-            cloudUsers = [normalizeStoredUser(ownDoc.data(), Date.now())].filter(u => Boolean(u.email));
+      if (knownEmail || getCurrentAuthUid()) {
+        const ownDocCandidates = getCloudUserDocCandidates(usersCollection, knownEmail);
+        let lastOwnDocError = null;
+        for (const ownDocRef of ownDocCandidates) {
+          try {
+            const ownDoc = await ownDocRef.get();
+            if (ownDoc.exists) {
+              cloudUsers = [normalizeStoredUser(ownDoc.data(), Date.now())].filter(u => Boolean(u.email));
+              break;
+            }
+          } catch (ownDocError) {
+            lastOwnDocError = ownDocError;
           }
-        } catch (ownDocError) {
-          console.warn('Cloud read failed:', ownDocError);
+        }
+        if (!cloudUsers.length && lastOwnDocError) {
+          console.warn('Cloud read failed:', lastOwnDocError);
           return false;
         }
       } else {
