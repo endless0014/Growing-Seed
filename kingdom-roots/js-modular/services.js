@@ -525,23 +525,47 @@ async function syncUsersFromCloudToLocal() {
   if (!usersCollection) return false;
   try {
     const localUsers = getStoredUsersSafe();
-    const snapshot = await usersCollection.get();
+    let cloudUsers = [];
     const lastPersistAt = Number(localStorage.getItem('lastPersistAt') || 0);
-    // Log any server records that appear older than our last local persist
+
     try {
-      snapshot.docs.forEach(doc => {
+      // Attempt full collection read (succeeds when rules allow it or user is admin).
+      const snapshot = await usersCollection.get();
+      try {
+        snapshot.docs.forEach(doc => {
+          try {
+            const d = doc.data() || {};
+            const serverUpdatedAt = Number(d.updatedAt ?? d.lastActiveAt ?? 0);
+            if (serverUpdatedAt > 0 && lastPersistAt > 0 && serverUpdatedAt < lastPersistAt) {
+              try { console.debug('[cloud-debug] syncUsersFromCloudToLocal: server record stale doc=', doc.id, ' serverUpdatedAt=', serverUpdatedAt, ' lastPersistAt=', lastPersistAt); } catch(e) {}
+            }
+          } catch(e) { /* ignore per-doc errors */ }
+        });
+      } catch(e) { /* ignore snapshot iterate errors */ }
+      cloudUsers = snapshot.docs
+        .map((doc, index) => normalizeStoredUser(doc.data(), Date.now() + index))
+        .filter(user => Boolean(user.email));
+    } catch (collectionReadError) {
+      // Collection read blocked by Firestore rules (e.g. user can only read own doc).
+      // Fall back to reading only the known current user's own document.
+      const knownEmail = (() => {
+        try { return normalizeEmail(JSON.parse(localStorage.getItem('currentUser') || '{}').email || ''); } catch (_) { return ''; }
+      })();
+      if (knownEmail) {
         try {
-          const d = doc.data() || {};
-          const serverUpdatedAt = Number(d.updatedAt ?? d.lastActiveAt ?? 0);
-          if (serverUpdatedAt > 0 && lastPersistAt > 0 && serverUpdatedAt < lastPersistAt) {
-            try { console.debug('[cloud-debug] syncUsersFromCloudToLocal: server record stale doc=', doc.id, ' serverUpdatedAt=', serverUpdatedAt, ' lastPersistAt=', lastPersistAt); } catch(e) {}
+          const ownDoc = await usersCollection.doc(knownEmail).get();
+          if (ownDoc.exists) {
+            cloudUsers = [normalizeStoredUser(ownDoc.data(), Date.now())].filter(u => Boolean(u.email));
           }
-        } catch(e) { /* ignore per-doc errors */ }
-      });
-    } catch(e) { /* ignore snapshot iterate errors */ }
-    const cloudUsers = snapshot.docs
-      .map((doc, index) => normalizeStoredUser(doc.data(), Date.now() + index))
-      .filter(user => Boolean(user.email));
+        } catch (ownDocError) {
+          console.warn('Cloud read failed:', ownDocError);
+          return false;
+        }
+      } else {
+        console.warn('Cloud read failed:', collectionReadError);
+        return false;
+      }
+    }
     const mergedUsers = mergeUsersByLatestTimestamp(localUsers, cloudUsers);
     try { console.debug('[persist][mod] set users (cloud read) count=', Array.isArray(mergedUsers) ? mergedUsers.length : 0); } catch (e) {}
 
@@ -590,6 +614,10 @@ async function syncUsersFromCloudToLocal() {
 async function migrateLocalUsersToCloudOnce() {
   if (!getCloudUsersCollection()) return;
   if (localStorage.getItem(CLOUD_MIGRATION_KEY) === 'done') return;
+  // Only migrate when a Firebase Auth session is active — writing without auth
+  // will be rejected by Firestore rules and spam the error log.
+  const hasAuthSession = isFirebaseAuthAvailable() && !!firebase.auth().currentUser;
+  if (!hasAuthSession) return;
   const localUsers = getStoredUsersSafe();
   if (localUsers.length > 0) {
     await Promise.all(localUsers.map(user => upsertUserInCloud(user)));
@@ -654,6 +682,10 @@ async function applyEmailCorrections() {
       }
     }
   }
+  // Only run Firestore email corrections if a Firebase Auth session is active.
+  // Without auth the rules will reject every read/write and generate noisy errors.
+  const hasAuthSession = isFirebaseAuthAvailable() && !!firebase.auth().currentUser;
+  if (!hasAuthSession) return;
   const usersCollection = getCloudUsersCollection();
   if (!usersCollection) return;
   for (const [fromEmailRaw, toEmailRaw] of corrections) {
