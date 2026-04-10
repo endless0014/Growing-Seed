@@ -7,8 +7,10 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Growing Seed</title>
-  <link rel="stylesheet" href="style.css?v=20260308-home-upgrade-mobile-profile-1" />
+  <link rel="stylesheet" href="style.css?v=20260310-board-popup-1" />
+  <link rel="icon" href="assets/ABCF.png?v=20260225-logo-refresh-2" />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
 <body>
@@ -27,7 +29,7 @@
              <span class="logo-fallback-text">Pulse</span>
           </div>
         </div>
-        <h1>🌱 Growing Seed</h1>
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
         <p class="auth-subtitle">Grow your faith journey</p>
         <form id="loginForm" onsubmit="handleLogin(event)">
           <div class="form-group">
@@ -39,6 +41,13 @@
             <input type="password" id="loginPassword" placeholder="Enter your password" required>
           </div>
           <button type="submit" class="auth-btn">Login</button>
+          <div class="auth-divider">
+            <span>or</span>
+          </div>
+          <button type="button" onclick="handleGoogleSignIn()" class="auth-btn google-btn">
+            <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" class="google-icon">
+            Sign in with Google
+          </button>
           <p id="loginError" class="error-message"></p>
         </form>
         <p class="auth-link">Don't have an account? <a href="#" onclick="switchToRegister()">Register here</a></p>
@@ -49,7 +58,7 @@
     <!-- Registration Screen -->
     <div id="registerScreen" class="auth-screen">
       <div class="auth-card">
-        <h1>🌱 Growing Seed</h1>
+        <h1 class="gs-brand-title">🌱 Growing Seed</h1>
         <p class="auth-subtitle">Create your account</p>
         <form id="registerForm" onsubmit="handleRegister(event)">
           <div class="form-group">
@@ -136,7 +145,7 @@
     </div>
 
     <div id="userMainContainer" class="container">
-    <h1 class="main-title">🌱 Growing Seed</h1>
+    <h1 class="main-title gs-brand-title">🌱 Growing Seed</h1>
     <p class="main-fp">Faith Points: <span id="faithPoints">0</span></p>
     <div class="gs-stats-row">
       <div class="gs-pill fp">⭐ <span id="fpPillValue">0</span> FP</div>
@@ -151,7 +160,7 @@
         <button id="dailyLoginBtn" onclick="openDailyLoginModal()" class="daily-login-btn">Claim Reward</button>
       </div>
       <p class="daily-reward-text">Come back daily for streak rewards and bonus points.</p>
-      <p id="dailyRewardStreakText" class="daily-reward-streak">Day 1 ready</p>
+      <p id="dailyRewardStreakText" class="daily-reward-streak">Day 1/7</p>
     </div>
 
     <div class="gs-card seed-growth-card">
@@ -357,24 +366,51 @@
           <div class="admin-stat-label">Admins</div>
           <div id="adminTotalAdmins" class="admin-stat-value">0</div>
         </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Moderators</div>
+          <div id="adminTotalModerators" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Active (24h)</div>
+          <div id="adminActiveUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Inactive</div>
+          <div id="adminInactiveUsers" class="admin-stat-value">0</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-label">Task Completion</div>
+          <div id="adminTaskCompletionRate" class="admin-stat-value">0%</div>
+        </div>
+      </div>
+      <div class="admin-trend-row" style="margin-top: 12px; text-align: left;">
+        <h4>Daily Sign-ins (7d)</h4>
+        <div id="adminDailyLoginTrend" style="display: flex; gap: 8px; align-items: flex-end;"></div>
+      </div>
+      <div class="admin-task-summary" style="margin-top: 12px; text-align: left;">
+        <h4>Task Summary</h4>
+        <div id="adminTaskStatusSummary"></div>
       </div>
 
       <div class="admin-users-section">
         <div class="admin-users-header">
           <h3>Registered Users</h3>
-          <button onclick="renderAdminDashboard()" class="settings-btn">Refresh</button>
+          <button onclick="renderAdminDashboard(true)" class="settings-btn">Refresh</button>
         </div>
         <div class="admin-table-wrap">
           <table class="admin-table">
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Log In Streak</th>
+                <th>Daily Checkin Progress</th>
                 <th>Last Login</th>
                 <th>Last Active</th>
                 <th>Email</th>
                 <th>Role</th>
                 <th>Faith Points</th>
                 <th>Tree Progress</th>
+                <th>Activity</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -401,6 +437,8 @@
         <h3>⚙️ Settings</h3>
         <button id="switchAdminViewBtn" onclick="toggleAdminView()" class="settings-btn" style="display: none;">Switch to Admin View</button>
         <button id="enableNotificationsBtn" onclick="enableBrowserNotificationsFromProfile()" class="settings-btn">Notification Disabled</button>
+        <button id="toggleFpDebugBtn" onclick="toggleFpDebugMode()" class="settings-btn">FP Debug: OFF</button>
+        <button onclick="runFpDiagnostics()" class="settings-btn">Run FP Diagnostics</button>
         <button onclick="openChangePasswordModal()" class="settings-btn">Change Password</button>
         <button onclick="downloadUserData()" class="settings-btn">Download My Data</button>
         <button onclick="handleLogout()" class="settings-btn">Logout</button>
@@ -486,6 +524,43 @@
     </div>
   </div>
 
-  <script src="script.js?v=20260308-home-upgrade-mobile-profile-1"></script>
+  <!-- Public Leaderboard / Ranking Modal -->
+  <div id="leaderboardModal" class="modal" style="display: none;">
+    <div class="modal-content public-board-panel">
+      <span class="close" onclick="closeLeaderboardModal()">&times;</span>
+      <h2 id="publicBoardTitle">Leaderboard</h2>
+      <div class="public-board-switch" role="tablist" aria-label="Board type">
+        <button id="publicBoardLeaderboardTab" type="button" class="public-board-tab" onclick="switchPublicBoardType('leaderboard')" role="tab" aria-controls="publicBoardBody" aria-selected="true">🏆 Leaderboard</button>
+        <button id="publicBoardRankingTab" type="button" class="public-board-tab" onclick="switchPublicBoardType('ranking')" role="tab" aria-controls="publicBoardBody" aria-selected="false">📈 Ranking</button>
+      </div>
+      <p id="publicBoardSubtitle">Sorted by longest consecutive login streak</p>
+      <ul id="publicBoardBody" class="public-board-list"></ul>
+      <div class="modal-buttons">
+        <button type="button" onclick="closeLeaderboardModal()" class="auth-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (async function loadLocalFirebaseConfig(){
+      try {
+        const res = await fetch('./firebase.local.js', {cache: 'no-store'});
+        if (!res.ok) return;
+        const txt = await res.text();
+        (0, eval)(txt);
+        console.log('[local-firebase] loaded ./firebase.local.js');
+      } catch (e) {
+        /* silent fallback when file absent or fetch fails */
+      }
+    })();
+  </script>
+  <script src="js-modular/config.js?v=20260315-release-2"></script>
+  <script src="js-modular/utils.js?v=20260315-release-2"></script>
+  <script src="js-modular/services.js?v=20260315-release-2"></script>
+  <script src="js-modular/compat.js?v=20260315-release-2"></script>
+  <script src="js-modular/auth.js?v=20260315-release-2"></script>
+  <script src="js-modular/game.js?v=20260315-release-2"></script>
+  <script src="js-modular/admin.js?v=20260315-release-2"></script>
+  <script src="js-modular/main.js?v=20260315-release-2"></script>
 </body>
 </html>
