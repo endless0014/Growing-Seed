@@ -523,9 +523,11 @@ async function syncUsersFromCloudToLocal() {
       if (knownEmail || getCurrentAuthUid()) {
         const ownDocCandidates = getCloudUserDocCandidates(usersCollection, knownEmail);
         let lastOwnDocError = null;
+        let hadReadableDocAccess = false;
         for (const ownDocRef of ownDocCandidates) {
           try {
             const ownDoc = await ownDocRef.get();
+            hadReadableDocAccess = true;
             if (ownDoc.exists) {
               cloudUsers = [normalizeStoredUser(ownDoc.data(), Date.now())].filter(u => Boolean(u.email));
               break;
@@ -534,7 +536,9 @@ async function syncUsersFromCloudToLocal() {
             lastOwnDocError = ownDocError;
           }
         }
-        if (!cloudUsers.length && lastOwnDocError) {
+        // If at least one candidate read succeeded (even with no doc yet), do not
+        // fail login flow just because a secondary candidate path was denied.
+        if (!cloudUsers.length && lastOwnDocError && !hadReadableDocAccess) {
           console.warn('Cloud read failed:', lastOwnDocError);
           return false;
         }

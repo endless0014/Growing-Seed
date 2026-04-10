@@ -114,7 +114,12 @@ async function initializeApp() {
   if (cloudInit) initializeFirebaseAuth();
   await applyEmailCorrections();
   await migrateLocalUsersToCloudOnce();
-  await syncUsersFromCloudToLocal();
+  // Only sync from cloud when a Firebase auth session exists.
+  // Without auth, Firestore rules may reject reads and spam permission errors.
+  const hasFirebaseSession = isFirebaseAuthAvailable() && !!firebase.auth().currentUser;
+  if (hasFirebaseSession) {
+    await syncUsersFromCloudToLocal();
+  }
   migrateLoginStreaksFromLegacyOnce();
   enforceAdminRoleInStorage();
 
