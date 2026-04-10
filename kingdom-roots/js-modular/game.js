@@ -760,7 +760,9 @@ function saveUserData() {
     users[userIndex].updatedAt = Date.now();
     try { console.debug('[probe] saveUserData (modular): pre-upsert users[userIndex]=', JSON.parse(JSON.stringify(users[userIndex] || {}))); } catch (e) {}
     try { console.debug('[probe] saveUserData (modular): before setStoredUsers users[userIndex]=', JSON.parse(JSON.stringify(users[userIndex] || {}))); } catch (e) {}
-    setStoredUsers(users);
+    // Save to localStorage directly — skip syncUsersToCloud to avoid a duplicate cloud
+    // upsert that races with the explicit upsertUserInCloud call below.
+    localStorage.setItem('users', JSON.stringify(users));
     // Freeze payload and log it to avoid races where users[userIndex] mutates before upsert
     const upsertPayload = JSON.parse(JSON.stringify(users[userIndex] || {}));
     try { console.debug('[micro] saveUserData (modular): pre-upsert-payload=', upsertPayload); } catch (e) {}

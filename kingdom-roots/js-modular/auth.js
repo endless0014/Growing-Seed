@@ -45,7 +45,9 @@ async function handleLogin(event) {
   const email = getCorrectedEmail(rawEmail);
   const password = document.getElementById('loginPassword').value;
 
-  await syncUsersFromCloudToLocal();
+  // Try a quick local-only sync first (cloud sync deferred until after auth
+  // to avoid Firestore permission errors when no Firebase Auth session exists).
+  let preSyncUsers = getStoredUsersSafe();
 
   let authenticated = false;
 
@@ -98,6 +100,20 @@ async function handleLogin(event) {
                 authenticated = false;
               }
             }
+          } else if (!existingUser) {
+            // User not in local storage at all (cloud sync failed before auth).
+            // Try creating a Firebase Auth account so they can sign in.
+            // migrateUserToFirebaseAuth returns true if the account already exists,
+            // so a subsequent signIn will only succeed with the correct password.
+            const migrated = await migrateUserToFirebaseAuth(email, password);
+            if (migrated) {
+              try {
+                await firebase.auth().signInWithEmailAndPassword(email, password);
+                authenticated = true;
+              } catch (e) {
+                authenticated = false;
+              }
+            }
           }
         }
       }
@@ -135,7 +151,11 @@ async function handleLogin(event) {
     return;
   }
 
-  // Load user data from local storage
+  // Now that we have a Firebase Auth session (or legacy auth), sync cloud data.
+  // This succeeds because Firestore rules allow reads for authenticated users.
+  await syncUsersFromCloudToLocal();
+
+  // Load user data from local storage (now populated from cloud)
   const users = getStoredUsersSafe();
   let user = users.find(u => normalizeEmail(u.email) === email);
   if (!user) {

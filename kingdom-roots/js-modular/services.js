@@ -437,7 +437,14 @@ function startCurrentUserCloudSync() {
         cloudFaithPoints: Math.floor(Number(cloudUser.faithPoints ?? 0) || 0)
       });
       if (rollbackMetrics.hasRollback) {
-        showNotification(`Rollback prevented: -${rollbackMetrics.fpRollbackAmount} FP, -${rollbackMetrics.streakRollbackDays} day(s).`, { type: 'warning', duration: 6500 });
+        // Suppress the notification if a local save happened very recently (< 5 s)
+        // to avoid false-alarm warnings caused by stale cloud snapshots racing
+        // with the pending cloud write from saveUserData.
+        const lastPersist = Number(localStorage.getItem('lastPersistAt') || 0);
+        const msSinceLastPersist = Date.now() - lastPersist;
+        if (msSinceLastPersist > 5000) {
+          showNotification(`Rollback prevented: -${rollbackMetrics.fpRollbackAmount} FP, -${rollbackMetrics.streakRollbackDays} day(s).`, { type: 'warning', duration: 6500 });
+        }
       }
       return;
     }

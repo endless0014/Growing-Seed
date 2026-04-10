@@ -320,9 +320,10 @@ function normalizeStoredUser(user, fallbackId) {
 
 function sanitizeUserForCloud(user) {
   const normalizedUser = normalizeStoredUser(user, Date.now());
+  const existingUpdatedAt = Number(normalizedUser.updatedAt ?? 0);
   const sanitized = {
     ...normalizedUser,
-    updatedAt: Date.now()
+    updatedAt: (Number.isFinite(existingUpdatedAt) && existingUpdatedAt > 0) ? existingUpdatedAt : Date.now()
   };
   delete sanitized.password;
   // Actively remove legacy password field from Firestore documents
