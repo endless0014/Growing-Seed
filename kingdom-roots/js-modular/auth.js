@@ -58,7 +58,12 @@ async function handleLogin(event) {
       authenticated = true;
       firebaseAuthWorking = true;
     } catch (authError) {
-      console.error('Firebase auth signIn error', { code: authError?.code, message: authError?.message, email });
+      const isCredentialError = authError.code === 'auth/wrong-password'
+        || authError.code === 'auth/user-not-found'
+        || authError.code === 'auth/invalid-credential'
+        || authError.code === 'auth/invalid-email';
+      const logFn = isCredentialError ? console.warn : console.error;
+      logFn('Firebase auth signIn error', { code: authError?.code, message: authError?.message, email });
       const isConfigOrNetworkError = authError.code === 'auth/configuration-not-found'
         || authError.code === 'auth/network-request-failed'
         || authError.code === 'auth/internal-error'
@@ -116,6 +121,10 @@ async function handleLogin(event) {
             }
           }
         }
+      }
+      if (isCredentialError && !authenticated) {
+        // Allow local legacy fallback for manual login when Firebase rejects credentials.
+        firebaseAuthWorking = false;
       }
       // If config/network error, firebaseAuthWorking stays false → falls through to legacy below
     }
