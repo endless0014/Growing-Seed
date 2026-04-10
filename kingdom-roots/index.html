@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Growing Seed</title>
-  <link rel="stylesheet" href="style.css?v=20260310-board-popup-1" />
+  <link rel="stylesheet" href="style.css?v=20260410-fixes-4" />
   <link rel="icon" href="assets/ABCF.png?v=20260225-logo-refresh-2" />
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
@@ -174,29 +174,51 @@
           <svg width="100%" height="100%" viewBox="0 0 120 120">
             <defs>
               <radialGradient id="seedBodyGrad" cx="35%" cy="35%">
-                <stop offset="0%" stop-color="#b98d5d"/>
-                <stop offset="100%" stop-color="#7b5a3d"/>
+                <stop offset="0%" stop-color="#c49a66"/>
+                <stop offset="60%" stop-color="#9a7048"/>
+                <stop offset="100%" stop-color="#6b4a2f"/>
+              </radialGradient>
+              <radialGradient id="seedSoilGrad" cx="50%" cy="50%">
+                <stop offset="0%" stop-color="#9a7a56"/>
+                <stop offset="100%" stop-color="#6b5238"/>
               </radialGradient>
             </defs>
-            <ellipse cx="60" cy="97" rx="24" ry="7" fill="rgba(80,60,35,0.25)"/>
-            <ellipse cx="60" cy="93" rx="17" ry="6" fill="#8c6c4b" opacity="0.55"/>
-            <path d="M53 88 C51 79 57 74 62 73 C69 72 73 77 72 85 C71 92 65 98 58 97 C55 96 53 93 53 88 Z" fill="url(#seedBodyGrad)"/>
-            <path d="M60 75 C62 80 62 88 59 94" stroke="#6b4a2f" stroke-width="1.2" fill="none" opacity="0.75"/>
+            <!-- soil mound -->
+            <ellipse cx="60" cy="99" rx="30" ry="9" fill="url(#seedSoilGrad)" opacity="0.6"/>
+            <ellipse cx="60" cy="97" rx="22" ry="6" fill="#8c6c4b" opacity="0.4"/>
+            <!-- seed body with highlight -->
+            <path d="M52 88 C50 78 56 72 62 71 C70 70 75 76 74 85 C73 93 66 100 58 99 C54 98 52 94 52 88 Z" fill="url(#seedBodyGrad)"/>
+            <path d="M56 76 C58 78 59 83 58 89" stroke="#6b4a2f" stroke-width="1.2" fill="none" opacity="0.6"/>
+            <path d="M55 80 C58 78 61 80 60 84" stroke="#6b4a2f" stroke-width="0.8" fill="none" opacity="0.4"/>
+            <!-- highlight -->
+            <ellipse cx="58" cy="80" rx="4" ry="6" fill="white" opacity="0.12" transform="rotate(-15 58 80)"/>
           </svg>
         </div>
         <div id="germinationStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
             <defs>
               <linearGradient id="sproutGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#7ed957"/>
+                <stop offset="0%" stop-color="#8ae764"/>
                 <stop offset="100%" stop-color="#2f8f3d"/>
               </linearGradient>
+              <linearGradient id="sproutLeafGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#a0f080"/>
+                <stop offset="100%" stop-color="#4aad40"/>
+              </linearGradient>
             </defs>
-            <ellipse cx="60" cy="98" rx="24" ry="7" fill="rgba(80,60,35,0.25)"/>
-            <ellipse cx="60" cy="94" rx="17" ry="6" fill="#8c6c4b" opacity="0.55"/>
-            <path d="M59 91 C59 84 60 78 64 72 C67 67 70 63 72 58" stroke="#2f8f3d" stroke-width="3.2" fill="none" stroke-linecap="round"/>
-            <ellipse cx="73" cy="58" rx="6" ry="11" fill="url(#sproutGrad)" transform="rotate(22 73 58)"/>
-            <ellipse cx="66" cy="66" rx="4.5" ry="8" fill="#65c653" transform="rotate(-28 66 66)"/>
+            <!-- soil -->
+            <ellipse cx="60" cy="100" rx="28" ry="8" fill="#8a6a48" opacity="0.5"/>
+            <ellipse cx="60" cy="97" rx="20" ry="5.5" fill="#7a5c3e" opacity="0.35"/>
+            <!-- seed shell cracking -->
+            <path d="M55 94 C53 88 57 85 61 85 C65 85 67 88 66 93" fill="#9a7a56" opacity="0.5"/>
+            <!-- stem -->
+            <path d="M60 93 C60 86 60 80 63 73 C65 69 67 65 69 60" stroke="url(#sproutGrad)" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+            <!-- leaves -->
+            <path d="M69 60 C74 53 76 48 73 46 C70 44 66 48 65 55 C64 58 66 60 69 60 Z" fill="url(#sproutLeafGrad)"/>
+            <path d="M65 68 C60 63 56 60 55 57 C54 54 57 53 60 55 C63 57 64 63 65 68 Z" fill="#6cc85a" opacity="0.85"/>
+            <!-- leaf veins -->
+            <path d="M69 59 C72 54 73 49 72 47" stroke="#3a8a35" stroke-width="0.5" fill="none" opacity="0.5"/>
+            <path d="M64 67 C61 63 58 60 57 58" stroke="#4a9a42" stroke-width="0.4" fill="none" opacity="0.4"/>
           </svg>
         </div>
         <div id="seedlingStageImg" class="tree-stage-img">
@@ -206,97 +228,215 @@
                 <stop offset="0%" stop-color="#7b5e3c"/>
                 <stop offset="100%" stop-color="#5d452f"/>
               </linearGradient>
+              <linearGradient id="seedlingLeafGrad" x1="0" y1="0" x2="0.5" y2="1">
+                <stop offset="0%" stop-color="#90e870"/>
+                <stop offset="100%" stop-color="#3da042"/>
+              </linearGradient>
             </defs>
-            <ellipse cx="60" cy="106" rx="22" ry="6.8" fill="rgba(80,60,35,0.22)"/>
-            <path d="M60 98 C58 87 59 78 61 67" stroke="url(#seedlingStemGrad)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
-            <ellipse cx="53" cy="78" rx="7" ry="11" fill="#67c95a" transform="rotate(-28 53 78)"/>
-            <ellipse cx="68" cy="72" rx="7" ry="11" fill="#63c255" transform="rotate(24 68 72)"/>
-            <ellipse cx="58" cy="65" rx="6" ry="10" fill="#6ed25e" transform="rotate(-8 58 65)"/>
-            <ellipse cx="60" cy="102" rx="15" ry="4.8" fill="#8c6c4b" opacity="0.5"/>
+            <!-- ground shadow -->
+            <ellipse cx="60" cy="106" rx="24" ry="7" fill="rgba(80,60,35,0.22)"/>
+            <ellipse cx="60" cy="103" rx="16" ry="5" fill="#8c6c4b" opacity="0.4"/>
+            <!-- stem with slight curve -->
+            <path d="M60 100 C59 90 59 80 61 68 C62 64 60 62 60 60" stroke="url(#seedlingStemGrad)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+            <!-- branches -->
+            <path d="M60 82 C55 77 50 75 47 74" stroke="#6b5038" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+            <path d="M61 74 C66 70 70 68 73 68" stroke="#6b5038" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+            <!-- leaves with shape -->
+            <path d="M47 74 C43 68 41 62 44 60 C47 58 50 63 50 69 C50 72 49 74 47 74 Z" fill="url(#seedlingLeafGrad)"/>
+            <path d="M73 68 C77 62 79 57 77 55 C74 53 71 57 70 63 C69 66 71 68 73 68 Z" fill="url(#seedlingLeafGrad)"/>
+            <path d="M60 60 C56 53 53 48 55 45 C57 42 61 45 62 51 C63 55 61 59 60 60 Z" fill="#78d865" opacity="0.9"/>
+            <path d="M60 60 C64 54 68 50 66 47 C64 44 60 47 59 52 C58 56 59 59 60 60 Z" fill="#6ac85a" opacity="0.85"/>
+            <!-- leaf veins -->
+            <path d="M47 73 C44 67 43 63 44 61" stroke="#3a8830" stroke-width="0.4" fill="none" opacity="0.5"/>
+            <path d="M73 67 C76 62 77 58 76 56" stroke="#3a8830" stroke-width="0.4" fill="none" opacity="0.5"/>
           </svg>
         </div>
         <div id="saplingStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
             <defs>
-              <linearGradient id="saplingLeafGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#7cda63"/>
-                <stop offset="100%" stop-color="#2f8d45"/>
+              <linearGradient id="saplingTrunkGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#7a5838"/>
+                <stop offset="50%" stop-color="#9a7a56"/>
+                <stop offset="100%" stop-color="#6b4a30"/>
               </linearGradient>
+              <radialGradient id="saplingLeafGrad" cx="40%" cy="35%">
+                <stop offset="0%" stop-color="#8ae070"/>
+                <stop offset="100%" stop-color="#2f8d45"/>
+              </radialGradient>
             </defs>
-            <ellipse cx="60" cy="106" rx="24" ry="7" fill="rgba(80,60,35,0.22)"/>
-            <path d="M60 101 C57 86 58 72 61 57" stroke="#6f5338" stroke-width="4" fill="none" stroke-linecap="round"/>
-            <path d="M60 82 C66 76 69 71 72 66" stroke="#4a7c43" stroke-width="2.2" fill="none"/>
-            <path d="M60 73 C54 67 50 62 48 57" stroke="#4a7c43" stroke-width="2" fill="none"/>
-            <ellipse cx="73" cy="66" rx="7" ry="12" fill="url(#saplingLeafGrad)" transform="rotate(24 73 66)"/>
-            <ellipse cx="48" cy="57" rx="6" ry="10" fill="#5fbe52" transform="rotate(-30 48 57)"/>
-            <ellipse cx="60" cy="54" rx="8" ry="13" fill="#6fcd5e"/>
-            <ellipse cx="60" cy="102" rx="15" ry="5" fill="#8c6c4b" opacity="0.45"/>
+            <!-- ground -->
+            <ellipse cx="60" cy="108" rx="26" ry="7" fill="rgba(80,60,35,0.22)"/>
+            <!-- roots -->
+            <path d="M55 104 C50 106 44 108 40 107" stroke="#7a5838" stroke-width="1.5" fill="none" opacity="0.4" stroke-linecap="round"/>
+            <path d="M65 104 C70 106 76 108 80 107" stroke="#7a5838" stroke-width="1.5" fill="none" opacity="0.4" stroke-linecap="round"/>
+            <!-- trunk -->
+            <path d="M58 104 C57 90 57 76 59 60 C60 56 62 56 63 60 C65 76 65 90 64 104 Z" fill="url(#saplingTrunkGrad)"/>
+            <!-- bark texture -->
+            <path d="M59 95 C60 93 62 92 63 93" stroke="#5d4228" stroke-width="0.6" fill="none" opacity="0.4"/>
+            <path d="M58 82 C60 80 62 80 64 82" stroke="#5d4228" stroke-width="0.6" fill="none" opacity="0.3"/>
+            <!-- branches -->
+            <path d="M60 78 C66 72 71 68 76 66" stroke="#7a5838" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <path d="M60 70 C54 64 49 60 44 58" stroke="#7a5838" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <path d="M61 63 C64 58 67 55 70 53" stroke="#7a5838" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+            <!-- leaf clusters -->
+            <circle cx="76" cy="63" r="9" fill="url(#saplingLeafGrad)"/>
+            <circle cx="80" cy="68" r="7" fill="#4aad45" opacity="0.85"/>
+            <circle cx="44" cy="55" r="9" fill="url(#saplingLeafGrad)"/>
+            <circle cx="39" cy="59" r="7" fill="#4aad45" opacity="0.85"/>
+            <circle cx="70" cy="50" r="7" fill="#6cc85a" opacity="0.9"/>
+            <circle cx="61" cy="56" r="10" fill="url(#saplingLeafGrad)"/>
+            <circle cx="56" cy="52" r="7" fill="#78d560" opacity="0.8"/>
+            <!-- highlight cluster -->
+            <circle cx="58" cy="50" r="4" fill="#a8f490" opacity="0.4"/>
           </svg>
         </div>
         <div id="youngTreeStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
             <defs>
+              <linearGradient id="youngTrunkGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#7a5838"/>
+                <stop offset="40%" stop-color="#9a7856"/>
+                <stop offset="100%" stop-color="#6b4830"/>
+              </linearGradient>
               <radialGradient id="youngCanopyGrad" cx="42%" cy="35%">
                 <stop offset="0%" stop-color="#7fe169"/>
-                <stop offset="100%" stop-color="#2e7f3f"/>
+                <stop offset="70%" stop-color="#3da848"/>
+                <stop offset="100%" stop-color="#2a7a38"/>
               </radialGradient>
             </defs>
-            <ellipse cx="60" cy="113" rx="28" ry="7" fill="rgba(80,60,35,0.23)"/>
-            <path d="M56 109 C56 90 56 75 58 58 C60 55 62 55 64 58 C66 75 66 90 66 109 Z" fill="#8a6748"/>
-            <circle cx="60" cy="53" r="18" fill="url(#youngCanopyGrad)"/>
-            <circle cx="46" cy="63" r="13" fill="#3f9a4b"/>
-            <circle cx="74" cy="63" r="13" fill="#3f9a4b"/>
-            <circle cx="57" cy="66" r="10" fill="#66c95a" opacity="0.85"/>
-            <circle cx="67" cy="66" r="10" fill="#66c95a" opacity="0.85"/>
+            <!-- ground -->
+            <ellipse cx="60" cy="113" rx="30" ry="7" fill="rgba(80,60,35,0.23)"/>
+            <!-- visible roots -->
+            <path d="M52 108 C46 110 38 112 32 111" stroke="#7a5838" stroke-width="2" fill="none" opacity="0.35" stroke-linecap="round"/>
+            <path d="M68 108 C74 110 82 112 88 111" stroke="#7a5838" stroke-width="2" fill="none" opacity="0.35" stroke-linecap="round"/>
+            <!-- trunk with taper -->
+            <path d="M54 110 C54 92 55 76 57 60 C59 55 61 55 63 60 C65 76 66 92 66 110 Z" fill="url(#youngTrunkGrad)"/>
+            <!-- bark detail -->
+            <path d="M56 100 C58 98 62 97 65 99" stroke="#5d4228" stroke-width="0.7" fill="none" opacity="0.35"/>
+            <path d="M56 88 C59 86 62 86 65 88" stroke="#5d4228" stroke-width="0.6" fill="none" opacity="0.3"/>
+            <path d="M57 76 C59 74 62 74 64 76" stroke="#5d4228" stroke-width="0.5" fill="none" opacity="0.25"/>
+            <!-- main branches -->
+            <path d="M58 72 C50 66 44 62 38 60" stroke="#7a5838" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M62 68 C70 62 76 58 82 56" stroke="#7a5838" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <!-- canopy clusters -->
+            <circle cx="60" cy="52" r="20" fill="url(#youngCanopyGrad)"/>
+            <circle cx="42" cy="60" r="15" fill="#3a9a48"/>
+            <circle cx="78" cy="58" r="15" fill="#3a9a48"/>
+            <circle cx="52" cy="66" r="12" fill="#5cc050" opacity="0.85"/>
+            <circle cx="68" cy="64" r="12" fill="#5cc050" opacity="0.85"/>
+            <circle cx="60" cy="44" r="10" fill="#8ae672" opacity="0.5"/>
+            <!-- depth shadows -->
+            <circle cx="48" cy="68" r="8" fill="#2a7a38" opacity="0.25"/>
+            <circle cx="72" cy="66" r="8" fill="#2a7a38" opacity="0.25"/>
           </svg>
         </div>
         <div id="matureTreeStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
             <defs>
+              <linearGradient id="matureTrunkGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#6b4a30"/>
+                <stop offset="35%" stop-color="#8a6848"/>
+                <stop offset="100%" stop-color="#5a3e25"/>
+              </linearGradient>
               <radialGradient id="matureCanopyGrad" cx="40%" cy="34%">
                 <stop offset="0%" stop-color="#8bea76"/>
-                <stop offset="100%" stop-color="#246f3c"/>
+                <stop offset="60%" stop-color="#3aaa48"/>
+                <stop offset="100%" stop-color="#1f6f35"/>
               </radialGradient>
             </defs>
-            <ellipse cx="60" cy="114" rx="30" ry="7" fill="rgba(70,50,30,0.25)"/>
-            <path d="M53 110 C54 87 53 67 57 50 C59 46 61 46 63 50 C67 67 66 87 67 110 Z" fill="#7c5a3f"/>
-            <circle cx="60" cy="48" r="24" fill="url(#matureCanopyGrad)"/>
-            <circle cx="40" cy="62" r="18" fill="#3b9049"/>
-            <circle cx="80" cy="62" r="18" fill="#3b9049"/>
-            <circle cx="55" cy="69" r="14" fill="#63c75a" opacity="0.9"/>
-            <circle cx="66" cy="69" r="14" fill="#63c75a" opacity="0.9"/>
-            <circle cx="61" cy="40" r="10" fill="#9bf07f" opacity="0.55"/>
+            <!-- ground shadow -->
+            <ellipse cx="60" cy="114" rx="32" ry="7" fill="rgba(70,50,30,0.25)"/>
+            <!-- roots -->
+            <path d="M50 110 C42 113 32 115 26 113" stroke="#6b4a30" stroke-width="2.5" fill="none" opacity="0.3" stroke-linecap="round"/>
+            <path d="M70 110 C78 113 88 115 94 113" stroke="#6b4a30" stroke-width="2.5" fill="none" opacity="0.3" stroke-linecap="round"/>
+            <path d="M55 112 C50 115 45 116 42 115" stroke="#6b4a30" stroke-width="1.5" fill="none" opacity="0.2" stroke-linecap="round"/>
+            <!-- trunk -->
+            <path d="M51 110 C52 88 52 68 56 50 C58 45 62 45 64 50 C68 68 68 88 69 110 Z" fill="url(#matureTrunkGrad)"/>
+            <!-- bark -->
+            <path d="M53 102 C56 99 63 98 68 101" stroke="#4a3520" stroke-width="0.7" fill="none" opacity="0.3"/>
+            <path d="M53 90 C57 87 63 87 68 90" stroke="#4a3520" stroke-width="0.6" fill="none" opacity="0.25"/>
+            <path d="M55 78 C58 76 62 76 65 78" stroke="#4a3520" stroke-width="0.5" fill="none" opacity="0.2"/>
+            <!-- major branches -->
+            <path d="M56 65 C48 58 40 54 34 52" stroke="#6b4a30" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M64 60 C72 54 80 50 86 48" stroke="#6b4a30" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M58 56 C52 50 46 48 42 46" stroke="#6b4a30" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <path d="M62 54 C68 48 74 46 78 44" stroke="#6b4a30" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <!-- canopy - layered for depth -->
+            <circle cx="60" cy="44" r="26" fill="url(#matureCanopyGrad)"/>
+            <circle cx="36" cy="56" r="18" fill="#2f8a42"/>
+            <circle cx="84" cy="54" r="18" fill="#2f8a42"/>
+            <circle cx="48" cy="62" r="14" fill="#4aaa50" opacity="0.9"/>
+            <circle cx="72" cy="60" r="14" fill="#4aaa50" opacity="0.9"/>
+            <circle cx="60" cy="36" r="12" fill="#7fe068" opacity="0.55"/>
+            <circle cx="44" cy="46" r="10" fill="#6acc5c" opacity="0.45"/>
+            <circle cx="76" cy="44" r="10" fill="#6acc5c" opacity="0.45"/>
+            <!-- light highlights -->
+            <circle cx="54" cy="38" r="5" fill="#a8f890" opacity="0.3"/>
+            <circle cx="68" cy="36" r="4" fill="#b0ff98" opacity="0.2"/>
           </svg>
         </div>
         <div id="oldTreeStageImg" class="tree-stage-img">
           <svg width="100%" height="100%" viewBox="0 0 120 120">
             <defs>
+              <linearGradient id="oldTrunkGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#5a3e25"/>
+                <stop offset="30%" stop-color="#7a5838"/>
+                <stop offset="70%" stop-color="#6b4830"/>
+                <stop offset="100%" stop-color="#4a3218"/>
+              </linearGradient>
               <radialGradient id="oldCanopyGrad" cx="40%" cy="30%">
-                <stop offset="0%" stop-color="#9bf383"/>
-                <stop offset="100%" stop-color="#1f6337"/>
+                <stop offset="0%" stop-color="#8af078"/>
+                <stop offset="50%" stop-color="#3aaa48"/>
+                <stop offset="100%" stop-color="#1a5a2e"/>
               </radialGradient>
             </defs>
-            <ellipse cx="60" cy="114" rx="34" ry="7" fill="rgba(65,48,30,0.27)"/>
-            <path d="M50 110 C50 86 50 63 56 42 C59 37 61 37 64 42 C70 63 70 86 70 110 Z" fill="#75553b"/>
-            <path d="M58 64 C53 56 47 53 42 49" stroke="#6f4f36" stroke-width="2" fill="none"/>
-            <path d="M62 60 C68 54 74 50 79 47" stroke="#6f4f36" stroke-width="2" fill="none"/>
-            <circle cx="60" cy="44" r="28" fill="url(#oldCanopyGrad)"/>
-            <circle cx="36" cy="60" r="20" fill="#2f7f44"/>
-            <circle cx="84" cy="60" r="20" fill="#2f7f44"/>
-            <circle cx="50" cy="70" r="16" fill="#5fc757" opacity="0.9"/>
-            <circle cx="70" cy="70" r="16" fill="#5fc757" opacity="0.9"/>
-            <circle cx="62" cy="34" r="12" fill="#a4f58c" opacity="0.5"/>
+            <!-- ground shadow -->
+            <ellipse cx="60" cy="114" rx="36" ry="7" fill="rgba(65,48,30,0.27)"/>
+            <!-- root system -->
+            <path d="M48 110 C38 113 26 116 20 113" stroke="#5a3e25" stroke-width="3" fill="none" opacity="0.3" stroke-linecap="round"/>
+            <path d="M72 110 C82 113 94 116 100 113" stroke="#5a3e25" stroke-width="3" fill="none" opacity="0.3" stroke-linecap="round"/>
+            <path d="M53 112 C46 115 38 117 34 115" stroke="#5a3e25" stroke-width="2" fill="none" opacity="0.2" stroke-linecap="round"/>
+            <path d="M67 112 C74 115 82 117 86 115" stroke="#5a3e25" stroke-width="2" fill="none" opacity="0.2" stroke-linecap="round"/>
+            <!-- trunk - wider, gnarled -->
+            <path d="M47 110 C48 88 48 66 54 44 C57 38 63 38 66 44 C72 66 72 88 73 110 Z" fill="url(#oldTrunkGrad)"/>
+            <!-- bark texture -->
+            <path d="M50 104 C54 100 66 99 72 103" stroke="#3e2a16" stroke-width="0.8" fill="none" opacity="0.3"/>
+            <path d="M50 92 C55 89 65 88 71 92" stroke="#3e2a16" stroke-width="0.7" fill="none" opacity="0.25"/>
+            <path d="M52 80 C56 77 64 77 68 80" stroke="#3e2a16" stroke-width="0.6" fill="none" opacity="0.2"/>
+            <path d="M53 68 C57 66 63 66 67 68" stroke="#3e2a16" stroke-width="0.5" fill="none" opacity="0.18"/>
+            <!-- major branches -->
+            <path d="M54 62 C46 54 38 50 30 48" stroke="#6b4830" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+            <path d="M66 58 C74 52 82 48 90 46" stroke="#6b4830" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+            <path d="M56 54 C50 48 42 44 36 42" stroke="#6b4830" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M64 52 C70 46 78 42 84 40" stroke="#6b4830" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <!-- canopy - rich layered -->
+            <circle cx="60" cy="40" r="30" fill="url(#oldCanopyGrad)"/>
+            <circle cx="32" cy="54" r="22" fill="#267a3a"/>
+            <circle cx="88" cy="52" r="22" fill="#267a3a"/>
+            <circle cx="46" cy="64" r="17" fill="#44a850" opacity="0.9"/>
+            <circle cx="74" cy="62" r="17" fill="#44a850" opacity="0.9"/>
+            <circle cx="60" cy="30" r="14" fill="#78e065" opacity="0.5"/>
+            <circle cx="40" cy="42" r="12" fill="#5ac050" opacity="0.4"/>
+            <circle cx="80" cy="40" r="12" fill="#5ac050" opacity="0.4"/>
+            <!-- depth shadows in canopy -->
+            <circle cx="50" cy="58" r="10" fill="#1a5a2e" opacity="0.2"/>
+            <circle cx="70" cy="56" r="10" fill="#1a5a2e" opacity="0.2"/>
+            <!-- light dapples -->
+            <circle cx="52" cy="34" r="5" fill="#a8f890" opacity="0.3"/>
+            <circle cx="70" cy="32" r="4" fill="#b0ff98" opacity="0.25"/>
+            <circle cx="60" cy="24" r="3" fill="#c0ffa8" opacity="0.2"/>
+            <!-- fruits -->
             <g id="oldTreeFruits">
-              <circle cx="49" cy="50" r="3.4" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
-              <circle cx="67" cy="48" r="3.4" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
-              <circle cx="77" cy="58" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
-              <circle cx="41" cy="61" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
-              <circle cx="59" cy="63" r="3.5" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
-              <circle cx="71" cy="70" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
-              <circle cx="47" cy="73" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
-              <circle cx="61" cy="78" r="3.3" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
-              <circle cx="82" cy="67" r="3.1" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
-              <circle cx="34" cy="68" r="3.1" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="46" cy="48" r="3.5" fill="#ff6b3a" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="68" cy="44" r="3.5" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="80" cy="54" r="3.3" fill="#ff6b3a" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="38" cy="58" r="3.3" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="58" cy="56" r="3.6" fill="#ff5c2e" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="74" cy="64" r="3.3" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="44" cy="66" r="3.3" fill="#ff6b3a" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="62" cy="68" r="3.4" fill="#ff5c2e" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="86" cy="58" r="3.2" fill="#ff7043" style="opacity: 0; transition: opacity 0.35s ease;"/>
+              <circle cx="30" cy="60" r="3.2" fill="#ff6b3a" style="opacity: 0; transition: opacity 0.35s ease;"/>
             </g>
           </svg>
           <div class="bird-overlay" aria-hidden="true">
@@ -554,13 +694,13 @@
       }
     })();
   </script>
-  <script src="js-modular/config.js?v=20260410-fixes-3"></script>
-  <script src="js-modular/utils.js?v=20260410-fixes-3"></script>
-  <script src="js-modular/services.js?v=20260410-fixes-3"></script>
-  <script src="js-modular/compat.js?v=20260410-fixes-3"></script>
-  <script src="js-modular/auth.js?v=20260410-fixes-3"></script>
-  <script src="js-modular/game.js?v=20260410-fixes-3"></script>
-  <script src="js-modular/admin.js?v=20260410-fixes-3"></script>
-  <script src="js-modular/main.js?v=20260410-fixes-3"></script>
+  <script src="js-modular/config.js?v=20260410-fixes-4"></script>
+  <script src="js-modular/utils.js?v=20260410-fixes-4"></script>
+  <script src="js-modular/services.js?v=20260410-fixes-4"></script>
+  <script src="js-modular/compat.js?v=20260410-fixes-4"></script>
+  <script src="js-modular/auth.js?v=20260410-fixes-4"></script>
+  <script src="js-modular/game.js?v=20260410-fixes-4"></script>
+  <script src="js-modular/admin.js?v=20260410-fixes-4"></script>
+  <script src="js-modular/main.js?v=20260410-fixes-4"></script>
 </body>
 </html>

@@ -28,6 +28,7 @@ function resetGameState() {
   fruitCount = 0;
   taskCompletions = {};
   dailyLoginState = normalizeDailyLoginState({});
+  _lastRenderedTreeStage = null;
 }
 
 // --- FP Debug ---
@@ -689,6 +690,8 @@ function updateProgressDisplay() {
   progressBarFill.style.width = Math.min(progressPercent, 100) + '%';
 }
 
+let _lastRenderedTreeStage = null;
+
 function updateTreeGrowth() {
   const stages = [
     { id: 'seedStageImg', key: 'seed' }, { id: 'germinationStageImg', key: 'germination' },
@@ -704,6 +707,10 @@ function updateTreeGrowth() {
   else if (treeProgress >= 150) currentStage = 'seedling';
   else if (treeProgress >= 50) currentStage = 'germination';
 
+  // Skip DOM work entirely if the stage hasn't changed — prevents blinking
+  if (_lastRenderedTreeStage === currentStage) return;
+  _lastRenderedTreeStage = currentStage;
+
   const currentStageNameEl = document.getElementById('currentStageName');
   if (currentStageNameEl) {
     const stageName = currentStage.replace(/([A-Z])/g, ' $1').trim()
@@ -716,13 +723,26 @@ function updateTreeGrowth() {
     treeStageContainer.classList.remove(...stages.map(s => `stage-${s.key}`));
     treeStageContainer.classList.add(`stage-${currentStage}`);
   }
-  stages.forEach(stage => { const el = document.getElementById(stage.id); if (el) el.classList.remove('active'); });
-  setTimeout(() => {
-    const showStage = stages.find(s => s.key === currentStage);
-    if (showStage) { const el = document.getElementById(showStage.id); if (el) el.classList.add('active'); }
-    const shareGospelBtn = document.getElementById('shareGospelBtn');
-    if (shareGospelBtn) shareGospelBtn.style.display = treeProgress >= 350 ? 'inline-block' : 'none';
-  }, 50);
+  // Remove active from non-current stages only; add to current stage directly
+  // without a setTimeout gap to eliminate the flash/blink.
+  const isStageChange = true; // we only reach here on actual stage changes
+  stages.forEach(stage => {
+    const el = document.getElementById(stage.id);
+    if (!el) return;
+    if (stage.key === currentStage) {
+      el.classList.add('active');
+      if (isStageChange) {
+        el.classList.remove('tree-grow-in');
+        // Force reflow so the animation restarts
+        void el.offsetWidth;
+        el.classList.add('tree-grow-in');
+      }
+    } else {
+      el.classList.remove('active', 'tree-grow-in');
+    }
+  });
+  const shareGospelBtn = document.getElementById('shareGospelBtn');
+  if (shareGospelBtn) shareGospelBtn.style.display = treeProgress >= 350 ? 'inline-block' : 'none';
 }
 
 function showScripture() {
