@@ -473,18 +473,15 @@ function mergeUsersByLatestTimestamp(localUsers, cloudUsers) {
     const latestUser = Number.isFinite(cloudUpdatedAt) && cloudUpdatedAt > localUpdatedAt ? cloudUser : localUser;
     const localRoleUpdatedAt = Number(localUser.roleUpdatedAt ?? 0);
     const cloudRoleUpdatedAt = Number(cloudUser.roleUpdatedAt ?? 0);
-    const localResolvedRole = getRoleByEmail(localUser.email, localUser.role);
-    const cloudResolvedRole = getRoleByEmail(cloudUser.email, cloudUser.role);
-    const shouldPreferCloudRole = cloudRoleUpdatedAt > localRoleUpdatedAt
-      || (cloudRoleUpdatedAt === localRoleUpdatedAt && localResolvedRole === 'user' && cloudResolvedRole !== 'user');
-    const roleSource = shouldPreferCloudRole ? cloudUser : localUser;
+    // Determine which role to use based on roleUpdatedAt timestamp
+    // Always prefer the role with the most recent update timestamp to prevent reversions
+    const shouldPreferCloudRole = cloudRoleUpdatedAt > localRoleUpdatedAt;
+    const finalRole = shouldPreferCloudRole ? cloudUser.role : localUser.role;
+    const maxRoleUpdatedAt = Math.max(localRoleUpdatedAt, cloudRoleUpdatedAt);
     const merged = {
       ...latestUser,
-      role: getRoleByEmail(latestUser.email, roleSource.role),
-      roleUpdatedAt: Math.max(
-        Number.isFinite(localRoleUpdatedAt) ? localRoleUpdatedAt : 0,
-        Number.isFinite(cloudRoleUpdatedAt) ? cloudRoleUpdatedAt : 0
-      )
+      role: finalRole,
+      roleUpdatedAt: maxRoleUpdatedAt
     };
     // Preserve local password for legacy login if cloud doesn't have one
     if (!merged.password && localUser.password) {

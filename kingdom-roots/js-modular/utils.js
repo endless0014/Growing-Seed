@@ -299,11 +299,14 @@ function normalizeStoredUser(user, fallbackId) {
   const parsedRoleUpdatedAt = Number(user?.roleUpdatedAt ?? 0);
   const parsedLoginStreakCurrent = Number(user?.loginStreakCurrent ?? 0);
   const parsedLoginStreakLongest = Number(user?.loginStreakLongest ?? 0);
+  // Preserve the explicitly stored role if it exists; use getRoleByEmail only if role is not set
+  const storedRole = user?.role ? normalizeRole(user.role) : null;
+  const resolvedRole = storedRole || getRoleByEmail(user?.email, storedRole);
   return {
     ...user,
     id: safeUserId,
     email: getCorrectedEmail(user?.email),
-    role: getRoleByEmail(user?.email, user?.role),
+    role: resolvedRole,
     roleUpdatedAt: Number.isFinite(parsedRoleUpdatedAt) && parsedRoleUpdatedAt > 0 ? parsedRoleUpdatedAt : 0,
     loginStreakCurrent: Number.isFinite(parsedLoginStreakCurrent) && parsedLoginStreakCurrent > 0
       ? Math.floor(parsedLoginStreakCurrent) : 0,

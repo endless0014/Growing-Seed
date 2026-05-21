@@ -201,6 +201,7 @@ async function handleLogin(event) {
         name: authUser?.displayName || email.split('@')[0],
         email,
         role: getRoleByEmail(email, 'user'),
+        roleUpdatedAt: Date.now(),
         viewMode: 'user',
         joinedDate: new Date().toLocaleDateString(),
         lastLogin: new Date().toLocaleString(),
@@ -214,6 +215,7 @@ async function handleLogin(event) {
         fruitCount: 0,
         pointsForFruit: 0,
         maxBloomReached: false,
+        nameHasBeenEdited: false,
         taskCompletions: {},
         dailyLoginState: normalizeDailyLoginState({})
       }, Date.now());
@@ -360,6 +362,7 @@ async function handleRegister(event) {
     name,
     email,
     role: getRoleByEmail(email, 'user'),
+    roleUpdatedAt: Date.now(),
     viewMode: 'user',
     joinedDate: new Date().toLocaleDateString(),
     lastLogin: new Date().toLocaleString(),
@@ -373,6 +376,7 @@ async function handleRegister(event) {
     fruitCount: 0,
     pointsForFruit: 0,
     maxBloomReached: false,
+    nameHasBeenEdited: false,
     taskCompletions: {},
     dailyLoginState: normalizeDailyLoginState({})
   };
@@ -452,6 +456,7 @@ async function handleGoogleSignIn() {
         name: googleUser.displayName || googleUser.email.split('@')[0],
         email: googleUser.email,
         role: getRoleByEmail(googleUser.email, 'user'),
+        roleUpdatedAt: Date.now(),
         viewMode: 'user',
         joinedDate: new Date().toLocaleDateString(),
         lastLogin: new Date().toLocaleString(),
@@ -465,6 +470,7 @@ async function handleGoogleSignIn() {
         fruitCount: 0,
         pointsForFruit: 0,
         maxBloomReached: false,
+        nameHasBeenEdited: false,
         taskCompletions: {},
         dailyLoginState: normalizeDailyLoginState({})
       };
@@ -719,14 +725,20 @@ function openProfileModal() {
   const profileNameEl = document.getElementById('profileName');
   const profileEmailEl = document.getElementById('profileEmail');
   const profileJoinedEl = document.getElementById('profileJoined');
+  const editNameBtn = document.getElementById('editNameBtn');
   if (currentUser) {
     if (profileNameEl) profileNameEl.textContent = currentUser.name || '';
     if (profileEmailEl) profileEmailEl.textContent = currentUser.email || '';
     if (profileJoinedEl) profileJoinedEl.textContent = currentUser.joinedDate || '';
+    // Show edit button only if name hasn't been edited yet
+    if (editNameBtn) {
+      editNameBtn.style.display = (currentUser.nameHasBeenEdited) ? 'none' : 'inline-block';
+    }
   } else {
     if (profileNameEl) profileNameEl.textContent = '';
     if (profileEmailEl) profileEmailEl.textContent = '';
     if (profileJoinedEl) profileJoinedEl.textContent = '';
+    if (editNameBtn) editNameBtn.style.display = 'none';
   }
   ensureProfileNotificationControls();
   updateProfileNotificationControls();
@@ -736,6 +748,88 @@ function openProfileModal() {
 
 function closeProfileModal() {
   document.getElementById('profileModal').style.display = 'none';
+}
+
+function startEditName() {
+  const editNameForm = document.getElementById('editNameForm');
+  const editNameInput = document.getElementById('editNameInput');
+  const editNameBtn = document.getElementById('editNameBtn');
+  const profileNameEl = document.getElementById('profileName');
+  
+  if (editNameForm && editNameInput && profileNameEl) {
+    editNameInput.value = profileNameEl.textContent;
+    editNameForm.style.display = 'block';
+    editNameBtn.style.display = 'none';
+    editNameInput.focus();
+  }
+}
+
+function saveEditName() {
+  const editNameInput = document.getElementById('editNameInput');
+  const newName = editNameInput.value.trim();
+  
+  if (!newName) {
+    showNotification('Name cannot be empty', { type: 'error' });
+    return;
+  }
+  
+  if (newName.length > 100) {
+    showNotification('Name is too long (max 100 characters)', { type: 'error' });
+    return;
+  }
+  
+  if (!currentUser) {
+    showNotification('Error: User not authenticated', { type: 'error' });
+    return;
+  }
+  
+  // Update currentUser with new name and mark as edited
+  currentUser.name = newName;
+  currentUser.nameHasBeenEdited = true;
+  
+  // Update localStorage
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexForSession(users, currentUser);
+  if (userIndex !== -1) {
+    users[userIndex].name = newName;
+    users[userIndex].nameHasBeenEdited = true;
+    setStoredUsers(users);
+  }
+  
+  // Update Firebase if available
+  if (isFirebaseAuthAvailable() && firebase.auth().currentUser) {
+    firebase.auth().currentUser.updateProfile({ displayName: newName }).catch(err => {
+      console.warn('Failed to update Firebase display name:', err);
+    });
+  }
+  
+  // Update cloud storage
+  try {
+    upsertUserInCloud(currentUser);
+  } catch (e) {
+    console.warn('Failed to update name in cloud:', e);
+  }
+  
+  // Update UI
+  const profileNameEl = document.getElementById('profileName');
+  const editNameForm = document.getElementById('editNameForm');
+  const editNameBtn = document.getElementById('editNameBtn');
+  
+  if (profileNameEl) profileNameEl.textContent = newName;
+  if (editNameForm) editNameForm.style.display = 'none';
+  if (editNameBtn) editNameBtn.style.display = 'none';
+  
+  showNotification('Name updated successfully!', { type: 'success' });
+}
+
+function cancelEditName() {
+  const editNameForm = document.getElementById('editNameForm');
+  const editNameBtn = document.getElementById('editNameBtn');
+  const editNameInput = document.getElementById('editNameInput');
+  
+  if (editNameForm) editNameForm.style.display = 'none';
+  if (editNameBtn) editNameBtn.style.display = 'inline-block';
+  if (editNameInput) editNameInput.value = '';
 }
 
 function openChangePasswordModal() {
@@ -856,6 +950,9 @@ if (typeof sendResetCode === 'function') {
 window.handleChangePassword = handleChangePassword;
 window.openProfileModal = openProfileModal;
 window.closeProfileModal = closeProfileModal;
+window.startEditName = startEditName;
+window.saveEditName = saveEditName;
+window.cancelEditName = cancelEditName;
 window.openChangePasswordModal = openChangePasswordModal;
 window.closeChangePasswordModal = closeChangePasswordModal;
 window.downloadUserData = downloadUserData;

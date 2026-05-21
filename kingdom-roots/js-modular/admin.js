@@ -1,6 +1,9 @@
 // Growing Seed — Admin Dashboard & Management Actions
 // isAdminUser() is defined in utils.js
 
+// State for tracking which week (7-day window) is being viewed in daily sign-in trends
+let adminDailyTrendsWeekOffset = 0;
+
 function getCurrentViewMode() {
   if (!currentUser) return 'user';
   if (!hasManagementAccess()) return 'user';
@@ -158,6 +161,88 @@ function toggleAdminView() {
   saveUserData();
 }
 
+// Helper function to calculate peak sign-in counts per day in a 7-day window
+function calculateDailySignInPeaks(users, weekOffset = 0) {
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const trendDays = 7;
+  const dailyPeaks = [];
+  
+  for (let dayOffset = trendDays - 1; dayOffset >= 0; dayOffset--) {
+    const adjustedDayOffset = dayOffset + (weekOffset * trendDays);
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    dayStart.setDate(dayStart.getDate() - adjustedDayOffset);
+    const dayEnd = new Date(dayStart.getTime() + oneDayMs);
+    
+    const signInCount = users.filter(user => {
+      const candidate = Number(new Date(user.lastLogin || '').getTime()) || Number(user.lastActiveAt || 0);
+      return candidate >= dayStart.getTime() && candidate < dayEnd.getTime();
+    }).length;
+    
+    dailyPeaks.push({
+      label: dayStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      date: dayStart,
+      count: signInCount
+    });
+  }
+  
+  return dailyPeaks;
+}
+
+// Helper function to calculate peak task completions per day
+function calculateDailyTaskPeaks(users, weekOffset = 0) {
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const trendDays = 7;
+  const taskKeys = Object.keys(taskRecurrenceRules);
+  const dailyTaskPeaks = {};
+  
+  // Initialize task counters for each day in the 7-day window
+  for (let dayOffset = trendDays - 1; dayOffset >= 0; dayOffset--) {
+    const adjustedDayOffset = dayOffset + (weekOffset * trendDays);
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    dayStart.setDate(dayStart.getDate() - adjustedDayOffset);
+    const dayLabel = dayStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    
+    dailyTaskPeaks[dayLabel] = {
+      date: dayStart,
+      taskCounts: {},
+      totalCompletions: 0
+    };
+    
+    taskKeys.forEach(taskKey => {
+      dailyTaskPeaks[dayLabel].taskCounts[taskKey] = 0;
+    });
+  }
+  
+  // Count task completions (tasks marked as complete in current period)
+  taskKeys.forEach(taskKey => {
+    const rule = taskRecurrenceRules[taskKey];
+    users.forEach(user => {
+      const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
+      if (rule && completions[taskKey] === getCurrentPeriodKey(rule.unit)) {
+        // For current period, count as today's completion
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dayLabel = today.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        if (dailyTaskPeaks[dayLabel]) {
+          dailyTaskPeaks[dayLabel].taskCounts[taskKey]++;
+          dailyTaskPeaks[dayLabel].totalCompletions++;
+        }
+      }
+    });
+  });
+  
+  return dailyTaskPeaks;
+}
+
+// Navigation functions for viewing different week periods
+window.adminNavigateTrendsDays = function(direction) {
+  adminDailyTrendsWeekOffset += direction;
+  if (adminDailyTrendsWeekOffset < 0) adminDailyTrendsWeekOffset = 0;
+  renderAdminDashboard(false);
+};
+
 async function renderAdminDashboard(syncFromCloud = false) {
   console.log('[admin] renderAdminDashboard start', { syncFromCloud: !!syncFromCloud, currentUserPresent: !!currentUser });
   // Defensive: ensure module-scoped `currentUser` is hydrated from localStorage
@@ -251,20 +336,6 @@ async function renderAdminDashboard(syncFromCloud = false) {
   const totalTaskSlots = Math.max(totalUsers * taskKeys.length, 1);
   const taskCompletionRate = Math.round((completedTaskCount / totalTaskSlots) * 100);
 
-  const trendDays = 7;
-  const trendCounts = [];
-  for (let dayOffset = trendDays - 1; dayOffset >= 0; dayOffset--) {
-    const dayStart = new Date();
-    dayStart.setHours(0, 0, 0, 0);
-    dayStart.setDate(dayStart.getDate() - dayOffset);
-    const dayEnd = new Date(dayStart.getTime() + oneDayMs);
-    const count = safeUsers.filter(user => {
-      const candidate = Number(new Date(user.lastLogin || '').getTime()) || Number(user.lastActiveAt || 0);
-      return candidate >= dayStart.getTime() && candidate < dayEnd.getTime();
-    }).length;
-    trendCounts.push({ label: dayStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), value: count });
-  }
-
   const totalUsersEl = document.getElementById('adminTotalUsers');
   const totalAdminsEl = document.getElementById('adminTotalAdmins');
   const totalModeratorsEl = document.getElementById('adminTotalModerators');
@@ -284,68 +355,102 @@ async function renderAdminDashboard(syncFromCloud = false) {
   if (taskRefreshEl) taskRefreshEl.textContent = `Task refresh: ${getTaskRefreshTimeLabel()}`;
 
   if (dailyTrendEl) {
-    // For each day, pick the single user with the max `loginStreakCurrent` among users active that day.
-    const dailyRows = [];
-    for (let i = 0; i < trendCounts.length; i++) {
-      const label = trendCounts[i].label;
-      // compute day window again to find users for that label/day
-      const dayOffset = trendCounts.length - 1 - i;
-      const dayStart = new Date();
-      dayStart.setHours(0, 0, 0, 0);
-      dayStart.setDate(dayStart.getDate() - dayOffset);
-      const dayEnd = new Date(dayStart.getTime() + oneDayMs);
-
-      const usersThisDay = safeUsers.filter(user => {
-        const candidate = Number(new Date(user.lastLogin || '').getTime()) || Number(user.lastActiveAt || 0);
-        return candidate >= dayStart.getTime() && candidate < dayEnd.getTime();
-      });
-
-      if (usersThisDay.length === 0) {
-        dailyRows.push({ label, value: 0, userName: '' });
-        continue;
-      }
-
-      // choose the user with the highest loginStreakCurrent (fallback to 0)
-      const topUser = usersThisDay.reduce((best, cur) => {
-        const bestVal = Number(best?.loginStreakCurrent || 0);
-        const curVal = Number(cur?.loginStreakCurrent || 0);
-        return curVal > bestVal ? cur : best;
-      }, usersThisDay[0]);
-
-      const topValue = Number(topUser.loginStreakCurrent || 0) || 1;
-      const topName = topUser.name || topUser.email || '';
-      dailyRows.push({ label, value: topValue, userName: topName });
+    // Calculate peak sign-in counts per day using the new helper
+    const dailySignInPeaks = calculateDailySignInPeaks(safeUsers, adminDailyTrendsWeekOffset);
+    const maxSignInCount = Math.max(...dailySignInPeaks.map(p => p.count), 1);
+    
+    // Create navigation header with week offset info
+    const trendDays = 7;
+    const currentWeekStart = new Date();
+    currentWeekStart.setHours(0, 0, 0, 0);
+    currentWeekStart.setDate(currentWeekStart.getDate() - (6 + adminDailyTrendsWeekOffset * trendDays));
+    const currentWeekEnd = new Date(currentWeekStart.getTime() + (6 * 24 * 60 * 60 * 1000));
+    
+    const trendContainer = document.getElementById('adminDailyLoginTrendContainer');
+    const navId = 'adminDailyTrendNav';
+    let navDiv = document.getElementById(navId);
+    if (!navDiv) {
+      navDiv = document.createElement('div');
+      navDiv.id = navId;
+      navDiv.style.display = 'flex';
+      navDiv.style.justifyContent = 'space-between';
+      navDiv.style.alignItems = 'center';
+      navDiv.style.marginBottom = '10px';
+      trendContainer.insertBefore(navDiv, trendContainer.firstChild);
     }
-
-    // Render as vertical bars: each day shows the max login-streak value for that day
-    const maxTrendValue = Math.max(...dailyRows.map(r => r.value), 1);
-    dailyTrendEl.innerHTML = dailyRows.map(row => {
-      const heightPct = Math.max(6, Math.round((row.value / maxTrendValue) * 100));
-      const countLabel = row.value > 0 ? String(row.value) : '—';
-      const title = row.value > 0 ? `${row.value} day${row.value === 1 ? '' : 's'} — ${escapeHtml(row.userName)}` : 'No sign-ins';
+    
+    const weekRangeText = `${currentWeekStart.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} - ${currentWeekEnd.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}`;
+    const weekLabel = adminDailyTrendsWeekOffset === 0 ? 'This Week' : `${adminDailyTrendsWeekOffset} week${adminDailyTrendsWeekOffset === 1 ? '' : 's'} ago`;
+    
+    navDiv.innerHTML = `
+      <span style="font-size: 0.85rem; color: #666;">
+        <strong>${weekLabel}</strong> (${weekRangeText})
+      </span>
+      <div style="display: flex; gap: 8px;">
+        ${adminDailyTrendsWeekOffset > 0 ? '<button onclick="window.adminNavigateTrendsDays(-1)" class="settings-btn" style="padding: 0.5rem 1rem; font-size: 0.85rem;">← Previous Week</button>' : ''}
+        <button onclick="window.adminNavigateTrendsDays(1)" class="settings-btn" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Next Week →</button>
+      </div>
+    `;
+    
+    // Render bars with peak highlighting
+    dailyTrendEl.innerHTML = dailySignInPeaks.map((peak, idx) => {
+      const heightPct = Math.max(6, Math.round((peak.count / maxSignInCount) * 100));
+      const isPeak = peak.count === maxSignInCount && peak.count > 0;
+      const peakClass = isPeak ? ' admin-trend-bar-peak' : '';
+      const countLabel = peak.count > 0 ? String(peak.count) : '—';
       return `
-        <div class="admin-trend-column" title="${escapeHtml(title)}">
-          <div class="admin-trend-bar" style="height: ${heightPct}%">
+        <div class="admin-trend-column" title="${peak.count} sign-ins on ${peak.label}">
+          <div class="admin-trend-bar${peakClass}" style="height: ${heightPct}%">
             <span class="admin-trend-count">${escapeHtml(countLabel)}</span>
           </div>
-          <div class="admin-trend-label">${escapeHtml(row.label)}</div>
+          <div class="admin-trend-label">${escapeHtml(peak.label)}</div>
         </div>
       `;
     }).join('');
   }
 
   if (taskSummaryEl) {
+    // Calculate peak task completions using the new helper
+    const dailyTaskPeaks = calculateDailyTaskPeaks(safeUsers, adminDailyTrendsWeekOffset);
+    
+    // Get task completion data for display
     const taskRows = taskKeys.map(taskKey => {
       const doneCount = safeUsers.filter(user => {
         const completions = user.taskCompletions && typeof user.taskCompletions === 'object' ? user.taskCompletions : {};
         const rule = taskRecurrenceRules[taskKey];
         return completions[taskKey] === getCurrentPeriodKey(rule.unit);
       }).length;
-      return { taskName: taskDisplayNames[taskKey] || taskKey, doneCount, rate: totalUsers > 0 ? Math.round((doneCount / totalUsers) * 100) : 0 };
+      
+      // Find peak count for this task across all days in the window
+      let peakCount = 0;
+      Object.keys(dailyTaskPeaks).forEach(dayLabel => {
+        const dayData = dailyTaskPeaks[dayLabel];
+        peakCount = Math.max(peakCount, dayData.taskCounts[taskKey] || 0);
+      });
+      
+      const rate = totalUsers > 0 ? Math.round((doneCount / totalUsers) * 100) : 0;
+      return {
+        taskName: taskDisplayNames[taskKey] || taskKey,
+        doneCount,
+        peakCount,
+        rate,
+        isPeak: doneCount > 0 && peakCount > 0
+      };
     });
+    
+    // Find the highest overall task completion count to highlight the peak
+    const maxCompletionCount = Math.max(...taskRows.map(r => r.doneCount), 1);
+    
     taskSummaryEl.innerHTML = taskRows.map(row => {
       const widthPct = Math.max(6, row.rate);
-      return `<div class="admin-bar-row"><span class="admin-bar-label">${escapeHtml(row.taskName)}</span><div class="admin-bar-track"><div class="admin-bar-fill task" style="width: ${widthPct}%;"></div></div><strong class="admin-bar-value">${row.doneCount}/${totalUsers} (${row.rate}%)</strong></div>`;
+      const isPeakClass = row.doneCount === maxCompletionCount && row.doneCount > 0 ? ' admin-bar-fill-peak' : '';
+      return `<div class="admin-bar-row">
+        <span class="admin-bar-label">${escapeHtml(row.taskName)}</span>
+        <div class="admin-bar-track">
+          <div class="admin-bar-fill task${isPeakClass}" style="width: ${widthPct}%;"></div>
+        </div>
+        <strong class="admin-bar-value">${row.doneCount}/${totalUsers} (${row.rate}%)</strong>
+      </div>`;
     }).join('');
   }
 
