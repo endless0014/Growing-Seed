@@ -2239,6 +2239,10 @@ button:hover {
     display: flex;
   }
 
+  .bottom-nav-item:nth-child(3) {
+    display: none;
+  }
+
   .view-mode-indicator {
     font-size: 0.72rem;
     padding: 0.28rem 0.5rem;
