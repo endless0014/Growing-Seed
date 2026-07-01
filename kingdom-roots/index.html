@@ -154,6 +154,7 @@
       <div class="gs-pill fp">⭐ <span id="fpPillValue">0</span> FP</div>
       <div class="gs-pill streak">🔥 <span id="streakPillValue">Day 1</span></div>
       <button type="button" class="gs-pill leaderboard" onclick="openLeaderboardModal('leaderboard')">🏆 Leaderboard</button>
+      <button type="button" class="gs-pill walkthrough" onclick="openBeginnerWalkthroughModal(true)">🧭 Beginner Guide</button>
       <button id="profileAccessPill" type="button" class="gs-pill profile-access" onclick="openProfileModal()">👤 Profile</button>
     </div>
 
@@ -531,6 +532,23 @@
           <button type="button" onclick="closeChangePasswordModal()" class="cancel-btn">Cancel</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Beginner Walkthrough Modal -->
+  <div id="beginnerWalkthroughModal" class="modal" style="display: none;">
+    <div class="modal-content walkthrough-modal">
+      <span class="close" onclick="closeBeginnerWalkthroughModal()">&times;</span>
+      <div class="walkthrough-hero">
+        <h2>🌱 Beginner Walkthrough</h2>
+        <p id="walkthroughSubtitle">Start simple and grow your faith one step at a time.</p>
+      </div>
+      <div id="walkthroughStepContent" class="walkthrough-step-content"></div>
+      <div id="walkthroughProgress" class="walkthrough-progress" aria-label="Walkthrough step progress"></div>
+      <div class="modal-buttons">
+        <button type="button" id="walkthroughPrevBtn" onclick="previousBeginnerWalkthroughStep()" class="cancel-btn">Back</button>
+        <button type="button" id="walkthroughNextBtn" onclick="nextBeginnerWalkthroughStep()" class="auth-btn">Next</button>
+      </div>
     </div>
   </div>
 

@@ -11,6 +11,7 @@ function showAppInterface() {
   document.getElementById('userGreeting').textContent = `Welcome, ${currentUser.name}!`;
   ensureDailyLoginUi();
   applyViewModeUI();
+  maybeShowBeginnerWalkthroughOnFirstLoad();
 }
 
 function switchToRegister() {
@@ -909,6 +910,31 @@ function hydrateCurrentUserFromStoredUsers() {
   delete mergedUser.password;
   currentUser = mergedUser;
   try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {
+    try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
+  }
+  return true;
+}
+
+function reconcileCurrentUserWithStoredState() {
+  if (!currentUser?.email) return false;
+  const users = getStoredUsersSafe();
+  const userIndex = findUserIndexForSession(users, currentUser);
+  if (userIndex === -1) return false;
+  const storedUser = users[userIndex];
+  const mergedUser = {
+    ...storedUser,
+    role: getRoleByEmail(storedUser.email, storedUser.role),
+    viewMode: currentUser.viewMode ?? storedUser.viewMode ?? 'user'
+  };
+  delete mergedUser.password;
+  const currentFp = Math.floor(Number(currentUser.faithPoints ?? 0) || 0);
+  const storedFp = Math.floor(Number(storedUser.faithPoints ?? 0) || 0);
+  const currentTree = Math.floor(Number(currentUser.treeProgress ?? 0) || 0);
+  const storedTree = Math.floor(Number(storedUser.treeProgress ?? 0) || 0);
+  const hasDifferences = currentFp !== storedFp || currentTree !== storedTree || JSON.stringify(currentUser.taskCompletions || {}) !== JSON.stringify(storedUser.taskCompletions || {});
+  if (!hasDifferences) return false;
+  currentUser = mergedUser;
+  try { persistAllUserState(users, currentUser); } catch (e) {
     try { safeSetCurrentUser(currentUser); } catch(__e2) { /* ignore */ }
   }
   return true;

@@ -16,6 +16,40 @@ let currentPublicBoardType = 'leaderboard';
 let inactivityTimerId = null;
 let inactivityWarningTimerId = null;
 let forceLogoutUnsubscribe = null;
+let beginnerWalkthroughStep = 0;
+const BEGINNER_WALKTHROUGH_KEY = 'growingSeedBeginnerWalkthroughSeenV1';
+const BEGINNER_WALKTHROUGH_STEPS = [
+  {
+    icon: '🎁',
+    title: 'Claim your daily reward',
+    body: 'Start each day by tapping the Claim Reward button. This gives you a streak bonus and keeps your progress moving.',
+    bullets: ['Come back daily for better rewards', 'Your streak helps your growth']
+  },
+  {
+    icon: '🙏',
+    title: 'Complete faith activities',
+    body: 'Use the Faith Activities buttons to earn Faith Points. Prayer, Bible reading, devotion, and worship all help your tree grow.',
+    bullets: ['Each activity gives you FP', 'Some tasks refresh daily or weekly']
+  },
+  {
+    icon: '🌱',
+    title: 'Watch your tree grow',
+    body: 'Every point you earn brings your tree to the next stage. The progress bar shows how close you are to the next step.',
+    bullets: ['New stages appear as you grow', 'The tree is your visual progress meter']
+  },
+  {
+    icon: '🌿',
+    title: 'Upgrade your roots',
+    body: 'When you have enough Faith Points, open Upgrade Roots to boost your growth and make future progress faster.',
+    bullets: ['Spend FP to strengthen your growth', 'Use upgrades when the tree feels slow']
+  },
+  {
+    icon: '🔁',
+    title: 'Keep the habit going',
+    body: 'The best way to play is to return often, finish a few tasks, and stay consistent. Small steps still grow a strong tree.',
+    bullets: ['Consistency matters more than big bursts', 'You can reopen this guide anytime']
+  }
+];
 
 // --- Seed Nurturing System ---
 let activeSeed = null; // { seedType, stage, daysElapsed, nurtureProgress, nurtureActionsToday, lastActionDate, activeChallenge, challengeDaysLeft }
@@ -113,6 +147,85 @@ function resetGameState() {
   dailyLoginState = normalizeDailyLoginState({});
   activeSeed = null;
   seedHistory = [];
+}
+
+function renderBeginnerWalkthroughStep(stepIndex = 0) {
+  const contentEl = document.getElementById('walkthroughStepContent');
+  const progressEl = document.getElementById('walkthroughProgress');
+  const prevBtn = document.getElementById('walkthroughPrevBtn');
+  const nextBtn = document.getElementById('walkthroughNextBtn');
+  const subtitleEl = document.getElementById('walkthroughSubtitle');
+  const safeStep = Math.max(0, Math.min(stepIndex, BEGINNER_WALKTHROUGH_STEPS.length - 1));
+  const step = BEGINNER_WALKTHROUGH_STEPS[safeStep];
+
+  if (!contentEl || !progressEl || !prevBtn || !nextBtn || !subtitleEl) return;
+
+  beginnerWalkthroughStep = safeStep;
+  subtitleEl.textContent = 'Start simple and grow your faith one step at a time.';
+  contentEl.innerHTML = `
+    <div class="walkthrough-step-icon">${step.icon}</div>
+    <h3>${step.title}</h3>
+    <p>${step.body}</p>
+    <ul>
+      ${step.bullets.map(item => `<li>${item}</li>`).join('')}
+    </ul>
+  `;
+
+  progressEl.innerHTML = BEGINNER_WALKTHROUGH_STEPS.map((_, index) => `<span class="walkthrough-dot ${index === safeStep ? 'active' : ''}"></span>`).join('');
+  prevBtn.disabled = safeStep === 0;
+  nextBtn.textContent = safeStep === BEGINNER_WALKTHROUGH_STEPS.length - 1 ? 'Finish' : 'Next';
+}
+
+function openBeginnerWalkthroughModal(force = false) {
+  const modal = document.getElementById('beginnerWalkthroughModal');
+  if (!modal) return;
+
+  const hasSeenGuide = localStorage.getItem(BEGINNER_WALKTHROUGH_KEY) === 'seen';
+  if (!force && hasSeenGuide) {
+    return;
+  }
+
+  beginnerWalkthroughStep = 0;
+  renderBeginnerWalkthroughStep(0);
+  modal.style.display = 'flex';
+}
+
+function closeBeginnerWalkthroughModal(markSeen = true) {
+  const modal = document.getElementById('beginnerWalkthroughModal');
+  if (!modal) return;
+
+  modal.style.display = 'none';
+  if (markSeen) {
+    localStorage.setItem(BEGINNER_WALKTHROUGH_KEY, 'seen');
+  }
+}
+
+function nextBeginnerWalkthroughStep() {
+  if (beginnerWalkthroughStep >= BEGINNER_WALKTHROUGH_STEPS.length - 1) {
+    closeBeginnerWalkthroughModal(true);
+    return;
+  }
+
+  renderBeginnerWalkthroughStep(beginnerWalkthroughStep + 1);
+}
+
+function previousBeginnerWalkthroughStep() {
+  if (beginnerWalkthroughStep <= 0) {
+    return;
+  }
+
+  renderBeginnerWalkthroughStep(beginnerWalkthroughStep - 1);
+}
+
+function maybeShowBeginnerWalkthroughOnFirstLoad() {
+  const hasSeenGuide = localStorage.getItem(BEGINNER_WALKTHROUGH_KEY) === 'seen';
+  if (hasSeenGuide) {
+    return;
+  }
+
+  window.setTimeout(() => {
+    openBeginnerWalkthroughModal(false);
+  }, 450);
 }
 
 // --- Seed Nurturing Functions ---
@@ -514,7 +627,7 @@ async function runFpDiagnostics() {
   const minFp = Math.min(...values);
   if (maxFp !== minFp) {
     const rollbackMessage = rollback.hasRollback ? ` Potential rollback: -${rollback.fpRollbackAmount} FP, -${rollback.streakRollbackDays} day(s).` : '';
-    showNotification(`FP mismatch detected. Session:${localSessionFp}, Local:${storedFp}, Cloud:${cloudUser ? cloudFp : 'n/a'}.${rollbackMessage}`, { type: 'warning', duration: 7000 });
+    showNotification(`FP mismatch detected. Session:${localSessionFp}, Current:${currentUserFp}, Local:${storedFp}, Cloud:${cloudUser ? cloudFp : 'n/a'}.${rollbackMessage}`, { type: 'warning', duration: 7000 });
   } else {
     showNotification(`FP diagnostics OK. All sources report ${localSessionFp} FP.`, { type: 'success' });
   }

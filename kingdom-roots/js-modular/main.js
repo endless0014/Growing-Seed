@@ -209,6 +209,7 @@ async function initializeApp() {
   if (currentUser) {
     currentUser = JSON.parse(currentUser);
     hydrateCurrentUserFromStoredUsers();
+    reconcileCurrentUserWithStoredState();
     const users = getStoredUsersSafe();
     const currentIndex = findUserIndexForSession(users, currentUser);
     if (currentIndex !== -1) {
@@ -249,9 +250,11 @@ window.addEventListener('click', function(event) {
   const uploadModal = document.getElementById('uploadModal');
   const dailyLoginModal = document.getElementById('dailyLoginModal');
   const leaderboardModal = document.getElementById('leaderboardModal');
+  const beginnerWalkthroughModal = document.getElementById('beginnerWalkthroughModal');
   if (uploadModal && event.target === uploadModal) closeUploadModal();
   if (dailyLoginModal && event.target === dailyLoginModal) closeDailyLoginModal();
   if (leaderboardModal && event.target === leaderboardModal) closeLeaderboardModal();
+  if (beginnerWalkthroughModal && event.target === beginnerWalkthroughModal) closeBeginnerWalkthroughModal(true);
 });
 
 window.addEventListener('storage', function(event) {

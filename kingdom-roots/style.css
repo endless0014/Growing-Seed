@@ -1,4 +1,18 @@
 /* Tree Stage Image Animations */
+:root {
+  --surface: #ffffff;
+  --surface-soft: #f7fcf7;
+  --surface-mute: #eff6ef;
+  --border-soft: rgba(94, 132, 112, 0.14);
+  --text-primary: #1d2a22;
+  --text-secondary: #4f6557;
+  --text-muted: #6b7a6d;
+  --accent: #3a9e4f;
+  --accent-soft: #ecf8ed;
+  --accent-strong: #2b7441;
+  --accent-alt: #5e86b8;
+  --danger: #c63e38;
+}
 /* Center the tree stage display */
 #treeStageImages {
   position: relative;
@@ -385,14 +399,15 @@
   }
 }
 body {
-  font-family: 'Segoe UI', sans-serif;
+  font-family: 'Segoe UI', 'Trebuchet MS', 'Gill Sans', sans-serif;
   background:
-    radial-gradient(circle at top, rgba(255,255,255,0.9), transparent 40%),
+    radial-gradient(circle at top, rgba(255,255,255,0.92), transparent 42%),
     linear-gradient(135deg, #eef7ff 0%, #e7f5eb 45%, #dfeef4 100%);
   text-align: center;
   padding: 0;
   margin: 0;
   color: #203128;
+  min-height: 100vh;
 }
 
 .app-notifications {
@@ -581,6 +596,21 @@ body {
   }
 }
 
+@keyframes floatUp {
+  0% {
+    transform: translateY(0);
+    opacity: 0.96;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.96;
+  }
+}
+
 .auth-card {
   background: linear-gradient(145deg, rgba(255,255,255,0.98), rgba(244,250,247,0.96));
   border-radius: 24px;
@@ -590,6 +620,7 @@ body {
   width: 100%;
   border: 1px solid rgba(118, 154, 129, 0.16);
   backdrop-filter: blur(12px);
+  animation: floatUp 0.9s ease-in-out;
 }
 
 .gs-brand-title {
@@ -649,17 +680,17 @@ body {
 
 .auth-btn {
   width: 100%;
-  padding: 0.8rem 0.9rem;
+  padding: 0.85rem 0.95rem;
   background: linear-gradient(135deg, #3fa96b 0%, #2d8552 100%);
   color: white;
   border: none;
-  border-radius: 12px;
+  border-radius: 14px;
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   margin-top: 0.5rem;
-  box-shadow: 0 10px 20px rgba(56, 128, 77, 0.2);
+  box-shadow: 0 10px 22px rgba(56, 128, 77, 0.24);
 }
 
 /* Tree Stage Animations */
@@ -680,18 +711,19 @@ body {
 }
 
 .auth-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 15px rgba(102, 126, 234, 0.3);
+  transform: translateY(-3px);
+  box-shadow: 0 14px 28px rgba(56, 128, 77, 0.28);
 }
 
 .auth-btn.secondary {
-  background: #ddd;
-  color: #333;
+  background: #f1f3f1;
+  color: var(--text-primary);
   margin-left: 0.5rem;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
 }
 
 .auth-btn.secondary:hover {
-  background: #bbb;
+  background: #e3e7e3;
 }
 
 .auth-divider {
@@ -1433,17 +1465,18 @@ body.admin-view .container {
 .hero-panel {
   margin-bottom: 0.9rem;
   padding: 1rem 1.05rem;
-  background: linear-gradient(135deg, rgba(213, 239, 221, 0.8), rgba(242, 250, 245, 0.95));
-  border-radius: 18px;
-  border: 1px solid rgba(99, 141, 109, 0.15);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+  background: linear-gradient(135deg, rgba(236, 248, 237, 0.98), rgba(247, 252, 247, 0.98));
+  border-radius: 20px;
+  border: 1px solid rgba(118, 160, 123, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
 }
 
 .hero-tagline {
   margin: 0.2rem 0 0;
-  color: #5a6f63;
-  font-size: 0.95rem;
-  line-height: 1.45;
+  color: var(--text-secondary);
+  font-size: 0.98rem;
+  line-height: 1.5;
+  font-weight: 500;
 }
 
 .gs-stats-row {
@@ -1456,38 +1489,38 @@ body.admin-view .container {
 
 .gs-pill {
   border-radius: 999px;
-  padding: 0.5rem 0.8rem;
-  font-size: 0.8rem;
-  border: 1px solid rgba(255,255,255,0.4);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.82rem;
+  border: 1px solid rgba(255,255,255,0.45);
   min-width: auto;
   flex: 0 0 auto;
-  box-shadow: 0 8px 18px rgba(36, 70, 49, 0.09);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 10px 24px rgba(41, 72, 44, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .gs-pill:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(36, 70, 49, 0.14);
+  box-shadow: 0 12px 26px rgba(41, 72, 44, 0.12);
 }
 
 .gs-pill.fp {
-  background: linear-gradient(135deg, #46b86b 0%, #2e8f57 100%);
+  background: linear-gradient(135deg, #4fb86c 0%, #2f8b57 100%);
   color: #fff;
 }
 
 .gs-pill.streak {
-  background: linear-gradient(135deg, #fff3db 0%, #ffe1b0 100%);
-  color: #7a4b12;
+  background: linear-gradient(135deg, #fff8e3 0%, #f6e2b0 100%);
+  color: #7c5a29;
 }
 
 .gs-pill.leaderboard {
-  background: linear-gradient(135deg, #eef7ff 0%, #dcecff 100%);
-  color: #2554a8;
+  background: linear-gradient(135deg, #eef7ff 0%, #d7e7ff 100%);
+  color: #2a5a94;
 }
 
 .gs-pill.profile-access {
-  background: linear-gradient(135deg, #f4f7fb 0%, #e8eef3 100%);
-  color: #355061;
+  background: linear-gradient(135deg, #f3f7f8 0%, #e8eef3 100%);
+  color: #3a505e;
 }
 
 .main-title,
@@ -1526,13 +1559,16 @@ body.admin-view .container {
 .profile-btn,
 .logout-btn {
   background: #ffffff;
-  border-color: #c9d7cc;
-  color: #2b4738;
+  border-color: #dfe7df;
+  color: var(--text-primary);
+  padding: 0.55rem 1rem;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(46, 74, 52, 0.08);
 }
 
 .profile-btn:hover,
 .logout-btn:hover {
-  background: #f4faf6;
+  background: #f7fbf7;
 }
 
 #userMainContainer {
@@ -1550,13 +1586,13 @@ body.admin-view .container {
 
 .gs-card {
   background: linear-gradient(180deg, #ffffff 0%, #f7fcf7 100%);
-  border-radius: 20px;
-  box-shadow: 0 14px 32px rgba(30, 55, 41, 0.08);
-  padding: 1rem;
-  margin-bottom: 0.95rem;
+  border-radius: 24px;
+  box-shadow: 0 16px 38px rgba(30, 55, 41, 0.12);
+  padding: 1.1rem;
+  margin-bottom: 1rem;
   text-align: left;
-  border: 1px solid rgba(94, 132, 112, 0.12);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid rgba(94, 132, 112, 0.14);
+  transition: transform 0.24s ease, box-shadow 0.24s ease;
   position: relative;
   overflow: hidden;
 }
@@ -1572,8 +1608,8 @@ body.admin-view .container {
 }
 
 .gs-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 36px rgba(30, 55, 41, 0.12);
+  transform: translateY(-3px);
+  box-shadow: 0 18px 42px rgba(30, 55, 41, 0.16);
 }
 
 .gs-card-head {
@@ -1585,42 +1621,47 @@ body.admin-view .container {
 
 .gs-card-head h3 {
   margin: 0;
-  font-size: 1.15rem;
-  color: #1d2a22;
+  font-size: 1.16rem;
+  color: var(--text-primary);
   font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .earn-pill {
   border-radius: 999px;
-  background: #7fce5f;
+  background: linear-gradient(135deg, var(--accent), #58b35f);
   color: #fff;
-  font-size: 0.85rem;
+  font-size: 0.87rem;
   font-weight: 700;
-  padding: 0.3rem 0.7rem;
+  padding: 0.35rem 0.75rem;
+  box-shadow: 0 8px 20px rgba(58, 125, 75, 0.18);
 }
 
 .daily-reward-text {
   margin: 0.55rem 0 0.2rem;
-  color: #4e5a53;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .daily-reward-streak {
   margin: 0;
-  color: #2e7d32;
+  color: var(--accent-strong);
   font-weight: 700;
 }
 
 .daily-login-btn {
   margin: 0;
-  background: linear-gradient(135deg, #3aa65d 0%, #2d8d4c 100%);
-  box-shadow: 0 10px 22px rgba(60, 142, 92, 0.24);
+  background: linear-gradient(135deg, #4dbd72 0%, #2f8550 100%);
+  box-shadow: 0 12px 26px rgba(57, 131, 84, 0.22);
+  color: #fff;
 }
 
 .upgrade-btn {
   margin: 0;
   border-radius: 999px;
-  background: linear-gradient(135deg, #2fad52 0%, #1f7f3f 100%);
-  box-shadow: 0 10px 22px rgba(63, 141, 90, 0.24);
+  background: linear-gradient(135deg, #3ea062 0%, #256d42 100%);
+  box-shadow: 0 12px 28px rgba(46, 108, 64, 0.22);
+  color: #fff;
 }
 
 .seed-growth-card #tree {
@@ -1638,36 +1679,38 @@ body.admin-view .container {
 }
 
 .activities-card .task-action-btn {
-  background: linear-gradient(135deg, #fbfdfb 0%, #f1f7f2 100%);
-  color: #1f2823;
-  border-radius: 14px;
+  background: linear-gradient(135deg, #f6fbf6 0%, #eef6ed 100%);
+  color: var(--text-primary);
+  border-radius: 18px;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
   text-align: left;
-  padding: 0.8rem 0.95rem;
+  padding: 1rem 1.05rem;
   width: 100%;
   min-width: 0;
-  border: 1px solid rgba(87, 118, 97, 0.16);
-  box-shadow: 0 10px 20px rgba(30, 50, 38, 0.06);
+  border: 1px solid rgba(86, 122, 92, 0.18);
+  box-shadow: 0 12px 26px rgba(48, 76, 52, 0.08);
   position: relative;
   overflow: hidden;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
 }
 
 .activities-card .task-action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(30, 50, 38, 0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 18px 34px rgba(48, 76, 52, 0.12);
 }
 
 .activities-card .task-action-btn .task-title {
   font-weight: 700;
+  color: var(--text-primary);
 }
 
 .activities-card .task-action-btn::after {
   content: '›';
   font-size: 1.15rem;
-  color: #7b8a80;
+  color: rgba(73, 93, 73, 0.9);
   margin-left: 0.8rem;
 }
 
@@ -1684,14 +1727,14 @@ body.admin-view .container {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255,255,255,0.96);
+  background: rgba(255,255,255,0.98);
   border-top: 1px solid rgba(87, 118, 97, 0.16);
-  box-shadow: 0 -10px 24px rgba(21, 34, 28, 0.1);
+  box-shadow: 0 -12px 28px rgba(21, 34, 28, 0.12);
   display: none;
   justify-content: space-around;
-  padding: 0.45rem 0.2rem;
+  padding: 0.5rem 0.3rem;
   z-index: 1200;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
 }
 
 .bottom-nav-item {
@@ -1713,7 +1756,8 @@ body.admin-view .container {
 }
 
 .bottom-nav-item.active {
-  color: #3a9e4f;
+  color: var(--accent);
+  font-weight: 700;
   transform: translateY(-1px);
 }
 
@@ -1732,16 +1776,24 @@ body.admin-view .container {
 }
 
 .modal-content {
-  background-color: #ffffff;
+  background-color: var(--surface);
   padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  max-width: 500px;
-  width: 90%;
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(18, 35, 25, 0.14);
+  max-width: 520px;
+  width: 92%;
   max-height: 90vh;
   overflow-y: auto;
-  animation: slideIn 0.3s ease;
+  animation: slideIn 0.35s ease;
   position: relative;
+}
+
+.modal-content h2,
+.modal-content h3,
+.modal-content h4 {
+  color: var(--text-primary);
+  font-weight: 800;
+  margin-top: 0;
 }
 
 /* Profile Modal Styles */
@@ -1758,31 +1810,34 @@ body.admin-view .container {
 .profile-info p {
   margin: 0.8rem 0;
   text-align: left;
-  color: #555;
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
 .profile-info strong {
-  color: #333;
+  color: var(--text-primary);
+  font-weight: 700;
 }
 
 .settings-btn {
   display: block;
   width: 100%;
-  padding: 0.8rem;
-  margin: 0.5rem 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  padding: 0.95rem;
+  margin: 0.55rem 0;
+  background: linear-gradient(135deg, var(--accent), #2d7d47);
+  color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 16px;
   cursor: pointer;
-  font-size: 0.95rem;
-  font-weight: 600;
-  transition: all 0.3s;
+  font-size: 1rem;
+  font-weight: 700;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  box-shadow: 0 12px 28px rgba(44, 87, 49, 0.2);
 }
 
 .settings-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(102, 126, 234, 0.3);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px rgba(44, 87, 49, 0.22);
 }
 
 .settings-btn:disabled {
@@ -2160,13 +2215,16 @@ body.admin-view .container {
 }
 
 @keyframes slideIn {
-  from {
-    transform: translateY(-50px);
+  0% {
     opacity: 0;
+    transform: translateY(18px) scale(0.97);
   }
-  to {
-    transform: translateY(0);
+  60% {
+    transform: translateY(-4px) scale(1.01);
+  }
+  100% {
     opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -2174,9 +2232,10 @@ body.admin-view .container {
   display: block;
   margin: 1rem auto;
   padding: 0.5rem;
-  border: 2px solid #ddd;
-  border-radius: 8px;
+  border: 2px solid rgba(134, 153, 126, 0.16);
+  border-radius: 12px;
   cursor: pointer;
+  background: #fff;
 }
 
 .modal-buttons {
@@ -2184,51 +2243,58 @@ body.admin-view .container {
   display: flex;
   gap: 1rem;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .modal-buttons button {
-  padding: 0.6rem 1.5rem;
+  padding: 0.75rem 1.2rem;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--button-radius);
   cursor: pointer;
   font-size: 1rem;
-}
-
-.modal-buttons button:not(.cancel-btn) {
-  background-color: #6abf69;
-  color: white;
   flex: 1;
+  min-width: 140px;
+  transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--button-shadow);
+  background-color: var(--button-bg);
+  color: var(--button-text);
 }
 
 .modal-buttons button:not(.cancel-btn):hover {
-  background-color: #4cae4c;
+  background-color: var(--button-bg-hover);
+  transform: translateY(-2px);
 }
 
 .cancel-btn {
-  background-color: #ddd;
-  color: #333;
+  background-color: #edf2ec;
+  color: var(--text-primary);
   flex: 1;
+  border: 1px solid rgba(86, 122, 92, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
 }
 
 .cancel-btn:hover {
-  background-color: #bbb;
+  background-color: #e2e8e1;
 }
 
 .upgrade-btn {
   display: block;
   margin: 1rem auto;
-  padding: 0.7rem 1.5rem;
+  padding: 0.85rem 1.5rem;
   font-size: 0.95rem;
   border: none;
-  border-radius: 8px;
-  background-color: #4CAF50;
+  border-radius: var(--button-radius);
+  background: linear-gradient(135deg, var(--accent), #2f7d45);
   color: white;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 700;
+  box-shadow: var(--button-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 .upgrade-btn:hover {
-  background-color: #45a049;
+  background: linear-gradient(135deg, #42965b, #256d42);
+  transform: translateY(-2px);
 }
 
 #tree {
@@ -2291,29 +2357,40 @@ body.admin-view .container {
 .task-action-btn {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 0.35rem;
-  background-color: #d32f2f;
+  border-radius: 18px;
+  padding: 0.95rem 1rem;
+  background: linear-gradient(135deg, #f6fbf6 0%, #eef6ed 100%);
+  color: var(--text-primary);
+  border: 1px solid rgba(86, 122, 92, 0.18);
+  box-shadow: 0 12px 26px rgba(48, 76, 52, 0.08);
+  width: 100%;
+  min-width: 0;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
 }
 
 .task-title {
   font-weight: 700;
+  color: var(--text-primary);
 }
 
 .task-action-btn.task-done {
-  background-color: #2e7d32;
+  background-color: #e8f6ec;
+  color: var(--text-primary);
 }
 
 .task-action-btn.task-not-done {
-  background-color: #d32f2f;
+  background-color: #f7f7f7;
+  color: var(--text-primary);
 }
 
 .task-action-btn.task-not-done:hover {
-  background-color: #b71c1c;
+  background-color: #ececec;
 }
 
 .task-action-btn.task-done:hover {
-  background-color: #1b5e20;
+  background-color: #ddf1df;
 }
 
 .progress-container {
@@ -2362,32 +2439,42 @@ body.admin-view .container {
   margin: 0;
 }
 
+:root {
+  --button-bg: #4dbd72;
+  --button-bg-hover: #3c975a;
+  --button-text: #ffffff;
+  --button-radius: 16px;
+  --button-shadow: 0 12px 26px rgba(46, 86, 56, 0.16);
+}
+
 button {
-  padding: 0.6rem 1rem;
-  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
   border: none;
-  border-radius: 8px;
-  background-color: #6abf69;
-  color: white;
+  border-radius: var(--button-radius);
+  background-color: var(--button-bg);
+  color: var(--button-text);
   cursor: pointer;
   flex: 1;
   min-width: 150px;
-  transition: all 0.3s ease;
+  transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--button-shadow);
 }
 
 button:hover {
-  background-color: #4cae4c;
-  transform: scale(1.05);
+  background-color: var(--button-bg-hover);
+  transform: translateY(-2px);
 }
 
 #shareGospelBtn {
-  background-color: #FF6B35;
-  font-weight: bold;
+  background-color: #ff7a44;
+  font-weight: 700;
   animation: pulse 1.5s infinite;
+  box-shadow: 0 10px 28px rgba(255, 107, 53, 0.22);
 }
 
 #shareGospelBtn:hover {
-  background-color: #E55100;
+  background-color: #e5571f;
 }
 
 @keyframes pulse {

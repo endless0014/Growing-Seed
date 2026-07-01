@@ -418,9 +418,6 @@ function startCurrentUserCloudSync() {
         cloudFaithPoints: Math.floor(Number(cloudUser.faithPoints ?? 0) || 0)
       });
       if (rollbackMetrics.hasRollback) {
-        // Suppress the notification if a local save happened very recently (< 5 s)
-        // to avoid false-alarm warnings caused by stale cloud snapshots racing
-        // with the pending cloud write from saveUserData.
         const lastPersist = Number(localStorage.getItem('lastPersistAt') || 0);
         const msSinceLastPersist = Date.now() - lastPersist;
         if (msSinceLastPersist > 5000) {
@@ -430,7 +427,16 @@ function startCurrentUserCloudSync() {
       return;
     }
 
-    if (!haveCloudUserStateDifferences(currentUser, cloudUserToApply)) return;
+    if (!haveCloudUserStateDifferences(currentUser, cloudUserToApply)) {
+      // Ensure stored currentUser has the latest FP if our local session changed after last cloud sync.
+      const sessionFp = Math.floor(Number(faithPoints ?? currentUser.faithPoints ?? 0) || 0);
+      const storedFp = Math.floor(Number(currentUser.faithPoints ?? 0) || 0);
+      if (sessionFp !== storedFp) {
+        currentUser.faithPoints = sessionFp;
+        persistAllUserState(getStoredUsersSafe(), currentUser);
+      }
+      return;
+    }
     debugFpLog('cloud-snapshot-applied', {
       localUpdatedAt, cloudUpdatedAt,
       previousFaithPoints: Math.floor(Number(currentUser.faithPoints ?? faithPoints ?? 0) || 0),
