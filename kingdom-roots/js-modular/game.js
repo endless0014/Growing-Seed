@@ -134,6 +134,11 @@ const MAX_NURTURE_ACTIONS_PER_DAY = 3;
 const CHALLENGE_TRIGGER_DAYS = { min: 2, max: 3 };
 const STAGE_PROGRESSION_REQUIREMENTS = { min: 35, max: 50 }; // Progress points to advance stage (active: ~30 days, passive: ~60+ days)
 
+function addSeedProgressToTree(pointsToAdd = 1) {
+  if (!Number.isFinite(pointsToAdd) || pointsToAdd <= 0) return;
+  applyTreeProgress(Math.round(pointsToAdd), { addFaithPoints: false });
+}
+
 function resetGameState() {
   faithPoints = 0;
   treeProgress = 0;
@@ -331,6 +336,7 @@ function performNurtureAction(actionType) {
   // Track action
   activeSeed.nurtureActionsToday += 1;
   activeSeed.nurtureProgress += (action.fp * 5); // Each FP value = 5 progress units
+  addSeedProgressToTree(action.fp * 2);
   
   // Check for stage progression
   checkAndProgressSeed();
@@ -352,6 +358,7 @@ function checkAndProgressSeed() {
     activeSeed.stage += 1;
     activeSeed.nurtureProgress = 0;
     const newStageInfo = getSeedStageInfo(activeSeed.stage);
+    addSeedProgressToTree(Math.max(3, activeSeed.stage + 1));
     
     // Trigger stage progression animation
     triggerSeedStageAnimation();
