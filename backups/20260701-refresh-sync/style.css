@@ -364,9 +364,6 @@
   z-index: 1;
   pointer-events: auto;
   transform: scale(1.04) translateY(0);
-}
-
-.tree-stage-img.active.tree-grow-in {
   animation: treeGrowIn 0.7s cubic-bezier(0.4,0,0.2,1);
 }
 
@@ -1070,21 +1067,6 @@ body.admin-view .container {
 
 .admin-bar-fill.task {
   background: linear-gradient(90deg, #2ea07d 0%, #56c09e 100%);
-}
-
-.admin-trend-bar-peak {
-  background: linear-gradient(180deg, #ffd700 0%, #ffed4e 100%) !important;
-  box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
-}
-
-.admin-trend-bar-peak .admin-trend-count {
-  color: #b8860b;
-  font-weight: 600;
-}
-
-.admin-bar-fill-peak {
-  background: linear-gradient(90deg, #ffd700 0%, #ffed4e 100%) !important;
-  box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
 }
 
 .admin-bar-value {
@@ -1800,48 +1782,6 @@ body.admin-view .container {
   box-shadow: 0 6px 12px rgba(231, 76, 60, 0.3);
 }
 
-.edit-name-btn {
-  display: inline-block;
-  background: none;
-  border: none;
-  color: #667eea;
-  cursor: pointer;
-  font-size: 0.9rem;
-  padding: 0;
-  margin-left: 0.5rem;
-  transition: color 0.2s;
-}
-
-.edit-name-btn:hover {
-  color: #764ba2;
-  text-decoration: underline;
-}
-
-#editNameForm {
-  background: #f9f9f9;
-  padding: 1rem;
-  border-radius: 8px;
-  border-left: 4px solid #667eea;
-}
-
-#editNameForm .form-group {
-  margin-bottom: 0.8rem;
-}
-
-#editNameForm input {
-  width: 100%;
-  padding: 0.8rem;
-  border: 2px solid #ddd;
-  border-radius: 6px;
-  font-size: 1rem;
-  transition: border-color 0.2s;
-}
-
-#editNameForm input:focus {
-  outline: none;
-  border-color: #667eea;
-}
-
 .daily-login-btn {
   display: inline-block;
   margin-bottom: 0.6rem;
@@ -2531,10 +2471,6 @@ button:hover {
 
   .bottom-nav {
     display: flex;
-  }
-
-  .bottom-nav-item:nth-child(3) {
-    display: none;
   }
 
   .view-mode-indicator {

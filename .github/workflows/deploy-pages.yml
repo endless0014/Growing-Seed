@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - codespace-curly-computing-machine-wr66rv9vg959fg595
   workflow_dispatch:
 
 permissions:

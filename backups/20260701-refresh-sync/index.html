@@ -153,7 +153,7 @@
     <div class="gs-stats-row">
       <div class="gs-pill fp">⭐ <span id="fpPillValue">0</span> FP</div>
       <div class="gs-pill streak">🔥 <span id="streakPillValue">Day 1</span></div>
-      <button type="button" class="gs-pill leaderboard" onclick="openLeaderboardModal('leaderboard')">🏆 Leaderboard</button>
+      <button type="button" class="gs-pill leaderboard" onclick="showNotification('Leaderboard coming soon.', { type: 'info' })">🏆 Leaderboard</button>
       <button id="profileAccessPill" type="button" class="gs-pill profile-access" onclick="openProfileModal()">👤 Profile</button>
     </div>
 
@@ -414,13 +414,11 @@
       </div>
 
       <div class="admin-trend-row" style="margin-top: 12px; text-align: left;">
-        <h4 style="margin: 0 0 8px 0;">Daily Sign-ins (7d)</h4>
-        <div id="adminDailyLoginTrendContainer" style="width: 100%;">
-          <div id="adminDailyLoginTrend" style="display: flex; gap: 8px; align-items: flex-end; margin-top: 10px;"></div>
-        </div>
+        <h4>Daily Sign-ins (7d)</h4>
+        <div id="adminDailyLoginTrend" style="display: flex; gap: 8px; align-items: flex-end;"></div>
       </div>
       <div class="admin-task-summary" style="margin-top: 12px; text-align: left;">
-        <h4 style="margin: 0 0 8px 0;">Task Summary</h4>
+        <h4>Task Summary</h4>
         <div id="adminTaskStatusSummary"></div>
       </div>
 
@@ -476,16 +474,7 @@
       <h2>👤 User Profile</h2>
       <div class="profile-section">
         <div class="profile-info">
-          <p><strong>Name:</strong> <span id="profileName"></span> <button id="editNameBtn" onclick="startEditName()" class="edit-name-btn" style="display: none;">✏️ Edit</button></p>
-          <div id="editNameForm" style="display: none; margin-top: 10px;">
-            <div class="form-group">
-              <input type="text" id="editNameInput" placeholder="Enter new name" maxlength="100">
-            </div>
-            <div style="display: flex; gap: 10px;">
-              <button type="button" onclick="saveEditName()" class="auth-btn" style="flex: 1;">Save</button>
-              <button type="button" onclick="cancelEditName()" class="auth-btn" style="flex: 1; background-color: #999;">Cancel</button>
-            </div>
-          </div>
+          <p><strong>Name:</strong> <span id="profileName"></span></p>
           <p><strong>Email:</strong> <span id="profileEmail"></span></p>
           <p><strong>Joined:</strong> <span id="profileJoined"></span></p>
         </div>
