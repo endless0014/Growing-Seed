@@ -931,9 +931,7 @@ function adminChangeUserRole(userId, nextRole) {
   users[userIndex].roleUpdatedAt = Date.now();
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
-  // Save to localStorage directly — use a single upsertUserInCloud call below
-  // to avoid a duplicate bulk cloud sync from setStoredUsers racing with it.
-  localStorage.setItem('users', JSON.stringify(users));
+  setStoredUsers(users);
   try { const entry = { ts: Date.now(), action: 'changeUserRole', userId: users[userIndex].id, role: users[userIndex].role }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);
@@ -1174,9 +1172,7 @@ function adminSetTaskCompletion(userId, taskKey, isCompleted) {
   users[userIndex].taskCompletions = currentCompletions;
   users[userIndex].updatedAt = Date.now();
   users[userIndex].lastActiveAt = Date.now();
-  // Save to localStorage directly — use a single upsertUserInCloud call below
-  // to avoid a duplicate bulk cloud sync from setStoredUsers racing with it.
-  localStorage.setItem('users', JSON.stringify(users));
+  setStoredUsers(users);
   try { const entry = { ts: Date.now(), action: 'setTaskCompletion', userId: users[userIndex].id, taskKey, isCompleted }; try { const arr = JSON.parse(localStorage.getItem('__debug_admin_actions')||'[]'); arr.push(entry); localStorage.setItem('__debug_admin_actions', JSON.stringify(arr.slice(-200))); } catch(_) {} console.log('ADMIN_ACTION_MARKER::', JSON.stringify(entry)); } catch(e) {}
   upsertUserInCloud(users[userIndex]);
   syncCurrentSessionIfNeeded(users[userIndex]);

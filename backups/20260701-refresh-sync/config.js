@@ -24,9 +24,7 @@ const FIREBASE_CONFIG = {
 const CLOUD_USERS_COLLECTION = 'users';
 
 const EMAIL_CORRECTIONS = {
-  'nicolenavarrosa27@gmailc.com': 'nicolenavarrosa27@gmail.com',
-  'endlesssh0014@gmail.com': 'endless0014@gmail.com',
-  'endlessssh0014@gmail.com': 'endless0014@gmail.com'
+  'nicolenavarrosa27@gmailc.com': 'nicolenavarrosa27@gmail.com'
 };
 
 const CLOUD_MIGRATION_KEY = 'growingSeedCloudMigrationDoneV1';

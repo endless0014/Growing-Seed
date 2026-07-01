@@ -190,12 +190,7 @@ async function initializeApp() {
   if (cloudInit) initializeFirebaseAuth();
   await applyEmailCorrections();
   await migrateLocalUsersToCloudOnce();
-  // Only sync from cloud when a Firebase auth session exists.
-  // Without auth, Firestore rules may reject reads and spam permission errors.
-  const hasFirebaseSession = isFirebaseAuthAvailable() && !!firebase.auth().currentUser;
-  if (hasFirebaseSession) {
-    await syncUsersFromCloudToLocal();
-  }
+  await syncUsersFromCloudToLocal();
   migrateLoginStreaksFromLegacyOnce();
   enforceAdminRoleInStorage();
 
@@ -215,9 +210,7 @@ async function initializeApp() {
       updateConsecutiveLoginStats(users[currentIndex]);
       users[currentIndex].lastActiveAt = Date.now();
       users[currentIndex].updatedAt = Date.now();
-      // Write to localStorage only — avoid setStoredUsers which fires
-      // syncUsersToCloud for ALL users on every page load.
-      localStorage.setItem('users', JSON.stringify(users));
+      setStoredUsers(users);
       currentUser = { ...currentUser, ...users[currentIndex] };
       delete currentUser.password;
       try { persistAllUserState(getStoredUsersSafe(), currentUser); } catch (e) {

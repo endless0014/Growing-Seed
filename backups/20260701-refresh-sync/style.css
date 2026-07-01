@@ -364,9 +364,6 @@
   z-index: 1;
   pointer-events: auto;
   transform: scale(1.04) translateY(0);
-}
-
-.tree-stage-img.active.tree-grow-in {
   animation: treeGrowIn 0.7s cubic-bezier(0.4,0,0.2,1);
 }
 
