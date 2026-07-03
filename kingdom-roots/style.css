@@ -2439,6 +2439,149 @@ body.admin-view .container {
   margin: 0;
 }
 
+.gameplay-copy {
+  margin: 0.4rem 0 1rem;
+  color: #42583b;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.fight-button-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.fight-action-btn {
+  background: linear-gradient(135deg, #edf8ef 0%, #e0f1dd 100%);
+  border: 1px solid rgba(73, 136, 78, 0.18);
+  border-radius: 18px;
+  color: var(--text-primary);
+  cursor: pointer;
+  min-height: 76px;
+  padding: 0.95rem 0.9rem;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.24s ease, box-shadow 0.24s ease, background 0.24s ease;
+}
+
+.fight-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(44, 96, 58, 0.16);
+  background: linear-gradient(135deg, #e8f5ea 0%, #d1e8cf 100%);
+}
+
+.fight-action-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.22);
+}
+
+.fight-button-label {
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.fight-button-info {
+  display: block;
+  margin-top: 0.45rem;
+  color: #2f6d35;
+  font-size: 0.82rem;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.18s ease, max-height 0.18s ease, transform 0.18s ease;
+  transform: translateY(6px);
+}
+
+.fight-action-btn:hover .fight-button-info,
+.fight-action-btn:focus .fight-button-info {
+  opacity: 1;
+  max-height: 2rem;
+  transform: translateY(0);
+}
+
+.fight-popup-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 25, 12, 0.56);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+  z-index: 12000;
+}
+
+.fight-popup-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.fight-popup-card {
+  background: #fff;
+  border-radius: 22px;
+  padding: 1.4rem 1.25rem;
+  max-width: 360px;
+  width: min(92%, 360px);
+  box-shadow: 0 28px 54px rgba(6, 32, 12, 0.2);
+  transform: translateY(14px);
+  transition: transform 0.25s ease;
+}
+
+.fight-popup-overlay.visible .fight-popup-card {
+  transform: translateY(0);
+}
+
+.fight-action-btn.action-pressed {
+  transform: scale(0.96);
+}
+
+.fight-button-grid.challenge-response-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fight-popup-detail {
+  margin: 0.75rem 0 1.25rem;
+  color: #344a34;
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.fight-popup-card .auth-btn {
+  width: 100%;
+  padding: 0.85rem;
+  border-radius: 14px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3d9441 0%, #2f7435 100%);
+}
+
+.progress-container.growth-success {
+  animation: progressGrowShake 0.72s ease;
+}
+
+.progress-container.growth-fail {
+  animation: progressWilt 0.72s ease;
+}
+
+@keyframes progressGrowShake {
+  0%, 100% { transform: scale(1); }
+  30% { transform: scale(1.02); }
+  60% { transform: scale(0.99); }
+}
+
+@keyframes progressWilt {
+  0%, 100% { transform: scale(1); }
+  40% { transform: translateY(3px) scale(0.98); }
+}
+
 :root {
   --button-bg: #4dbd72;
   --button-bg-hover: #3c975a;

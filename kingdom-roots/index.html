@@ -318,6 +318,50 @@
       </div>
       <p id="progressText" class="progress-text">📈 0/50 points to Germination</p>
     </div>
+
+    <div class="gs-card gameplay-card">
+      <div class="gs-card-head">
+        <h3>Challenge Actions</h3>
+        <span class="earn-pill">Fight, Endure, Give Up</span>
+      </div>
+      <p class="gameplay-copy">When a challenge appears, choose how to respond. Hover for cost and effect.</p>
+      <div class="fight-button-grid challenge-response-grid">
+        <button id="fightBtn" class="fight-action-btn" type="button" onclick="handleActionButton('fightBtn')" data-cost="10" data-success-rate="0.7" data-reward="35" data-fail-penalty="12" aria-label="Fight action. Cost 10 FP. Success 70%">
+          <span class="fight-button-label">Fight</span>
+          <span class="fight-button-info">Cost: 10 FP · Success: 70%</span>
+        </button>
+        <button id="endureBtn" class="fight-action-btn" type="button" onclick="handleActionButton('endureBtn')" data-cost="5" data-success-rate="1.0" data-reward="15" data-fail-penalty="0" aria-label="Endure action. Cost 5 FP. Success 100%">
+          <span class="fight-button-label">Endure</span>
+          <span class="fight-button-info">Cost: 5 FP · Guaranteed</span>
+        </button>
+        <button id="giveUpBtn" class="fight-action-btn" type="button" onclick="handleActionButton('giveUpBtn')" data-cost="0" data-success-rate="1.0" data-reward="-60" data-fail-penalty="0" aria-label="Give up action. No cost. Regression -60 points">
+          <span class="fight-button-label">Give Up</span>
+          <span class="fight-button-info">Cost: 0 FP · Regression -60</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="gs-card gameplay-card">
+      <div class="gs-card-head">
+        <h3>Daily Tasks</h3>
+        <span class="earn-pill">Water, Protect, Fertilize</span>
+      </div>
+      <p class="gameplay-copy">Use these daily nurture actions to help the seed grow.</p>
+      <div class="fight-button-grid nurture-task-grid">
+        <button id="waterBtn" class="fight-action-btn" type="button" onclick="handleActionButton('waterBtn')" data-cost="5" data-success-rate="1.0" data-reward="20" aria-label="Water action. Cost 5 FP. Growth +20">
+          <span class="fight-button-label">Water</span>
+          <span class="fight-button-info">Cost: 5 FP · Growth +20</span>
+        </button>
+        <button id="protectBtn" class="fight-action-btn" type="button" onclick="handleActionButton('protectBtn')" data-cost="10" data-success-rate="1.0" data-reward="30" aria-label="Protect action. Cost 10 FP. Growth +30">
+          <span class="fight-button-label">Protect</span>
+          <span class="fight-button-info">Cost: 10 FP · Growth +30</span>
+        </button>
+        <button id="fertilizeBtn" class="fight-action-btn" type="button" onclick="handleActionButton('fertilizeBtn')" data-cost="15" data-success-rate="1.0" data-reward="48" aria-label="Fertilize action. Cost 15 FP. Growth +48">
+          <span class="fight-button-label">Fertilize</span>
+          <span class="fight-button-info">Cost: 15 FP · Growth +48</span>
+        </button>
+      </div>
+    </div>
     </div>
 
     <div id="faithActivitiesSection" class="gs-card activities-card">
@@ -579,6 +623,14 @@
         <button onclick="closeUpgradeModal()" class="cancel-btn">Cancel</button>
       </div>
       <p id="insufficientFpMessage" style="color: red; margin-top: 1rem; display: none;">Insufficient FP for upgrade</p>
+    </div>
+  </div>
+
+  <div id="fightPopupOverlay" class="fight-popup-overlay" aria-hidden="true" onclick="hideFightPopup()">
+    <div class="fight-popup-card" role="dialog" aria-modal="true" aria-labelledby="fightPopupTitle" onclick="event.stopPropagation()">
+      <h3 id="fightPopupTitle">Fight!</h3>
+      <p id="fightPopupDetail" class="fight-popup-detail">Battle outcome will appear here.</p>
+      <button type="button" class="auth-btn" onclick="hideFightPopup()">Close</button>
     </div>
   </div>
 

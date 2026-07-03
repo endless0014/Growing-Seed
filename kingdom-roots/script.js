@@ -3162,6 +3162,95 @@ function animateFruitBurst(fruitElement) {
   });
 }
 
+const ACTION_BUTTONS = {
+  fightBtn: { name: 'Fight', cost: 10, successRate: 0.7, reward: 35, failPenalty: 12 },
+  endureBtn: { name: 'Endure', cost: 5, successRate: 1.0, reward: 15, failPenalty: 0 },
+  giveUpBtn: { name: 'Give up', cost: 0, successRate: 1.0, reward: -60, failPenalty: 0 },
+  waterBtn: { name: 'Water', cost: 5, successRate: 1.0, reward: 20, failPenalty: 0 },
+  protectBtn: { name: 'Protect', cost: 10, successRate: 1.0, reward: 30, failPenalty: 0 },
+  fertilizeBtn: { name: 'Fertilize', cost: 15, successRate: 1.0, reward: 48, failPenalty: 0 }
+};
+
+function handleActionButton(buttonId) {
+  const button = document.getElementById(buttonId);
+  if (!button) return;
+
+  const actionConfig = ACTION_BUTTONS[buttonId] || {};
+  const name = actionConfig.name || button.dataset.action || 'Action';
+  const cost = Number(button.dataset.cost ?? actionConfig.cost ?? 0);
+  const successRate = Number(button.dataset.successRate ?? actionConfig.successRate ?? 1.0);
+  const reward = Number(button.dataset.reward ?? actionConfig.reward ?? 0);
+  const failPenalty = Number(button.dataset.failPenalty ?? actionConfig.failPenalty ?? 0);
+
+  if (faithPoints < cost) {
+    showFightPopup('Not enough Faith Points. Earn more before fighting.', false);
+    return;
+  }
+
+  button.classList.add('action-pressed');
+  window.setTimeout(() => button.classList.remove('action-pressed'), 220);
+  faithPoints = Math.max(0, faithPoints - cost);
+
+  const isGiveUp = name === 'Give up';
+  const isSuccess = isGiveUp ? true : Math.random() < successRate;
+  let message = '';
+  let success = true;
+
+  if (isGiveUp) {
+    treeProgress = Math.max(0, treeProgress + reward);
+    message = `😔 ${name} selected. Progress regressed ${Math.abs(reward)} points.`;
+    success = false;
+  } else if (isSuccess) {
+    treeProgress = Math.max(0, treeProgress + reward);
+    message = `💥 ${name} success! +${reward} growth points.`;
+    success = true;
+  } else {
+    treeProgress = Math.max(0, treeProgress - failPenalty);
+    message = `😟 ${name} failed. -${failPenalty} growth points.`;
+    success = false;
+  }
+
+  showFightPopup(message, success);
+  animateProgressOutcome(success);
+  updateDisplay();
+  saveUserData();
+}
+
+function showFightPopup(message, success = true) {
+  const overlay = document.getElementById('fightPopupOverlay');
+  const detail = document.getElementById('fightPopupDetail');
+  if (!overlay || !detail) return;
+
+  detail.textContent = message;
+  overlay.classList.add('visible');
+  overlay.setAttribute('aria-hidden', 'false');
+
+  if (success) {
+    overlay.querySelector('.fight-popup-card')?.classList.add('fight-popup-success');
+    overlay.querySelector('.fight-popup-card')?.classList.remove('fight-popup-fail');
+  } else {
+    overlay.querySelector('.fight-popup-card')?.classList.add('fight-popup-fail');
+    overlay.querySelector('.fight-popup-card')?.classList.remove('fight-popup-success');
+  }
+}
+
+function hideFightPopup() {
+  const overlay = document.getElementById('fightPopupOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('visible');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+function animateProgressOutcome(success) {
+  const progressContainer = document.getElementById('progressDisplay');
+  if (!progressContainer) return;
+  progressContainer.classList.toggle('growth-success', success);
+  progressContainer.classList.toggle('growth-fail', !success);
+  window.setTimeout(() => {
+    progressContainer.classList.remove('growth-success', 'growth-fail');
+  }, 760);
+}
+
 function openUploadModal(action) {
   currentAction = action;
   const reward = actionRewards[action];
@@ -3173,26 +3262,28 @@ function openUploadModal(action) {
     actionNameElement.textContent = 'Selfie with the Pastor';
   } else {
     titlePrefixElement.textContent = 'Share Your';
-    actionNameElement.textContent = reward.name;
+    actionNameElement.textContent = reward ? reward.name : 'Activity';
   }
-  document.getElementById("photoInput").value = '';
-  document.getElementById("photoPreview").style.display = 'none';
-  const submitPhotoBtn = document.getElementById('submitPhotoBtn');
-  if (submitPhotoBtn) {
-    submitPhotoBtn.disabled = true;
-  }
-  const modal = document.getElementById("uploadModal");
-  modal.style.display = 'flex';
-}
 
-function closeUploadModal() {
-  const modal = document.getElementById("uploadModal");
-  modal.style.display = 'none';
+  const photoInput = document.getElementById("photoInput");
+  if (photoInput) {
+    photoInput.value = '';
+  }
+
+  const photoPreview = document.getElementById("photoPreview");
+  if (photoPreview) {
+    photoPreview.style.display = 'none';
+  }
+
   const submitPhotoBtn = document.getElementById('submitPhotoBtn');
   if (submitPhotoBtn) {
     submitPhotoBtn.disabled = true;
   }
-  currentAction = '';
+
+  const modal = document.getElementById("uploadModal");
+  if (modal) {
+    modal.style.display = 'flex';
+  }
 }
 
 function submitPhoto() {
